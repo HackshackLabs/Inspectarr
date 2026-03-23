@@ -44,12 +44,20 @@ class InventoryCache:
     def get_next_start(self, server_id: str, section_id: str) -> int:
         with sqlite3.connect(self.db_path) as conn:
             row = conn.execute(
-                "SELECT next_start FROM inventory_progress WHERE server_id = ? AND section_id = ?",
+                """
+                SELECT next_start, records_total, COALESCE(completed, 0)
+                FROM inventory_progress
+                WHERE server_id = ? AND section_id = ?
+                """,
                 (server_id, section_id),
             ).fetchone()
             if not row:
                 return 0
-            return max(int(row[0]), 0)
+            next_s, total, completed = int(row[0]), int(row[1] or 0), int(row[2] or 0)
+            # Legacy rows: completed sections saved next_start=0, which re-triggered full re-walks.
+            if completed and total > 0 and next_s == 0:
+                return total
+            return max(next_s, 0)
 
     def set_progress(self, server_id: str, section_id: str, next_start: int, records_total: int, completed: bool) -> None:
         with sqlite3.connect(self.db_path) as conn:

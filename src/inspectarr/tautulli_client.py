@@ -806,7 +806,9 @@ class TautulliClient:
                 next_start = start + len(page_rows)
                 completed = bool(records_total and next_start >= records_total) or len(page_rows) == 0
                 if completed:
-                    next_start = 0
+                    # Keep cursor at end of section. Storing 0 made the next pass restart at the
+                    # first page so the section never stayed "done" and index passes never finished.
+                    next_start = records_total if records_total > 0 else 0
                 if not completed:
                     overall_complete = False
 

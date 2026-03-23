@@ -23,6 +23,13 @@ class InventoryCacheTests(unittest.TestCase):
             self.assertEqual(1, len(shows))
             self.assertEqual("Show A", shows[0]["title"])
 
+    def test_completed_section_with_legacy_zero_cursor_uses_records_total(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            db_path = str(Path(tmp_dir) / "inventory.sqlite")
+            cache = InventoryCache(db_path)
+            cache.set_progress("s1", "2", next_start=0, records_total=400, completed=True)
+            self.assertEqual(400, cache.get_next_start("s1", "2"))
+
 
 if __name__ == "__main__":
     unittest.main()

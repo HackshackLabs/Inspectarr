@@ -383,9 +383,9 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
         · <a href="/insights/library-unwatched?refresh=1&show_start={{ show_start }}&season_start={{ season_start }}&episode_start={{ episode_start }}&server_start={{ server_start }}&length={{ length }}&max_items={{ max_items }}">Refresh</a>
       </p>
       {% if loading %}
-      <p class="note">Indexing… page reloads shortly.</p>
+      <p class="note">Indexing… page reloads shortly (large libraries can take several minutes).</p>
       <script>
-        setTimeout(function () { window.location.reload(); }, 3000);
+        setTimeout(function () { window.location.reload(); }, 5000);
       </script>
       {% endif %}
       {% if retry_needed and not loading %}
@@ -408,21 +408,35 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
 
       <h2>Server Index Status</h2>
       <section class="status-grid">
-        {% for server in report["per_server"] %}
-        {% set srv_status = server.status | default('unknown', true) %}
-        <article class="status-card">
-          <div><strong>{{ server.server_name }}</strong> ({{ server.server_id }})</div>
-          <div>
-            Status:
-            <span class="{% if srv_status == 'ok' %}status-ok{% else %}status-error{% endif %}">
-              {{ srv_status }}
-            </span>
-          </div>
-          <div>Index complete: {{ "yes" if server.index_complete else "in progress" }}</div>
-          <div>Shows: {{ server.inventory_counts.shows }}</div>
-          {% if server.error %}<div class="status-error">Error: {{ server.error }}</div>{% endif %}
-        </article>
-        {% endfor %}
+        {% if loading and library_unwatched_placeholders %}
+          {% for s in library_unwatched_placeholders %}
+          <article class="status-card">
+            <div><strong>{{ s.server_name }}</strong> ({{ s.server_id }})</div>
+            <div>
+              Status:
+              <span class="status-error">indexing…</span>
+            </div>
+            <div>Index complete: in progress</div>
+            <div class="note">Refreshing cleared the cache; building a new snapshot in the background.</div>
+          </article>
+          {% endfor %}
+        {% else %}
+          {% for server in report["per_server"] %}
+          {% set srv_status = server.status | default('unknown', true) %}
+          <article class="status-card">
+            <div><strong>{{ server.server_name }}</strong> ({{ server.server_id }})</div>
+            <div>
+              Status:
+              <span class="{% if srv_status == 'ok' %}status-ok{% else %}status-error{% endif %}">
+                {{ srv_status }}
+              </span>
+            </div>
+            <div>Index complete: {{ "yes" if server.index_complete else "in progress" }}</div>
+            <div>Shows: {{ server.inventory_counts.shows }}</div>
+            {% if server.error %}<div class="status-error">Error: {{ server.error }}</div>{% endif %}
+          </article>
+          {% endfor %}
+        {% endif %}
       </section>
 
       <h2>Cumulative Unwatched</h2>

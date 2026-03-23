@@ -174,6 +174,7 @@ SETTINGS_EDITOR_FIELDS: list[tuple[str, str, str]] = [
         "Library-unwatched history extra delay (s)",
         "float",
     ),
+    ("tv_inventory_request_timeout_seconds", "TV inventory Tautulli timeout (s)", "float"),
     ("inventory_cache_db_path", "Inventory cache DB path", "text"),
     ("insights_cache_db_path", "Insights cache DB path", "text"),
     ("insights_cache_ttl_seconds", "Insights cache TTL (s)", "float"),

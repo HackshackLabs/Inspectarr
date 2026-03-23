@@ -618,8 +618,12 @@ async def library_unwatched_insights(
         _force_refresh_key(insights_cache, cache_key, _insights_refresh_tasks)
 
     async def compute_payload() -> dict:
+        inv_timeout = max(
+            float(settings.history_request_timeout_seconds),
+            float(settings.tv_inventory_request_timeout_seconds),
+        )
         client = TautulliClient(
-            timeout_seconds=settings.history_request_timeout_seconds,
+            timeout_seconds=inv_timeout,
             max_parallel_servers=settings.upstream_max_parallel_servers,
             per_request_delay_seconds=settings.upstream_per_request_delay_seconds
             + settings.library_unwatched_history_extra_delay_seconds,
@@ -743,6 +747,9 @@ async def library_unwatched_insights(
                 sonarr_enabled=sonarr_is_configured(settings),
                 plex_per_server_enabled=plex_per_server_actions_available(settings),
                 plex_mapped_server_ids=plex_mapped_tautulli_server_ids(settings),
+                library_unwatched_placeholders=[
+                    {"server_id": s.id, "server_name": s.name} for s in settings.tautulli_servers
+                ],
                 report={
                     "cumulative_unwatched": {
                         "shows": {"items": [], "total": 0, "has_next": False},
@@ -849,6 +856,7 @@ async def library_unwatched_insights(
             sonarr_enabled=sonarr_is_configured(settings),
             plex_per_server_enabled=plex_per_server_actions_available(settings),
             plex_mapped_server_ids=plex_mapped_tautulli_server_ids(settings),
+            library_unwatched_placeholders=[],
             report=paginated_report,
             loading=False,
             load_state=load_state,

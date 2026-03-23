@@ -83,6 +83,11 @@ class Settings(BaseSettings):
         ge=0.0,
         alias="LIBRARY_UNWATCHED_HISTORY_EXTRA_DELAY_SECONDS",
     )
+    tv_inventory_request_timeout_seconds: float = Field(
+        default=75.0,
+        ge=5.0,
+        alias="TV_INVENTORY_REQUEST_TIMEOUT_SECONDS",
+    )
     inventory_cache_db_path: str = Field(default="./data/inventory_cache.sqlite", alias="INVENTORY_CACHE_DB_PATH")
     insights_cache_db_path: str = Field(default="./data/insights_cache.sqlite", alias="INSIGHTS_CACHE_DB_PATH")
     insights_cache_ttl_seconds: float = Field(default=10800.0, alias="INSIGHTS_CACHE_TTL_SECONDS")

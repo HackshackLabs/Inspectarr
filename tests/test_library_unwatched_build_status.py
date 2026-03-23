@@ -44,8 +44,12 @@ class LibraryUnwatchedBuildStatusTests(unittest.TestCase):
                 data = r.json()
                 self.assertIn("ready", data)
                 self.assertIn("refresh_in_progress", data)
+                self.assertIn("build_step", data)
+                self.assertIn("build_step_updated_epoch", data)
                 self.assertIsInstance(data["ready"], bool)
                 self.assertIsInstance(data["refresh_in_progress"], bool)
+                self.assertIsInstance(data["build_step"], str)
+                self.assertIsInstance(data["build_step_updated_epoch"], int)
                 routes_dashboard._insights_cache = None
 
 

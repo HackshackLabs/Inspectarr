@@ -395,18 +395,22 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
           · phase <span id="lib-idx-phase-label">Indexing</span>
           · step elapsed <strong id="lib-idx-elapsed-phase">0:00</strong>
         </p>
+        <p class="meta" id="lib-idx-step-row">
+          Current step: <strong id="lib-idx-build-step" aria-live="polite">—</strong><span id="lib-idx-build-step-time" class="muted"></span>
+        </p>
         <p class="meta">
           Last status check:
           <span id="lib-idx-last-check" class="lib-idx-last-check muted">—</span>
-          · next check in <strong id="lib-idx-countdown">10</strong>s
+          · next check in <strong id="lib-idx-countdown">60</strong>s
         </p>
-        <p class="note muted">This page opens the report automatically when it is ready. A full page reload also runs every 60s as a fallback.</p>
+        <p class="note muted">This page opens the report automatically when it is ready. Status (including the current step) is refreshed every 60s; a full page reload also runs every 2 minutes as a fallback.</p>
       </div>
       <script>
         (function () {
-          var POLL_SEC = 10;
-          var FALLBACK_RELOAD_SEC = 60;
+          var POLL_SEC = 60;
+          var FALLBACK_RELOAD_SEC = 120;
           var STATUS_URL = "/insights/library-unwatched/build-status";
+          var lastBuildStep = "";
           var SK_TOTAL = "inspectarr:libUnwatched:waitTotalEpoch";
           var SK_PHASE = "inspectarr:libUnwatched:waitPhase";
           var SK_PHASE_START = "inspectarr:libUnwatched:waitPhaseStartEpoch";
@@ -417,6 +421,7 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
               sessionStorage.removeItem(SK_PHASE);
               sessionStorage.removeItem(SK_PHASE_START);
             } catch (e) {}
+            lastBuildStep = "";
           }
 
           try {
@@ -465,6 +470,8 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
           var elTotal = document.getElementById("lib-idx-elapsed-total");
           var elPhase = document.getElementById("lib-idx-elapsed-phase");
           var elPhaseLabel = document.getElementById("lib-idx-phase-label");
+          var elBuildStep = document.getElementById("lib-idx-build-step");
+          var elBuildStepTime = document.getElementById("lib-idx-build-step-time");
           var elLast = document.getElementById("lib-idx-last-check");
           var elC = document.getElementById("lib-idx-countdown");
           var countdown = POLL_SEC;
@@ -501,7 +508,44 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
             }
           }
 
+          function fmtUtcHms(epoch) {
+            if (!epoch) return "";
+            var d = new Date(epoch * 1000);
+            function pad(n) {
+              return n < 10 ? "0" + n : String(n);
+            }
+            return (
+              " · step updated " +
+              pad(d.getUTCHours()) +
+              ":" +
+              pad(d.getUTCMinutes()) +
+              ":" +
+              pad(d.getUTCSeconds()) +
+              " UTC"
+            );
+          }
+
+          function applyBuildStepFromPayload(j) {
+            var step = j && j.build_step != null && String(j.build_step).trim() ? String(j.build_step).trim() : "";
+            var epochRaw = j && j.build_step_updated_epoch != null ? j.build_step_updated_epoch : 0;
+            var epoch = parseInt(epochRaw, 10);
+            if (isNaN(epoch) || epoch <= 0) epoch = 0;
+            if (elBuildStep) elBuildStep.textContent = step || "—";
+            if (elBuildStepTime) elBuildStepTime.textContent = step && epoch ? fmtUtcHms(epoch) : "";
+            if (step && step !== lastBuildStep) {
+              lastBuildStep = step;
+              phaseStarted = Date.now();
+              if (elPhaseLabel) elPhaseLabel.textContent = "Building report";
+              phase = "building";
+              try {
+                sessionStorage.setItem(SK_PHASE, "building");
+                sessionStorage.setItem(SK_PHASE_START, String(phaseStarted));
+              } catch (e) {}
+            }
+          }
+
           function applyPhaseFromPayload(j) {
+            applyBuildStepFromPayload(j);
             if (j && j.refresh_in_progress) {
               if (phase !== "building") {
                 phase = "building";

@@ -63,6 +63,8 @@ _inventory_cache: InventoryCache | None = None
 _insights_cache: HistoryPageCache | None = None
 _history_refresh_tasks: dict[str, asyncio.Task] = {}
 _insights_refresh_tasks: dict[str, asyncio.Task] = {}
+# Library-unwatched refresh: cache_key -> (human step label, UTC epoch of last update).
+_library_unwatched_build_step: dict[str, tuple[str, int]] = {}
 _history_timeout_retry_tasks: dict[str, asyncio.Task] = {}
 _history_retry_due_monotonic: dict[str, float] = {}
 _history_timeout_failure_streak: dict[str, int] = {}
@@ -117,6 +119,17 @@ def _insights_library_unwatched_cache_key_seed(settings: Settings) -> str:
     )
 
 
+def _library_unwatched_publish_step(cache_key: str, label: str) -> None:
+    _library_unwatched_build_step[cache_key] = (
+        label,
+        int(datetime.now(timezone.utc).timestamp()),
+    )
+
+
+def _library_unwatched_clear_build_step(cache_key: str) -> None:
+    _library_unwatched_build_step.pop(cache_key, None)
+
+
 def _library_unwatched_inventory_progress_fingerprint(
     inventory_cache: InventoryCache,
     servers: list[TautulliServer],
@@ -161,6 +174,7 @@ async def _library_unwatched_run_inventory_index(
     settings: Settings,
     inventory_cache: InventoryCache,
     inv_client: TautulliClient,
+    publish_step: Callable[[str], None] | None = None,
 ) -> list[InventoryFetchResult]:
     servers = settings.tautulli_servers
     max_chunks = max(1, int(settings.library_unwatched_max_inventory_chunks_per_job))
@@ -168,6 +182,11 @@ async def _library_unwatched_run_inventory_index(
     prev_fp: tuple[tuple[str, str, int, int], ...] | None = None
 
     for iteration in range(max_chunks):
+        if publish_step:
+            publish_step(
+                "Parallel work: episode history, live activity, and TV library inventory "
+                f"(index pass {iteration + 1})…",
+            )
         chunk_results = await inv_client.fetch_all_tv_inventory_chunk(
             servers,
             batch_shows_per_server=settings.tv_inventory_batch_shows_per_server,
@@ -734,154 +753,168 @@ async def library_unwatched_insights(
         _force_refresh_key(insights_cache, cache_key, _insights_refresh_tasks)
 
     async def compute_payload() -> dict:
-        inv_timeout = max(
-            float(settings.history_request_timeout_seconds),
-            float(settings.tv_inventory_request_timeout_seconds),
-        )
-        inv_client = TautulliClient(
-            timeout_seconds=inv_timeout,
-            max_parallel_servers=settings.upstream_max_parallel_servers,
-            per_request_delay_seconds=settings.upstream_per_request_delay_seconds
-            + settings.library_unwatched_history_extra_delay_seconds,
-            inventory_inter_request_delay_seconds=settings.tv_inventory_inter_request_delay_seconds,
-            inventory_metadata_max_parallel=settings.tv_inventory_metadata_max_parallel,
-        )
-        activity_client = TautulliClient(
-            timeout_seconds=settings.request_timeout_seconds,
-            max_parallel_servers=settings.upstream_max_parallel_servers,
-            per_request_delay_seconds=settings.upstream_per_request_delay_seconds,
-        )
-        per_server_length = max(settings.insights_history_length, 100)
+        def _step(label: str) -> None:
+            _library_unwatched_publish_step(cache_key, label)
 
-        if settings.library_unwatched_use_full_history_crawl:
-            crawl_parallel = min(
-                settings.upstream_max_parallel_servers,
-                settings.history_full_max_parallel_servers,
+        async def _run() -> dict:
+            _step("Starting library-unwatched report…")
+            inv_timeout = max(
+                float(settings.history_request_timeout_seconds),
+                float(settings.tv_inventory_request_timeout_seconds),
             )
-            # Use inv_timeout so get_history matches the long inventory timeout while both run in parallel.
-            history_client = TautulliClient(
+            inv_client = TautulliClient(
                 timeout_seconds=inv_timeout,
-                max_parallel_servers=crawl_parallel,
+                max_parallel_servers=settings.upstream_max_parallel_servers,
                 per_request_delay_seconds=settings.upstream_per_request_delay_seconds
-                + settings.library_unwatched_history_extra_delay_seconds
-                + settings.history_additional_per_request_delay_seconds,
+                + settings.library_unwatched_history_extra_delay_seconds,
+                inventory_inter_request_delay_seconds=settings.tv_inventory_inter_request_delay_seconds,
+                inventory_metadata_max_parallel=settings.tv_inventory_metadata_max_parallel,
             )
-            history_task = asyncio.create_task(
-                history_client.fetch_all_history_crawled(
-                    settings.tautulli_servers,
-                    media_type="episode",
-                    page_size=settings.history_full_page_size,
-                    inter_page_delay_seconds=settings.history_full_inter_page_delay_seconds,
-                    max_rows_per_server=settings.history_full_max_rows_per_server,
+            activity_client = TautulliClient(
+                timeout_seconds=settings.request_timeout_seconds,
+                max_parallel_servers=settings.upstream_max_parallel_servers,
+                per_request_delay_seconds=settings.upstream_per_request_delay_seconds,
+            )
+            per_server_length = max(settings.insights_history_length, 100)
+
+            if settings.library_unwatched_use_full_history_crawl:
+                crawl_parallel = min(
+                    settings.upstream_max_parallel_servers,
+                    settings.history_full_max_parallel_servers,
+                )
+                # Use inv_timeout so get_history matches the long inventory timeout while both run in parallel.
+                history_client = TautulliClient(
+                    timeout_seconds=inv_timeout,
+                    max_parallel_servers=crawl_parallel,
+                    per_request_delay_seconds=settings.upstream_per_request_delay_seconds
+                    + settings.library_unwatched_history_extra_delay_seconds
+                    + settings.history_additional_per_request_delay_seconds,
+                )
+                history_task = asyncio.create_task(
+                    history_client.fetch_all_history_crawled(
+                        settings.tautulli_servers,
+                        media_type="episode",
+                        page_size=settings.history_full_page_size,
+                        inter_page_delay_seconds=settings.history_full_inter_page_delay_seconds,
+                        max_rows_per_server=settings.history_full_max_rows_per_server,
+                    )
+                )
+            else:
+                history_task = asyncio.create_task(
+                    inv_client.fetch_all_history(
+                        settings.tautulli_servers,
+                        start=0,
+                        length=per_server_length,
+                        media_type="episode",
+                    )
+                )
+            inventory_task = asyncio.create_task(
+                _library_unwatched_run_inventory_index(
+                    settings=settings,
+                    inventory_cache=inventory_cache,
+                    inv_client=inv_client,
+                    publish_step=_step,
                 )
             )
-        else:
-            history_task = asyncio.create_task(
-                inv_client.fetch_all_history(
-                    settings.tautulli_servers,
+            activity_task = asyncio.create_task(activity_client.fetch_all_activity(settings.tautulli_servers))
+            history_results, activity_results, chunk_results = await asyncio.gather(
+                history_task,
+                activity_task,
+                inventory_task,
+            )
+            _step("Assembling library snapshot and merging watch history…")
+            merged_activity = merge_activity(activity_results)
+            activity_server_statuses = list(merged_activity.get("server_statuses") or [])
+
+            if settings.library_unwatched_use_full_history_crawl:
+                history_rows = merge_history_rows_all(history_results)
+            else:
+                merged_history = merge_history(
+                    history_results,
                     start=0,
-                    length=per_server_length,
-                    media_type="episode",
+                    length=per_server_length * max(len(settings.tautulli_servers), 1),
                 )
-            )
-        inventory_task = asyncio.create_task(
-            _library_unwatched_run_inventory_index(
-                settings=settings,
-                inventory_cache=inventory_cache,
-                inv_client=inv_client,
-            )
-        )
-        activity_task = asyncio.create_task(activity_client.fetch_all_activity(settings.tautulli_servers))
-        history_results, activity_results, chunk_results = await asyncio.gather(
-            history_task,
-            activity_task,
-            inventory_task,
-        )
-        merged_activity = merge_activity(activity_results)
-        activity_server_statuses = list(merged_activity.get("server_statuses") or [])
+                history_rows = merged_history["rows"]
+            epochs = [int(row.get("canonical_utc_epoch", 0)) for row in history_rows if int(row.get("canonical_utc_epoch", 0)) > 0]
+            index_start_epoch = min(epochs) if epochs else 0
+            index_end_epoch = max(epochs) if epochs else 0
 
-        if settings.library_unwatched_use_full_history_crawl:
-            history_rows = merge_history_rows_all(history_results)
-        else:
-            merged_history = merge_history(
-                history_results,
-                start=0,
-                length=per_server_length * max(len(settings.tautulli_servers), 1),
-            )
-            history_rows = merged_history["rows"]
-        epochs = [int(row.get("canonical_utc_epoch", 0)) for row in history_rows if int(row.get("canonical_utc_epoch", 0)) > 0]
-        index_start_epoch = min(epochs) if epochs else 0
-        index_end_epoch = max(epochs) if epochs else 0
-
-        inventory_results: list[InventoryFetchResult] = []
-        for chunk in chunk_results:
-            if chunk.server_id == "unknown":
-                inventory_results.append(chunk)
-                continue
-            progress_rows = inventory_cache.get_server_progress(chunk.server_id)
-            status_chunk = str(chunk.status or "").strip() or "unknown"
-            inventory_results.append(
-                InventoryFetchResult(
-                    server_id=chunk.server_id,
-                    server_name=chunk.server_name,
-                    status=status_chunk,
-                    error=chunk.error,
-                    shows=inventory_cache.get_items(chunk.server_id, "show"),
-                    seasons=inventory_cache.get_items(chunk.server_id, "season"),
-                    episodes=inventory_cache.get_items(chunk.server_id, "episode"),
-                    section_progress=progress_rows,
-                    index_complete=all(bool(row.get("completed")) for row in progress_rows) if progress_rows else False,
+            inventory_results: list[InventoryFetchResult] = []
+            for chunk in chunk_results:
+                if chunk.server_id == "unknown":
+                    inventory_results.append(chunk)
+                    continue
+                progress_rows = inventory_cache.get_server_progress(chunk.server_id)
+                status_chunk = str(chunk.status or "").strip() or "unknown"
+                inventory_results.append(
+                    InventoryFetchResult(
+                        server_id=chunk.server_id,
+                        server_name=chunk.server_name,
+                        status=status_chunk,
+                        error=chunk.error,
+                        shows=inventory_cache.get_items(chunk.server_id, "show"),
+                        seasons=inventory_cache.get_items(chunk.server_id, "season"),
+                        episodes=inventory_cache.get_items(chunk.server_id, "episode"),
+                        section_progress=progress_rows,
+                        index_complete=all(bool(row.get("completed")) for row in progress_rows) if progress_rows else False,
+                    )
                 )
+
+            if sonarr_is_configured(settings):
+                _step("Sonarr: matching library episodes to files on disk…")
+                try:
+                    async with httpx.AsyncClient(timeout=settings.sonarr_request_timeout_seconds) as sonarr_http:
+                        inventory_results = await filter_library_inventory_results_by_sonarr_disk(
+                            sonarr_http,
+                            settings.sonarr_base_url,
+                            settings.sonarr_api_key,
+                            inventory_results,
+                            max_parallel_series_fetches=max(4, settings.upstream_max_parallel_servers * 3),
+                        )
+                except Exception as exc:
+                    logger.warning("Library unwatched Sonarr disk filter skipped: %s", exc)
+
+            _step("Computing unwatched shows, seasons, and episodes…")
+            report = build_library_unwatched_tv_report(
+                inventory_results=inventory_results,
+                history_rows=history_rows,
+                index_start_epoch=index_start_epoch,
+                index_end_epoch=index_end_epoch,
+                max_items=max_items,
+                restrict_history_to_index_window=not settings.library_unwatched_use_full_history_crawl,
             )
 
-        if sonarr_is_configured(settings):
-            try:
-                async with httpx.AsyncClient(timeout=settings.sonarr_request_timeout_seconds) as sonarr_http:
-                    inventory_results = await filter_library_inventory_results_by_sonarr_disk(
-                        sonarr_http,
-                        settings.sonarr_base_url,
-                        settings.sonarr_api_key,
-                        inventory_results,
-                        max_parallel_series_fetches=max(4, settings.upstream_max_parallel_servers * 3),
-                    )
-            except Exception as exc:
-                logger.warning("Library unwatched Sonarr disk filter skipped: %s", exc)
+            if sonarr_is_configured(settings):
+                _step("Sonarr: pruning show/season rows with no files on disk…")
+                try:
+                    async with httpx.AsyncClient(timeout=settings.sonarr_request_timeout_seconds) as sonarr_http:
+                        await prune_library_unwatched_report_show_seasons_without_sonarr_files(
+                            sonarr_http,
+                            settings.sonarr_base_url,
+                            settings.sonarr_api_key,
+                            report,
+                            max_parallel_series_fetches=max(4, settings.upstream_max_parallel_servers * 3),
+                        )
+                except Exception as exc:
+                    logger.warning("Library unwatched Sonarr show/season file prune skipped: %s", exc)
 
-        report = build_library_unwatched_tv_report(
-            inventory_results=inventory_results,
-            history_rows=history_rows,
-            index_start_epoch=index_start_epoch,
-            index_end_epoch=index_end_epoch,
-            max_items=max_items,
-            restrict_history_to_index_window=not settings.library_unwatched_use_full_history_crawl,
-        )
-
-        if sonarr_is_configured(settings):
-            try:
-                async with httpx.AsyncClient(timeout=settings.sonarr_request_timeout_seconds) as sonarr_http:
-                    await prune_library_unwatched_report_show_seasons_without_sonarr_files(
-                        sonarr_http,
-                        settings.sonarr_base_url,
-                        settings.sonarr_api_key,
-                        report,
-                        max_parallel_series_fetches=max(4, settings.upstream_max_parallel_servers * 3),
-                    )
-            except Exception as exc:
-                logger.warning("Library unwatched Sonarr show/season file prune skipped: %s", exc)
-
-        index_span_days = 0.0
-        if index_start_epoch > 0 and index_end_epoch >= index_start_epoch:
-            index_span_days = (index_end_epoch - index_start_epoch) / 86400.0
-        return {
-            "updated_at_epoch": int(datetime.now(timezone.utc).timestamp()),
-            "configured_servers": len(settings.tautulli_servers),
-            "history_rows_considered": len(history_rows),
-            "index_start_epoch": index_start_epoch,
-            "index_end_epoch": index_end_epoch,
-            "index_span_days": index_span_days,
-            "report": report,
-            "activity_server_statuses": activity_server_statuses,
-        }
+            index_span_days = 0.0
+            if index_start_epoch > 0 and index_end_epoch >= index_start_epoch:
+                index_span_days = (index_end_epoch - index_start_epoch) / 86400.0
+            return {
+                "updated_at_epoch": int(datetime.now(timezone.utc).timestamp()),
+                "configured_servers": len(settings.tautulli_servers),
+                "history_rows_considered": len(history_rows),
+                "index_start_epoch": index_start_epoch,
+                "index_end_epoch": index_end_epoch,
+                "index_span_days": index_span_days,
+                "report": report,
+                "activity_server_statuses": activity_server_statuses,
+            }
+        try:
+            return await _run()
+        finally:
+            _library_unwatched_clear_build_step(cache_key)
 
     cache_payload, load_state = await _get_or_schedule_cached_payload(
         cache=insights_cache,
@@ -1051,7 +1084,7 @@ async def library_unwatched_insights(
 
 
 @router.get("/insights/library-unwatched/build-status", tags=["dashboard"])
-async def library_unwatched_build_status() -> dict[str, bool]:
+async def library_unwatched_build_status() -> dict[str, bool | str | int]:
     """Lightweight JSON for the indexing wait page: poll until the insights cache has a payload."""
     settings = get_settings()
     insights_cache = _get_insights_cache(settings)
@@ -1060,9 +1093,14 @@ async def library_unwatched_build_status() -> dict[str, bool]:
     payload = insights_cache.get(cache_key=cache_key, ttl_seconds=settings.insights_cache_ttl_seconds)
     task = _insights_refresh_tasks.get(cache_key)
     refresh_in_progress = task is not None and not task.done()
+    step_row = _library_unwatched_build_step.get(cache_key)
+    build_step = step_row[0] if step_row else ""
+    build_step_updated_epoch = step_row[1] if step_row else 0
     return {
         "ready": payload is not None,
         "refresh_in_progress": refresh_in_progress,
+        "build_step": build_step,
+        "build_step_updated_epoch": build_step_updated_epoch,
     }
 
 

@@ -1,0 +1,11 @@
+---
+description: Git branching and merge policy for this repository
+alwaysApply: true
+---
+
+# Git workflow (tautulli-inspector)
+
+- **Always create a new branch** for changes, fixes, and features. Do work on that branch, not directly on `main`.
+- **Stage and verify** in the user’s environment (path, run app/tests) so everything functions before asking for merge.
+- **Do not merge to `main` or delete the branch** until the user has **confirmed testing**. After confirmation, merge to `main`, then remove the feature branch.
+- **Never commit** `data/dashboard_config.json` or other files that contain API keys, tokens, or personal endpoints (they stay local; `.gitignore` enforces this).

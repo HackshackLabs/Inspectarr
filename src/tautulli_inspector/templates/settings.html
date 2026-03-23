@@ -1,0 +1,382 @@
+{% extends "layout.html" %}
+{% block page_styles %}
+      .settings-wrap { max-width: 920px; }
+      .banner {
+        padding: 10px 12px;
+        border-radius: 8px;
+        margin-bottom: 16px;
+        font-size: 14px;
+      }
+      .banner.ok { background: color-mix(in srgb, var(--ok) 22%, transparent); color: var(--text); }
+      .banner.err { background: color-mix(in srgb, var(--err) 22%, transparent); color: var(--text); }
+      fieldset {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 14px 16px;
+        margin-bottom: 18px;
+        background: var(--card-bg);
+      }
+      legend {
+        padding: 0 8px;
+        font-weight: 600;
+        color: var(--th);
+      }
+      .field-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 12px 16px;
+        align-items: end;
+      }
+      label.field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      label.field input, label.field select, label.field textarea {
+        background: var(--input-bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 8px;
+        font-size: 14px;
+      }
+      textarea.code {
+        width: 100%;
+        min-height: 220px;
+        font-family: ui-monospace, monospace;
+        font-size: 12px;
+      }
+      .actions {
+        margin-top: 20px;
+      }
+      .actions button {
+        background: var(--btn-bg);
+        color: var(--btn-fg);
+        border: none;
+        border-radius: 8px;
+        padding: 12px 20px;
+        font-size: 15px;
+        cursor: pointer;
+      }
+      .actions button:hover { opacity: 0.92; }
+      .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+      .checkbox-line { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; }
+      button.plex-signin {
+        background: var(--btn-bg);
+        color: var(--btn-fg);
+        border: none;
+        border-radius: 8px;
+        padding: 8px 14px;
+        font-size: 14px;
+        cursor: pointer;
+        margin-right: 8px;
+      }
+      button.plex-signin:hover { opacity: 0.92; }
+      button.plex-verify {
+        font: inherit;
+        font-size: 12px;
+        margin-top: 8px;
+        padding: 4px 10px;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: color-mix(in srgb, var(--card-bg) 85%, var(--text));
+        color: var(--text);
+        cursor: pointer;
+      }
+      button.plex-verify:hover { border-color: var(--link); color: var(--link); }
+      .plex-token-panel {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 10px 12px;
+        margin-bottom: 12px;
+        font-size: 13px;
+        line-height: 1.45;
+      }
+      .plex-token-panel.plex-token-ok { border-color: color-mix(in srgb, var(--ok) 45%, var(--border)); }
+      .plex-token-panel.plex-token-missing { border-color: color-mix(in srgb, var(--muted) 50%, var(--border)); }
+      .plex-token-panel .plex-token-head { font-weight: 600; margin-bottom: 4px; }
+      .plex-token-panel .plex-token-meta { font-size: 12px; color: var(--muted); }
+      .plex-summary {
+        border: 1px dashed var(--border);
+        border-radius: 8px;
+        padding: 10px 12px;
+        margin-bottom: 14px;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+{% endblock %}
+{% block content %}
+    <div class="settings-wrap">
+      <h2>Settings</h2>
+      <p class="meta">
+        Values are stored in <code>{{ config_path_display }}</code> (see documentation). Environment variables still apply for any key not listed under overrides, and for <code>DASHBOARD_CONFIG_PATH</code>.
+      </p>
+      {% if saved_banner %}
+      <div class="banner ok">Saved. Changes apply on the next page load.</div>
+      {% endif %}
+      {% if error_message %}
+      <div class="banner err">{{ error_message }}</div>
+      {% endif %}
+      {% if plex_saved_banner %}
+      <div class="banner ok">
+        <strong>Plex {{ plex_saved_profile }} token saved</strong> to your dashboard JSON file.
+        Sign-in only stores the token — it does <strong>not</strong> fill <strong>Plex servers JSON</strong>.
+        Add your PMS base URLs and <code>tautulli_server_id</code> mappings below, then click <strong>Save configuration</strong>.
+      </div>
+      {% endif %}
+
+      <form method="post" action="/settings" enctype="multipart/form-data">
+        <fieldset>
+          <legend>Appearance</legend>
+          <div class="field-grid">
+            <label class="field">Theme
+              <select name="theme">
+                {% for tid, tlabel in theme_choices %}
+                <option value="{{ tid }}" {% if presentation.theme == tid %}selected{% endif %}>{{ tlabel }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <label class="field">Page / site title
+              <input type="text" name="site_title" value="{{ presentation.site_title | e }}" maxlength="200" />
+            </label>
+          </div>
+          <label class="field" style="margin-top:12px">Footer text (optional)
+            <input type="text" name="footer_text" value="{{ presentation.footer_text | e }}" maxlength="500" />
+          </label>
+          <label class="field" style="margin-top:12px">Nav note (optional, muted line under links)
+            <input type="text" name="custom_nav_note" value="{{ presentation.custom_nav_note | e }}" maxlength="300" />
+          </label>
+          <label class="field" style="margin-top:12px">Logo image
+            <input type="file" name="logo" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" />
+          </label>
+          {% if presentation.logo_file %}
+          <div class="checkbox-line">
+            <input type="checkbox" name="remove_logo" value="1" id="remove_logo" />
+            <label for="remove_logo">Remove current logo</label>
+          </div>
+          {% endif %}
+        </fieldset>
+
+        <fieldset>
+          <legend>Tautulli servers</legend>
+          <label class="field">JSON array (id, name, base_url, api_key)
+            <textarea class="code" name="tautulli_servers_json" required>{{ tautulli_servers_json }}</textarea>
+          </label>
+          <p class="hint">Example: <code>[{"id":"s1","name":"Home","base_url":"http://127.0.0.1:8181","api_key":"..."}]</code></p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Sonarr</legend>
+          <div class="field-grid">
+            <label class="field">Sonarr base URL
+              <input type="text" name="sonarr_base_url" value="{{ form_values.sonarr_base_url | e }}" />
+            </label>
+            <label class="field">Sonarr request timeout (s)
+              <input type="number" name="sonarr_request_timeout_seconds" value="{{ form_values.sonarr_request_timeout_seconds }}" step="any" />
+            </label>
+            <label class="field">Sonarr API key
+              <input type="password" name="sonarr_api_key" autocomplete="off" placeholder="Leave blank to keep saved/env value" />
+            </label>
+          </div>
+          <div class="checkbox-line">
+            <input type="checkbox" name="clear_sonarr_key" value="1" id="clear_sonarr_key" />
+            <label for="clear_sonarr_key">Clear stored Sonarr API key (fall back to environment only)</label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Plex Media Server</legend>
+          <div class="plex-summary">
+            <strong>At a glance</strong><br />
+            <span class="plex-token-meta">
+              <strong>X-Plex-Client-Identifier</strong>:
+              {% if plex_client_identifier_configured %}set (see below){% else %}not created yet — click either Sign in once{% endif %}
+              · <strong>Plex server mappings</strong>: {{ plex_servers_count }} in JSON
+              · <strong>Library Unwatched</strong> can chain Plex on {{ plex_chaining_server_count }} Tautulli server(s)
+              (needs mapping + token + client id).
+            </span>
+          </div>
+          <p class="hint">
+            <strong>Two separate steps:</strong> (1) <strong>Tokens</strong> — Sign in (saved to JSON immediately) or paste a token and click <strong>Save configuration</strong> at the bottom of this page.
+            (2) <strong>Plex servers JSON</strong> — lists each Plex <code>base_url</code> and which <code>tautulli_server_id</code> it belongs to; Sign-in never fills this textarea. You must edit it and Save.
+          </p>
+          <p class="hint">
+            Map each <code>tautulli_server_id</code> (from your Tautulli servers JSON above) to the matching Plex base URL.
+            Use <code>token_profile</code> <code>primary</code> or <code>secondary</code> for different Plex accounts.
+          </p>
+          <label class="field">Plex servers JSON
+            <textarea class="code" name="plex_servers_json">{{ plex_servers_json }}</textarea>
+          </label>
+          <p class="hint">
+            Example (adjust ids to match your Tautulli <code>id</code> fields):
+            <code>[{"id":"plex1","base_url":"https://plex1.schusterplex.com","tautulli_server_id":"tautulli1","token_profile":"primary"},{"id":"plex2","base_url":"https://plex2.schusterplex.com","tautulli_server_id":"tautulli2","token_profile":"primary"}]</code>
+          </p>
+          <div class="field-grid">
+            <label class="field">Plex request timeout (s)
+              <input type="number" name="plex_request_timeout_seconds" value="{{ form_values.plex_request_timeout_seconds }}" step="any" />
+            </label>
+            <label class="field">Plex client identifier (auto)
+              <input type="text" readonly value="{% if form_values.plex_client_identifier %}{{ form_values.plex_client_identifier | e }}{% else %}— (created on first Sign in){% endif %}" />
+            </label>
+          </div>
+          <div class="field-grid" style="margin-top:12px">
+            <div>
+              <div class="plex-token-panel {{ plex_token_primary_ui.css_class }}">
+                <div class="plex-token-head">Primary token</div>
+                <div>{{ plex_token_primary_ui.headline }}{% if plex_token_primary_ui.preview %} <code>{{ plex_token_primary_ui.preview | e }}</code>{% endif %}</div>
+                <div class="plex-token-meta">{{ plex_token_primary_ui.detail }}</div>
+              </div>
+              <button type="button" id="plex_signin_primary" class="plex-signin">Sign in with Plex (primary)</button>
+              <span id="plex_status_primary" class="hint"></span>
+              <button type="button" class="plex-verify" data-profile="primary" id="plex_verify_btn_primary">Verify token at Plex.tv</button>
+              <span id="plex_verify_primary" class="hint" style="display:block;margin-top:4px"></span>
+              <label class="field" style="margin-top:10px">Paste token manually (then Save configuration)
+                <input type="password" name="plex_token_primary" autocomplete="off" placeholder="Leave blank to keep current value" />
+              </label>
+              <div class="checkbox-line">
+                <input type="checkbox" name="clear_plex_token_primary" value="1" id="clear_plex_token_primary" />
+                <label for="clear_plex_token_primary">Clear stored primary Plex token</label>
+              </div>
+            </div>
+            <div>
+              <div class="plex-token-panel {{ plex_token_secondary_ui.css_class }}">
+                <div class="plex-token-head">Secondary token</div>
+                <div>{{ plex_token_secondary_ui.headline }}{% if plex_token_secondary_ui.preview %} <code>{{ plex_token_secondary_ui.preview | e }}</code>{% endif %}</div>
+                <div class="plex-token-meta">{{ plex_token_secondary_ui.detail }}</div>
+              </div>
+              <button type="button" id="plex_signin_secondary" class="plex-signin">Sign in with Plex (secondary)</button>
+              <span id="plex_status_secondary" class="hint"></span>
+              <button type="button" class="plex-verify" data-profile="secondary" id="plex_verify_btn_secondary">Verify token at Plex.tv</button>
+              <span id="plex_verify_secondary" class="hint" style="display:block;margin-top:4px"></span>
+              <label class="field" style="margin-top:10px">Paste token manually (then Save configuration)
+                <input type="password" name="plex_token_secondary" autocomplete="off" placeholder="Leave blank to keep current value" />
+              </label>
+              <div class="checkbox-line">
+                <input type="checkbox" name="clear_plex_token_secondary" value="1" id="clear_plex_token_secondary" />
+                <label for="clear_plex_token_secondary">Clear stored secondary Plex token</label>
+              </div>
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Application &amp; upstream</legend>
+          <div class="field-grid">
+            {% for name, label, typ in editor_fields %}
+            <label class="field">{{ label }}
+              {% if typ == 'text' %}
+              <input type="text" name="{{ name }}" value="{{ form_values[name] | e }}" />
+              {% elif typ == 'int' %}
+              <input type="number" name="{{ name }}" value="{{ form_values[name] }}" step="1" />
+              {% else %}
+              <input type="number" name="{{ name }}" value="{{ form_values[name] }}" step="any" />
+              {% endif %}
+            </label>
+            {% endfor %}
+          </div>
+        </fieldset>
+
+        <div class="actions">
+          <button type="submit">Save configuration</button>
+        </div>
+      </form>
+    </div>
+    <script>
+      (function () {
+        function pollPin(profile, pinId, statusEl) {
+          var tries = 0;
+          var maxTries = 120;
+          function tick() {
+            tries++;
+            fetch(
+              "/settings/plex-auth/check?pin_id=" +
+                encodeURIComponent(String(pinId)) +
+                "&profile=" +
+                encodeURIComponent(profile)
+            )
+              .then(function (r) {
+                return r.json();
+              })
+              .then(function (data) {
+                if (data.status === "complete") {
+                  statusEl.textContent = data.message || "Saved. Reloading…";
+                  window.location.href = "/settings?plex_saved=" + encodeURIComponent(profile);
+                  return;
+                }
+                if (tries >= maxTries) {
+                  statusEl.textContent = "Timed out — try Sign in again.";
+                  return;
+                }
+                setTimeout(tick, 2000);
+              })
+              .catch(function () {
+                statusEl.textContent = "Poll failed; check network.";
+              });
+          }
+          tick();
+        }
+
+        function startSignIn(profile, btnId, statusId) {
+          var btn = document.getElementById(btnId);
+          var statusEl = document.getElementById(statusId);
+          if (!btn || !statusEl) return;
+          btn.addEventListener("click", function () {
+            statusEl.textContent = "Creating Plex link…";
+            fetch("/settings/plex-auth/start", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ profile: profile }),
+            })
+              .then(function (r) {
+                return r.json().then(function (j) {
+                  if (!r.ok) throw new Error(j.detail || r.statusText);
+                  return j;
+                });
+              })
+              .then(function (data) {
+                if (!data.auth_url) throw new Error("No auth_url from server");
+                window.open(data.auth_url, "_blank", "noopener,noreferrer");
+                statusEl.textContent = "Complete sign-in in the new tab; waiting for token…";
+                pollPin(profile, data.pin_id, statusEl);
+              })
+              .catch(function (e) {
+                statusEl.textContent = e.message || String(e);
+              });
+          });
+        }
+
+        startSignIn("primary", "plex_signin_primary", "plex_status_primary");
+        startSignIn("secondary", "plex_signin_secondary", "plex_status_secondary");
+
+        document.querySelectorAll("button.plex-verify").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            var profile = btn.getAttribute("data-profile");
+            if (!profile) return;
+            var out = document.getElementById("plex_verify_" + profile);
+            if (!out) return;
+            out.textContent = "Checking Plex.tv…";
+            out.className = "hint";
+            fetch("/settings/plex-auth/validate?profile=" + encodeURIComponent(profile))
+              .then(function (r) {
+                return r.json();
+              })
+              .then(function (data) {
+                if (data.ok) {
+                  out.textContent = data.message || "OK.";
+                  out.style.color = "var(--ok)";
+                } else {
+                  out.textContent = data.message || "Invalid or missing token.";
+                  out.style.color = "var(--err)";
+                }
+              })
+              .catch(function () {
+                out.textContent = "Verify request failed.";
+                out.style.color = "var(--err)";
+              });
+          });
+        });
+      })();
+    </script>
+{% endblock %}

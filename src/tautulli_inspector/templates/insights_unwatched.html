@@ -1,0 +1,181 @@
+{% extends "layout.html" %}
+{% block page_styles %}
+      h2 { margin-top: 24px; color: var(--heading); }
+      .filters {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 10px;
+        margin: 14px 0 18px;
+      }
+      .filters label {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-size: 12px;
+      }
+      .filters input, .filters select {
+        background: var(--input-bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 8px;
+      }
+      .filters button {
+        background: var(--btn-bg);
+        color: var(--btn-fg);
+        border: none;
+        border-radius: 6px;
+        padding: 10px 12px;
+        cursor: pointer;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+      .card {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px;
+        background: var(--card-bg);
+      }
+      .export-row {
+        font-size: 12px;
+        margin: 8px 0 12px;
+        line-height: 1.65;
+      }
+      .export-row a {
+        color: var(--link);
+        text-decoration: none;
+      }
+      .export-row a:hover {
+        text-decoration: underline;
+      }
+{% endblock %}
+{% block content %}
+    {% macro unw_export(group, sid=None) -%}
+      {% for fmt in ["txt", "csv", "json", "xml"] %}
+      <a href="/insights/unwatched/export?group={{ group }}&amp;format={{ fmt }}&amp;media_type={{ media_type }}&amp;days={{ days }}{% if sid %}&amp;server_id={{ sid }}{% endif %}">{{ fmt }}</a>{% if not loop.last %} · {% endif %}
+      {% endfor %}
+    {%- endmacro %}
+      <h2>Unwatched insights</h2>
+      <p class="meta">
+        Media type: {{ media_type }} |
+        Stale threshold: {{ days }} days |
+        Indexed items: {{ report.indexed_item_count }} |
+        Rows analyzed: {{ history_rows_considered }} |
+        Updated: {{ updated_at.strftime("%Y-%m-%d %H:%M:%S %Z") }} |
+        Load state: {{ load_state }} |
+        <a href="/insights/unwatched?refresh=1&media_type={{ media_type }}&days={{ days }}&max_items={{ max_items }}">Refresh now</a>
+      </p>
+      {% if loading %}
+      <p class="note">Insights are being prepared in the background. This page will refresh automatically.</p>
+      <script>
+        setTimeout(function () { window.location.reload(); }, 3000);
+      </script>
+      {% endif %}
+
+      <form class="filters" method="get" action="/insights/unwatched">
+        <label>
+          Media type
+          <select name="media_type">
+            <option value="episode" {% if media_type == "episode" %}selected{% endif %}>Episode</option>
+            <option value="movie" {% if media_type == "movie" %}selected{% endif %}>Movie</option>
+          </select>
+        </label>
+        <label>
+          Unwatched threshold (days)
+          <input type="number" name="days" min="1" max="3650" value="{{ days }}" />
+        </label>
+        <label>
+          Max rows per table
+          <input type="number" name="max_items" min="1" max="1000" value="{{ max_items }}" />
+        </label>
+        <button type="submit">Recalculate</button>
+      </form>
+
+      <p class="note">
+        Note: this report is history-index based. Items that never appear in history are not included.
+      </p>
+
+      <h2>Cumulative stale candidates (all servers)</h2>
+      {% if not loading %}
+      <p class="export-row muted"><span>Export cached list:</span> {{ unw_export("cumulative_stale") }}</p>
+      {% endif %}
+      <table>
+        <thead>
+          <tr>
+            <th>Title</th>
+            <th>Last watched (UTC)</th>
+            <th>Total plays</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if report.cumulative_unwatched %}
+            {% for item in report.cumulative_unwatched %}
+            <tr>
+              <td>{{ item.display_title }}</td>
+              <td>{{ item.global_last_watched_display }}</td>
+              <td>{{ item.global_play_count }}</td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="3">No stale candidates found in indexed history data.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+
+      <h2>Per-server stale candidates</h2>
+      <section class="grid">
+        {% if report.per_server_unwatched %}
+          {% for server in report.per_server_unwatched %}
+          <article class="card">
+            <h3>{{ server.server_name }}</h3>
+            {% if not loading %}
+            <p class="export-row muted"><span>Export cached list:</span> {{ unw_export("server_stale", server.server_id) }}</p>
+            {% endif %}
+            <table>
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Last watched (UTC)</th>
+                  <th>Server plays</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in server["items"] %}
+                <tr>
+                  <td>{{ item.display_title }}</td>
+                  <td>{{ item.last_watched_display }}</td>
+                  <td>{{ item.play_count }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </article>
+          {% endfor %}
+        {% else %}
+          <article class="card">No per-server stale candidates found.</article>
+        {% endif %}
+      </section>
+
+      <h2>Server fetch health</h2>
+      <section class="status-grid">
+        {% for server in server_statuses %}
+        <article class="status-card">
+          <div><strong>{{ server.server_name }}</strong> ({{ server.server_id }})</div>
+          <div>Status:
+            <span class="{% if server.status == 'ok' %}status-ok{% else %}status-error{% endif %}">
+              {{ server.status }}
+            </span>
+          </div>
+          <div>Fetched history rows: {{ server.history_count }}</div>
+          {% if server.error %}
+          <div class="status-error">Error: {{ server.error }}</div>
+          {% endif %}
+        </article>
+        {% endfor %}
+      </section>
+{% endblock %}

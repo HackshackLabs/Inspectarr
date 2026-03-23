@@ -758,8 +758,9 @@ async def library_unwatched_insights(
                 settings.upstream_max_parallel_servers,
                 settings.history_full_max_parallel_servers,
             )
+            # Use inv_timeout so get_history matches the long inventory timeout while both run in parallel.
             history_client = TautulliClient(
-                timeout_seconds=settings.history_request_timeout_seconds,
+                timeout_seconds=inv_timeout,
                 max_parallel_servers=crawl_parallel,
                 per_request_delay_seconds=settings.upstream_per_request_delay_seconds
                 + settings.library_unwatched_history_extra_delay_seconds

@@ -90,6 +90,10 @@
         font-size: 1rem;
         color: var(--heading);
       }
+      .lib-index-wait { margin-bottom: 14px; }
+      .lib-index-wait .meta { margin: 8px 0; }
+      .lib-index-wait > p:first-child { margin-top: 0; }
+      .lib-index-wait > p:last-child { margin-bottom: 0; }
       .cumulative-col table { font-size: 13px; }
       .export-row {
         font-size: 12px;
@@ -383,31 +387,113 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
         · <a href="/insights/library-unwatched?refresh=1&show_start={{ show_start }}&season_start={{ season_start }}&episode_start={{ episode_start }}&server_start={{ server_start }}&length={{ length }}&max_items={{ max_items }}">Refresh</a>
       </p>
       {% if loading %}
-      <p class="note">Indexing… page reloads shortly (large libraries can take several minutes).</p>
+      <div class="card lib-index-wait" role="status" aria-live="polite">
+        <p class="note"><strong>Indexing…</strong> The first load walks your TV libraries and history. Large libraries can take several minutes.</p>
+        <p class="meta">
+          Elapsed <strong id="lib-idx-elapsed">0:00</strong>
+          · <span id="lib-idx-server-msg">Checking server…</span>
+          · next status check in <strong id="lib-idx-countdown">2</strong>s
+        </p>
+        <p class="note muted">This page opens the report automatically when it is ready. A full refresh also runs every 18s if needed.</p>
+      </div>
       <script>
-        setTimeout(function () {
-          try {
-            var u = new URL(window.location.href);
-            u.searchParams.delete("refresh");
-            window.location.replace(u.pathname + u.search + u.hash);
-          } catch (e) {
-            window.location.reload();
+        (function () {
+          var POLL_SEC = 2;
+          var FALLBACK_RELOAD_SEC = 18;
+          var STATUS_URL = "/insights/library-unwatched/build-status";
+          var started = Date.now();
+          var elE = document.getElementById("lib-idx-elapsed");
+          var elC = document.getElementById("lib-idx-countdown");
+          var elM = document.getElementById("lib-idx-server-msg");
+          var countdown = POLL_SEC;
+
+          function fmtElapsed(totalSec) {
+            var m = Math.floor(totalSec / 60);
+            var s = totalSec % 60;
+            return m + ":" + (s < 10 ? "0" : "") + s;
           }
-        }, 5000);
+
+          function hardReload() {
+            try {
+              var u = new URL(window.location.href);
+              u.searchParams.delete("refresh");
+              window.location.replace(u.pathname + u.search + u.hash);
+            } catch (e) {
+              window.location.reload();
+            }
+          }
+
+          async function pollStatus() {
+            try {
+              var r = await fetch(STATUS_URL, {
+                credentials: "same-origin",
+                headers: { Accept: "application/json" },
+              });
+              if (r.ok) {
+                var j = await r.json();
+                if (j.ready) {
+                  hardReload();
+                  return;
+                }
+                if (elM) {
+                  elM.textContent = j.refresh_in_progress
+                    ? "Server is building the full report now."
+                    : "Waiting for the report job to start…";
+                }
+              } else if (elM) {
+                elM.textContent = "Could not read status (" + r.status + "); retrying…";
+              }
+            } catch (e) {
+              if (elM) elM.textContent = "Could not reach server; retrying…";
+            }
+          }
+
+          setInterval(function () {
+            var sec = Math.floor((Date.now() - started) / 1000);
+            if (elE) elE.textContent = fmtElapsed(sec);
+            countdown -= 1;
+            if (elC) elC.textContent = String(Math.max(0, countdown));
+            if (countdown <= 0) {
+              countdown = POLL_SEC;
+              void pollStatus();
+            }
+          }, 1000);
+
+          void pollStatus();
+          setTimeout(hardReload, FALLBACK_RELOAD_SEC * 1000);
+        })();
       </script>
       {% endif %}
       {% if retry_needed and not loading %}
-      <p class="note">Retrying timed-out servers; reload in a few seconds.</p>
+      <p class="note">Retrying timed-out servers · reload in <strong id="lib-retry-countdown">5</strong>s · elapsed <strong id="lib-retry-elapsed">0:00</strong></p>
       <script>
-        setTimeout(function () {
-          try {
-            var u = new URL(window.location.href);
-            u.searchParams.delete("refresh");
-            window.location.replace(u.pathname + u.search + u.hash);
-          } catch (e) {
-            window.location.reload();
+        (function () {
+          var left = 5;
+          var started = Date.now();
+          var elC = document.getElementById("lib-retry-countdown");
+          var elE = document.getElementById("lib-retry-elapsed");
+          function fmtElapsed(totalSec) {
+            var m = Math.floor(totalSec / 60);
+            var s = totalSec % 60;
+            return m + ":" + (s < 10 ? "0" : "") + s;
           }
-        }, 5000);
+          var tick = setInterval(function () {
+            var sec = Math.floor((Date.now() - started) / 1000);
+            if (elE) elE.textContent = fmtElapsed(sec);
+            left -= 1;
+            if (elC) elC.textContent = String(Math.max(0, left));
+            if (left <= 0) {
+              clearInterval(tick);
+              try {
+                var u = new URL(window.location.href);
+                u.searchParams.delete("refresh");
+                window.location.replace(u.pathname + u.search + u.hash);
+              } catch (e) {
+                window.location.reload();
+              }
+            }
+          }, 1000);
+        })();
       </script>
       {% endif %}
       <details class="lib-meta-details">

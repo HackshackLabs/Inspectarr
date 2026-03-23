@@ -312,6 +312,65 @@ async def sonarr_status_payload(
     }
 
 
+def annotate_library_unwatched_row_state(kind: SonarrKind, payload: dict[str, Any]) -> dict[str, Any]:
+    """
+    Add Library Unwatched UI fields derived from a Sonarr status payload:
+
+    - ``media_state``: ``ok`` | ``missing`` (nothing to act on in Sonarr) | ``no_file`` (scoped
+      to Sonarr but no episode files on disk).
+    - ``media_state_detail``: short reason for tooltips / row title.
+    - ``actions_disabled``: when True, destructive Sonarr buttons should be disabled.
+    """
+    out = dict(payload)
+    if out.get("sonarr_configured") is False:
+        out.setdefault("media_state", "ok")
+        out.setdefault("media_state_detail", None)
+        out.setdefault("actions_disabled", False)
+        return out
+
+    sf = out.get("series_found")
+    msg = (out.get("message") or "").strip()
+    fc_raw = out.get("file_count")
+    try:
+        fc = int(fc_raw) if fc_raw is not None else 0
+    except (TypeError, ValueError):
+        fc = 0
+
+    media_state: Literal["ok", "missing", "no_file"] = "ok"
+    detail: str | None = None
+    actions_disabled = False
+
+    if sf is False:
+        media_state = "missing"
+        detail = msg or "Not in Sonarr."
+        actions_disabled = True
+    elif kind == "show":
+        if fc == 0:
+            media_state = "no_file"
+            detail = "No episode files on disk for this series (per Sonarr)."
+    elif kind == "season":
+        if "season number missing" in msg.lower():
+            media_state, detail, actions_disabled = "missing", msg, True
+        elif "no episodes" in msg.lower() and "season" in msg.lower():
+            media_state, detail, actions_disabled = "missing", msg, True
+        elif fc == 0:
+            media_state = "no_file"
+            detail = "No episode files on disk for this season (per Sonarr)."
+    elif kind == "episode":
+        if "episode number missing" in msg.lower():
+            media_state, detail, actions_disabled = "missing", msg, True
+        elif "not found" in msg.lower():
+            media_state, detail, actions_disabled = "missing", msg, True
+        elif fc == 0:
+            media_state = "no_file"
+            detail = "No episode file on disk (per Sonarr)."
+
+    out["media_state"] = media_state
+    out["media_state_detail"] = detail
+    out["actions_disabled"] = actions_disabled
+    return out
+
+
 async def sonarr_unmonitor(
     client: httpx.AsyncClient,
     base_url: str,

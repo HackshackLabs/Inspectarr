@@ -116,6 +116,21 @@
         color: var(--text);
       }
       .sonarr-inline .sonarr-mon { font-weight: 600; }
+      tr.lib-row-media-missing > td {
+        background: color-mix(in srgb, #c62828 13%, var(--card-bg));
+        box-shadow: inset 3px 0 0 color-mix(in srgb, #c62828 72%, transparent);
+      }
+      .sonarr-removed-label {
+        color: #b71c1c;
+        font-weight: 700;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .sonarr-btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
       .sonarr-actions {
         display: flex;
         flex-wrap: wrap;
@@ -260,9 +275,19 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
           <div class="sonarr-inline muted" aria-live="polite">Loading Sonarr…</div>
           <div class="sonarr-actions">
             <button type="button" class="sonarr-tip" aria-label="Sonarr file paths">ⓘ</button>
-            <button type="button" class="sonarr-btn sonarr-unmonitor">Unmonitor</button>
-            <button type="button" class="sonarr-btn sonarr-remove">Remove &amp; unmonitor</button>
-            <button type="button" class="sonarr-btn sonarr-delete">Delete</button>
+            {% if kind == "show" %}
+            <button type="button" class="sonarr-btn sonarr-unmonitor" title="Stop monitoring; series stays in Sonarr; files stay on disk.">Unmonitor only</button>
+            <button type="button" class="sonarr-btn sonarr-remove" title="Unmonitor the series, then delete every episode file Sonarr still tracks (series remains in Sonarr).">Unmonitor + delete files</button>
+            <button type="button" class="sonarr-btn sonarr-delete" title="Remove the series from Sonarr entirely and delete managed files (import-list exclusion is not added).">Remove series</button>
+            {% elif kind == "season" %}
+            <button type="button" class="sonarr-btn sonarr-unmonitor" title="Set all episodes in this season to unmonitored; files stay on disk.">Unmonitor season</button>
+            <button type="button" class="sonarr-btn sonarr-remove" title="Unmonitor every episode in this season, then delete their files on disk.">Unmonitor + delete files</button>
+            <button type="button" class="sonarr-btn sonarr-delete" title="Delete season episode files only; monitored flags stay as they are.">Delete files only</button>
+            {% else %}
+            <button type="button" class="sonarr-btn sonarr-unmonitor" title="Mark this episode unmonitored; file stays on disk.">Unmonitor episode</button>
+            <button type="button" class="sonarr-btn sonarr-remove" title="Unmonitor this episode, then delete its file on disk.">Unmonitor + delete file</button>
+            <button type="button" class="sonarr-btn sonarr-delete" title="Delete this episode file only; monitored state does not change.">Delete file only</button>
+            {% endif %}
           </div>
         </span>
         {% else %}
@@ -299,9 +324,9 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
       </p>
       {% if sonarr_enabled %}
       <p class="note">
-        Sonarr column loads <strong>monitored</strong> state and Sonarr <strong>file count</strong> (episode files on disk) per row. Use <strong>ⓘ</strong> for path details. Matching uses TVDB id when present, otherwise the series title against your Sonarr library.
-        <strong>Unmonitor</strong> is Sonarr-only.
-        On <strong>per-server</strong> tables, when Plex is configured in <a href="/settings">Settings</a> and the row has a <code>ratingKey</code>, <strong>Remove &amp; unmonitor</strong> and <strong>Delete</strong> run Sonarr first, then call Plex to remove the same show/season/episode from the library (often deleting media files, per Plex settings). Cumulative tables are Sonarr-only (no per-server rating key).
+        Sonarr column loads <strong>monitored</strong> state and Sonarr <strong>file count</strong> (episode files on disk) per row. Rows tint <strong>red</strong> when Sonarr reports the series, season, or episode as <strong>missing</strong>, or when there are <strong>no episode files on disk</strong> for that row’s scope. Use <strong>ⓘ</strong> for path details. Matching uses TVDB id when present, otherwise the series title against your Sonarr library.
+        The three buttons are <strong>not</strong> duplicates: <em>Unmonitor only</em> changes monitoring and keeps files; <em>Unmonitor + delete files</em> unmonitors then deletes files (series or season stays in Sonarr); <em>Remove series</em> / <em>Delete files only</em> / <em>Delete file only</em> follow the third Sonarr path (drop series from Sonarr, or delete files without the unmonitor step). Full API mapping is documented in the repo file <code>docs/SONARR.md</code>.
+        On <strong>per-server</strong> tables, when Plex is configured in <a href="/settings">Settings</a> and the row has a <code>ratingKey</code>, the second and third buttons also run Plex to remove the same library item after Sonarr succeeds. Cumulative tables are Sonarr-only (no per-server rating key).
       </p>
       {% endif %}
 
@@ -541,17 +566,51 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
           return div.innerHTML;
         }
 
+        function mediaStatePrefix(data) {
+          var ms = data.media_state || "ok";
+          if (ms === "missing") {
+            return '<span class="sonarr-removed-label">Missing in Sonarr</span> · ';
+          }
+          if (ms === "no_file") {
+            return '<span class="sonarr-removed-label">No media on disk</span> · ';
+          }
+          return "";
+        }
+
+        function applyRowMediaState(row, data) {
+          var tr = row.closest("tr");
+          if (!tr) return;
+          tr.classList.remove("lib-row-media-missing");
+          var ms = data.media_state || "ok";
+          if (ms === "missing" || ms === "no_file") {
+            tr.classList.add("lib-row-media-missing");
+            if (data.media_state_detail) {
+              tr.setAttribute("title", data.media_state_detail);
+            } else {
+              tr.removeAttribute("title");
+            }
+          } else {
+            tr.removeAttribute("title");
+          }
+          var dis = !!data.actions_disabled;
+          row.querySelectorAll(".sonarr-btn").forEach(function (b) {
+            b.disabled = dis;
+          });
+        }
+
         function formatInline(data) {
           if (!data.sonarr_configured) {
             return '<span class="note">' + escapeHtml(data.message || "Sonarr not configured.") + "</span>";
           }
+          var prefix = mediaStatePrefix(data);
           if (!data.series_found) {
-            return '<span class="note">' + escapeHtml(data.message || "Series not in Sonarr.") + "</span>";
+            return prefix + '<span class="note">' + escapeHtml(data.message || "Series not in Sonarr.") + "</span>";
           }
           var mon = data.monitored;
           var monStr = mon === true ? "Monitored" : mon === false ? "Not monitored" : "Mixed / n/a";
           var fc = typeof data.file_count === "number" ? data.file_count : 0;
-          var html = '<span class="sonarr-mon">' + escapeHtml(monStr) + "</span> · Files: <strong>" + fc + "</strong>";
+          var html =
+            prefix + '<span class="sonarr-mon">' + escapeHtml(monStr) + "</span> · Files: <strong>" + fc + "</strong>";
           if (data.message) {
             html += ' <span class="note">(' + escapeHtml(data.message) + ")</span>";
           }
@@ -592,6 +651,7 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
           function apply(data) {
             inlineEl.innerHTML = formatInline(data);
             inlineEl.classList.remove("muted");
+            applyRowMediaState(row, data);
           }
           if (cache[key]) {
             apply(cache[key]);
@@ -657,6 +717,7 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
             if (!row) return;
             var key = statusQuery(row);
             if (cache[key]) {
+              applyRowMediaState(row, cache[key]);
               showTip(formatStatusTooltip(cache[key]), ev.clientX, ev.clientY);
               return;
             }
@@ -667,6 +728,7 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
               })
               .then(function (data) {
                 cache[key] = data;
+                applyRowMediaState(row, data);
                 showTip(formatStatusTooltip(data), ev.clientX, ev.clientY);
               })
               .catch(function () {
@@ -782,7 +844,7 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
               : "";
             var msg =
               kind === "show"
-                ? "Unmonitor this series in Sonarr and delete ALL episode files on disk for it? This cannot be undone." + plexNote
+                ? "Unmonitor this series and delete ALL episode files Sonarr tracks for it (series stays in Sonarr)? This cannot be undone." + plexNote
                 : kind === "season"
                   ? "Unmonitor this season and delete all episode files on disk for this season?" + plexNote
                   : "Unmonitor this episode and delete its file on disk?" + plexNote;
@@ -808,10 +870,10 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
               : "";
             var msg =
               kind === "show"
-                ? "Remove this series from Sonarr entirely and delete all managed episode files? This cannot be undone." + plexNote
+                ? "Remove this series from Sonarr entirely (delete managed files)? This is not the same as “unmonitor only” or “unmonitor + delete files”. This cannot be undone." + plexNote
                 : kind === "season"
-                  ? "Delete all episode files for this season from disk? The series stays in Sonarr; monitored flags are not changed." + plexNote
-                  : "Delete this episode file from disk? The episode stays in Sonarr; monitored state is unchanged." + plexNote;
+                  ? "Delete all episode files for this season from disk only (monitored flags unchanged)?" + plexNote
+                  : "Delete this episode file from disk only (monitored state unchanged)?" + plexNote;
             if (!confirm(msg)) return;
             postJson("/insights/library-unwatched/sonarr/delete", rowDataset(row))
               .then(function (j) {

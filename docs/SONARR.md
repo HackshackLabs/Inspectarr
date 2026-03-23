@@ -1,6 +1,23 @@
 # Sonarr integration (Library Unwatched)
 
-When `SONARR_BASE_URL` and `SONARR_API_KEY` are set, `/insights/library-unwatched` shows a **Sonarr** column for each show, season, and episode row. Each row loads **monitored** state and a **file count** (Sonarr episode files on disk for that scope) inline; **Unmonitor** and **Remove & unmonitor** stay visible next to **ⓘ** (paths tooltip). The UI proxies your browser to this app, which calls Sonarr’s HTTP API (v3-style paths under `/api/v3/`). The app caches the Sonarr series list briefly (about 45s) to avoid downloading `/api/v3/series` once per table row; the cache is cleared after successful write actions.
+When `SONARR_BASE_URL` and `SONARR_API_KEY` are set, `/insights/library-unwatched` shows a **Sonarr** column for each show, season, and episode row. Each row loads **monitored** state and a **file count** (Sonarr episode files on disk for that scope) inline, next to **ⓘ** (paths tooltip) and three actions whose labels differ by row kind so they are not confused:
+
+| Row kind | Button 1 | Button 2 | Button 3 |
+|----------|-----------|-----------|-----------|
+| **Show** | Unmonitor only | Unmonitor + delete files | Remove series |
+| **Season** | Unmonitor season | Unmonitor + delete files | Delete files only |
+| **Episode** | Unmonitor episode | Unmonitor + delete file | Delete file only |
+
+The UI proxies your browser to this app, which calls Sonarr’s HTTP API (v3-style paths under `/api/v3/`). The app caches the Sonarr series list briefly (about 45s) to avoid downloading `/api/v3/series` once per table row; the cache is cleared after successful write actions.
+
+### Row highlight (removed / no media)
+
+After each status fetch, the table row may tint **red**:
+
+- **`media_state: missing`** — nothing to target in Sonarr at that scope (series not in Sonarr, episode not found, season has no episodes, or required season/episode numbers missing). Sonarr action buttons are **disabled**.
+- **`media_state: no_file`** — Sonarr knows the series (and season/episode when applicable) but reports **zero episode files on disk** for that row’s scope. Buttons stay enabled so you can still change monitoring or clean up.
+
+The status JSON includes `media_state`, `media_state_detail`, and `actions_disabled` (documented under `GET .../sonarr/status` below). The browser applies the tint and row `title` from `media_state_detail`.
 
 ## Configuration
 
@@ -35,8 +52,11 @@ Returns JSON used by the page and hover popup:
 - `series_found`, `monitored` (boolean or `null` when mixed/unknown), `file_count` (integer: for **show**, count of episodes that have an `episodeFile` in Sonarr; for **season**, count of on-disk files in that season; for **episode**, `0` or `1`)
 - `paths`: list of folder or file paths from Sonarr when available
 - optional `message` for lookup failures or caveats
+- `media_state`: `ok` | `missing` | `no_file` (see “Row highlight” in the intro)
+- `media_state_detail`: human-readable reason for tooltips / row `title` when not `ok`
+- `actions_disabled`: `true` when Sonarr actions cannot run (`missing` at scope)
 
-If Sonarr is not configured, returns `sonarr_configured: false` and a short message (HTTP 200).
+If Sonarr is not configured, returns `sonarr_configured: false`, `media_state: ok`, and a short message (HTTP 200).
 
 ### `POST /insights/library-unwatched/sonarr/unmonitor`
 
@@ -58,7 +78,7 @@ JSON body:
 
 ### `POST /insights/library-unwatched/sonarr/remove-from-plex-and-unmonitor`
 
-Same JSON body as unmonitor.
+Same JSON body as unmonitor. In the UI this is the **“Unmonitor + delete files”** button (wording varies slightly by show/season/episode row).
 
 This route **only** calls Sonarr. It:
 
@@ -71,15 +91,15 @@ On **per-server** Library Unwatched rows, when Plex is configured and the row ha
 
 ### `POST /insights/library-unwatched/sonarr/delete`
 
-Same JSON body as unmonitor.
+Same JSON body as unmonitor. In the UI this is **“Remove series”** (show rows), **“Delete files only”** (season rows), or **“Delete file only”** (episode rows).
 
 - **show** — `DELETE /api/v3/series/{id}` with `deleteFiles=true` (series is removed from Sonarr; import-list exclusion is **not** added).
 - **season** — deletes every managed **episode file** in that season via `DELETE /api/v3/episodefile/{id}`; the series remains in Sonarr and **monitored** flags are unchanged (contrast with **remove-from-plex-and-unmonitor**, which unmonitors first).
 - **episode** — deletes that episode’s file on disk if present; monitored state is unchanged.
 
-Use **Delete** when you want to drop files (or the whole Sonarr series) without the unmonitor step used by **Remove & unmonitor**.
+Use this path when you want to **remove the series from Sonarr** (show) or **delete files without unmonitoring first** (season/episode).
 
-On **per-server** rows with Plex configured and a `ratingKey`, **Delete** triggers the same Plex delete call as **Remove & unmonitor** after Sonarr succeeds. See `docs/PLEX_API_LIBRARY_REMOVAL.md` for API details.
+On **per-server** rows with Plex configured and a `ratingKey`, this button triggers the same Plex delete call as **remove-from-plex-and-unmonitor** after Sonarr succeeds. See `docs/PLEX_API_LIBRARY_REMOVAL.md` for API details.
 
 ## Security
 

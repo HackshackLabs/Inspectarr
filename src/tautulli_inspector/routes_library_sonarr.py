@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from tautulli_inspector.settings import get_settings, sonarr_is_configured
 from tautulli_inspector.sonarr_client import (
     SonarrKind,
+    annotate_library_unwatched_row_state,
     sonarr_delete,
     sonarr_remove_files_and_unmonitor,
     sonarr_status_payload,
@@ -46,11 +47,13 @@ async def library_sonarr_status(
         return {
             "sonarr_configured": False,
             "message": "Configure SONARR_BASE_URL and SONARR_API_KEY to enable Sonarr actions.",
+            "media_state": "ok",
+            "media_state_detail": None,
+            "actions_disabled": False,
         }
     k = _validate_kind(kind)
     if tvdb_id is None and not (series_title and str(series_title).strip()):
-        return {
-            "sonarr_configured": True,
+        partial = {
             "ok": False,
             "series_found": False,
             "monitored": None,
@@ -61,6 +64,7 @@ async def library_sonarr_status(
             "episode_file_id": None,
             "message": "Provide tvdb_id or series_title to match a Sonarr series.",
         }
+        return {"sonarr_configured": True, **annotate_library_unwatched_row_state(k, partial)}
     try:
         async with httpx.AsyncClient(timeout=settings.sonarr_request_timeout_seconds) as client:
             payload = await sonarr_status_payload(
@@ -81,7 +85,7 @@ async def library_sonarr_status(
     except httpx.RequestError as exc:
         raise HTTPException(status_code=502, detail=f"Sonarr request failed: {exc}") from exc
 
-    return {"sonarr_configured": True, **payload}
+    return {"sonarr_configured": True, **annotate_library_unwatched_row_state(k, payload)}
 
 
 @router.post("/insights/library-unwatched/sonarr/unmonitor", tags=["dashboard"])

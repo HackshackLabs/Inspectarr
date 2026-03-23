@@ -20,6 +20,7 @@ dependencies = [
 
 [project.scripts]
 inspectarr = "inspectarr.main:run"
+tautulli-inspector = "tautulli_inspector.main:run"
 
 [tool.setuptools.package-dir]
 "" = "src"

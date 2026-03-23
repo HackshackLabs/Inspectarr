@@ -681,6 +681,19 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
           });
         }
 
+        function fetchSonarrStatusMaybeRetry(url) {
+          return fetch(url).then(function (r) {
+            if (r.status === 429) {
+              return new Promise(function (resolve, reject) {
+                setTimeout(function () {
+                  fetch(url).then(resolve, reject);
+                }, 2500);
+              });
+            }
+            return r;
+          });
+        }
+
         function alertLib(message) {
           var d = document.getElementById("lib-ui-alert");
           var msgEl = document.getElementById("lib-ui-alert-msg");
@@ -888,18 +901,18 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
           inlineEl.textContent = "Loading Sonarr…";
           inlineEl.classList.add("muted");
           return scheduleSonarrRequest(function () {
-            return fetch("/insights/library-unwatched/sonarr/status?" + key)
-              .then(function (r) {
-                return r.json();
-              })
-              .then(function (data) {
-                cache[key] = data;
-                apply(data);
-              });
-          }).catch(function () {
-            inlineEl.classList.remove("muted");
-            inlineEl.innerHTML = '<span class="status-error">Sonarr status failed</span>';
-          });
+            return fetchSonarrStatusMaybeRetry("/insights/library-unwatched/sonarr/status?" + key).then(function (r) {
+              return r.json();
+            });
+          })
+            .then(function (data) {
+              cache[key] = data;
+              apply(data);
+            })
+            .catch(function () {
+              inlineEl.classList.remove("muted");
+              inlineEl.innerHTML = '<span class="status-error">Sonarr status failed</span>';
+            });
         }
 
         function showTip(html, x, y) {
@@ -952,7 +965,7 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
             }
             showTip("Loading Sonarr…", ev.clientX, ev.clientY);
             scheduleSonarrRequest(function () {
-              return fetch("/insights/library-unwatched/sonarr/status?" + key).then(function (r) {
+              return fetchSonarrStatusMaybeRetry("/insights/library-unwatched/sonarr/status?" + key).then(function (r) {
                 return r.json();
               });
             })

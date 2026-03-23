@@ -62,6 +62,7 @@
         border-radius: 8px;
         padding: 12px 20px;
         font-size: 15px;
+        min-height: var(--touch-target-min, 44px);
         cursor: pointer;
       }
       .actions button:hover { opacity: 0.92; }
@@ -74,6 +75,7 @@
         border-radius: 8px;
         padding: 8px 14px;
         font-size: 14px;
+        min-height: var(--touch-target-min, 44px);
         cursor: pointer;
         margin-right: 8px;
       }
@@ -82,7 +84,8 @@
         font: inherit;
         font-size: 12px;
         margin-top: 8px;
-        padding: 4px 10px;
+        padding: 4px 12px;
+        min-height: var(--touch-target-min, 44px);
         border-radius: 6px;
         border: 1px solid var(--border);
         background: color-mix(in srgb, var(--card-bg) 85%, var(--text));

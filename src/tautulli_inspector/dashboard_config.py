@@ -135,6 +135,7 @@ def build_template_globals(page_title: str | None = None) -> dict[str, Any]:
         "logo_url": logo_url,
         "footer_text": pres.footer_text,
         "nav_note": pres.custom_nav_note,
+        "nav_current": "",
     }
 
 

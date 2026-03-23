@@ -195,6 +195,9 @@ Run:
 
 ## Docs
 
+- `UIDESIGN.md` — UI design principles for contributors and agents
+- `docs/UI_IMPROVEMENTS.md` — Site review vs those principles; prioritized UI backlog
+- **UI implementation:** shared tokens, focus styles, skip link, and nav live in `src/tautulli_inspector/templates/layout.html` (`nav_current` is set per route in `routes_dashboard.py` and `routes_configuration.py`)
 - `docs/ARCHITECTURE.md`
 - `docs/CONFIGURATION.md`
 - `docs/SONARR.md`

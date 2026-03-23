@@ -46,6 +46,8 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 def _template_ctx(request: Request, page_title: str | None = None, **extra: Any) -> dict[str, Any]:
     ctx = build_template_globals(page_title)
     ctx["request"] = request
+    nav_current = str(extra.pop("nav_current", "") or "")
+    ctx["nav_current"] = nav_current
     ctx.update(extra)
     return ctx
 _activity_cache: ActivitySnapshotCache | None = None
@@ -195,6 +197,7 @@ async def dashboard(request: Request) -> HTMLResponse:
         context=_template_ctx(
             request,
             None,
+            nav_current="live",
             server_statuses=server_statuses,
             sessions=sessions,
             total_streams=total_streams,
@@ -365,6 +368,7 @@ async def history(
             context=_template_ctx(
                 request,
                 "History",
+                nav_current="history",
                 server_statuses=pending_cards,
                 rows=[],
                 configured_servers=len(settings.tautulli_servers),
@@ -423,6 +427,7 @@ async def history(
         context=_template_ctx(
             request,
             "History",
+            nav_current="history",
             server_statuses=server_statuses,
             rows=_with_humanized_history_rows(cache_payload["rows"]),
             configured_servers=cache_payload["configured_servers"],
@@ -543,6 +548,7 @@ async def unwatched_insights(
             context=_template_ctx(
                 request,
                 "Unwatched Insights",
+                nav_current="unwatched_insights",
                 configured_servers=len(settings.tautulli_servers),
                 server_statuses=[],
                 updated_at=datetime.now(timezone.utc),
@@ -574,6 +580,7 @@ async def unwatched_insights(
         context=_template_ctx(
             request,
             "Unwatched Insights",
+            nav_current="unwatched_insights",
             configured_servers=cache_payload["configured_servers"],
             server_statuses=cache_payload["server_statuses"],
             updated_at=updated_at,
@@ -710,6 +717,7 @@ async def library_unwatched_insights(
             context=_template_ctx(
                 request,
                 "Library Unwatched",
+                nav_current="library_unwatched",
                 updated_at=datetime.now(timezone.utc),
                 configured_servers=len(settings.tautulli_servers),
                 history_rows_considered=0,
@@ -815,6 +823,7 @@ async def library_unwatched_insights(
         context=_template_ctx(
             request,
             "Library Unwatched",
+            nav_current="library_unwatched",
             updated_at=updated_at,
             configured_servers=cache_payload["configured_servers"],
             history_rows_considered=cache_payload["history_rows_considered"],

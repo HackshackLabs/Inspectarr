@@ -120,6 +120,7 @@ async def settings_page(
     ctx.update(
         {
             "request": request,
+            "nav_current": "settings",
             "theme_choices": THEME_CHOICES,
             "presentation": pres,
             "form_values": form_values,

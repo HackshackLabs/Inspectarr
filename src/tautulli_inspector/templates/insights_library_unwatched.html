@@ -134,19 +134,21 @@
       .sonarr-actions {
         display: flex;
         flex-wrap: wrap;
-        gap: 4px;
+        gap: var(--space-2, 8px);
         align-items: center;
       }
       .sonarr-btn, .sonarr-tip {
         font: inherit;
-        font-size: 11px;
-        padding: 2px 6px;
-        border-radius: 4px;
+        font-size: var(--font-size-small, 0.8125rem);
+        min-height: var(--touch-target-min, 44px);
+        padding: var(--space-2) var(--space-3);
+        border-radius: var(--radius-sm, 6px);
         border: 1px solid var(--border);
         background: color-mix(in srgb, var(--card-bg) 80%, var(--text));
         color: var(--text);
         cursor: pointer;
         text-align: left;
+        box-sizing: border-box;
       }
       .sonarr-btn:hover, .sonarr-tip:hover {
         border-color: var(--link);
@@ -154,11 +156,70 @@
       }
       .sonarr-tip {
         font-weight: 700;
-        width: 22px;
-        height: 22px;
+        width: var(--touch-target-min, 44px);
+        min-width: var(--touch-target-min, 44px);
+        height: var(--touch-target-min, 44px);
         padding: 0;
-        line-height: 20px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         text-align: center;
+      }
+      .lib-ui-dialog {
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md, 8px);
+        padding: 0;
+        background: var(--card-bg);
+        color: var(--text);
+        max-width: min(520px, 92vw);
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+      }
+      .lib-ui-dialog::backdrop {
+        background: rgba(0, 0, 0, 0.55);
+      }
+      .lib-ui-dialog-inner {
+        padding: var(--space-6, 24px);
+      }
+      .lib-ui-dialog-h {
+        margin: 0 0 var(--space-3, 12px);
+        font-size: 1.1rem;
+        color: var(--heading);
+      }
+      .lib-ui-dialog-msg {
+        margin: 0;
+        font-size: var(--font-size-body, 0.875rem);
+        line-height: 1.5;
+        white-space: pre-wrap;
+      }
+      .lib-ui-dialog-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-3, 12px);
+        justify-content: flex-end;
+        margin-top: var(--space-5, 20px);
+      }
+      .lib-ui-dialog-actions button {
+        min-height: var(--touch-target-min, 44px);
+        min-width: var(--touch-target-min, 44px);
+        padding: var(--space-2) var(--space-5);
+        border-radius: var(--radius-md, 8px);
+        font-size: var(--font-size-body, 0.875rem);
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+      }
+      .lib-ui-dialog-ok {
+        background: var(--btn-bg);
+        color: var(--btn-fg);
+      }
+      .lib-ui-dialog-cancel {
+        background: color-mix(in srgb, var(--card-bg) 85%, var(--text));
+        color: var(--text);
+        border: 1px solid var(--border) !important;
+      }
+      .lib-ui-dialog-danger {
+        background: var(--err);
+        color: #fff;
       }
       #sonarr-tooltip {
         display: none;
@@ -209,6 +270,12 @@
         color: var(--link);
         text-decoration: none;
         font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        min-height: var(--touch-target-min, 44px);
+        padding: 0 var(--space-2, 8px);
+        border-radius: var(--radius-sm, 6px);
+        box-sizing: border-box;
       }
       .lib-pager-a:hover { text-decoration: underline; }
 {% endblock %}
@@ -533,12 +600,102 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
       </details>
       <div id="sonarr-tooltip" role="tooltip"></div>
     {% if sonarr_enabled %}
+    <dialog id="lib-ui-alert" class="lib-ui-dialog" aria-modal="true" aria-labelledby="lib-ui-alert-title">
+      <div class="lib-ui-dialog-inner">
+        <h2 id="lib-ui-alert-title" class="lib-ui-dialog-h">Notice</h2>
+        <p id="lib-ui-alert-msg" class="lib-ui-dialog-msg"></p>
+        <div class="lib-ui-dialog-actions">
+          <button type="button" class="lib-ui-dialog-ok" id="lib-ui-alert-ok">OK</button>
+        </div>
+      </div>
+    </dialog>
+    <dialog id="lib-ui-confirm" class="lib-ui-dialog" aria-modal="true" aria-labelledby="lib-ui-confirm-title">
+      <div class="lib-ui-dialog-inner">
+        <h2 id="lib-ui-confirm-title" class="lib-ui-dialog-h">Confirm</h2>
+        <p id="lib-ui-confirm-msg" class="lib-ui-dialog-msg"></p>
+        <div class="lib-ui-dialog-actions">
+          <button type="button" class="lib-ui-dialog-cancel" id="lib-ui-confirm-cancel">Cancel</button>
+          <button type="button" class="lib-ui-dialog-danger" id="lib-ui-confirm-ok">Confirm</button>
+        </div>
+      </div>
+    </dialog>
     <script>
       (function () {
         var tip = document.getElementById("sonarr-tooltip");
         var cache = Object.create(null);
         var hideTimer = null;
         var maxParallelInline = 4;
+
+        function alertLib(message) {
+          var d = document.getElementById("lib-ui-alert");
+          var msgEl = document.getElementById("lib-ui-alert-msg");
+          var okBtn = document.getElementById("lib-ui-alert-ok");
+          if (!d || !msgEl || !okBtn || typeof d.showModal !== "function") {
+            window.alert(message);
+            return Promise.resolve();
+          }
+          msgEl.textContent = message || "";
+          return new Promise(function (resolve) {
+            var settled = false;
+            function finish() {
+              if (settled) return;
+              settled = true;
+              okBtn.removeEventListener("click", onOk);
+              d.removeEventListener("cancel", onEsc);
+              if (d.open) d.close();
+              resolve();
+            }
+            function onOk() {
+              finish();
+            }
+            function onEsc(e) {
+              e.preventDefault();
+              finish();
+            }
+            okBtn.addEventListener("click", onOk);
+            d.addEventListener("cancel", onEsc);
+            d.showModal();
+            okBtn.focus();
+          });
+        }
+
+        function confirmLibAction(message) {
+          var d = document.getElementById("lib-ui-confirm");
+          var msgEl = document.getElementById("lib-ui-confirm-msg");
+          var okBtn = document.getElementById("lib-ui-confirm-ok");
+          var cancelBtn = document.getElementById("lib-ui-confirm-cancel");
+          if (!d || !msgEl || !okBtn || !cancelBtn || typeof d.showModal !== "function") {
+            return Promise.resolve(window.confirm(message));
+          }
+          msgEl.textContent = message || "";
+          return new Promise(function (resolve) {
+            var settled = false;
+            function finish(value) {
+              if (settled) return;
+              settled = true;
+              okBtn.removeEventListener("click", onOk);
+              cancelBtn.removeEventListener("click", onCancel);
+              d.removeEventListener("cancel", onEsc);
+              if (d.open) d.close();
+              resolve(value);
+            }
+            function onOk() {
+              finish(true);
+            }
+            function onCancel() {
+              finish(false);
+            }
+            function onEsc(e) {
+              e.preventDefault();
+              finish(false);
+            }
+            okBtn.addEventListener("click", onOk);
+            cancelBtn.addEventListener("click", onCancel);
+            d.addEventListener("cancel", onEsc);
+            d.showModal();
+            cancelBtn.focus();
+          });
+        }
 
         function rowDataset(row) {
           var d = row.dataset;
@@ -800,21 +957,20 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
           return plexLibraryDeleteIfMapped(row).then(
             function (pj) {
               if (pj === null) {
-                alert(sonarrMsg || "Done.");
-              } else {
-                alert((sonarrMsg || "Done.") + " " + (pj.message || "Plex updated."));
+                return alertLib(sonarrMsg || "Done.");
               }
-              return refreshRowAfterAction(row);
+              return alertLib((sonarrMsg || "Done.") + " " + (pj.message || "Plex updated."));
             },
             function (err) {
-              alert(
+              return alertLib(
                 (sonarrMsg || "Sonarr completed.") +
                   " Plex error: " +
                   (err.message || String(err))
               );
-              return refreshRowAfterAction(row);
             }
-          );
+          ).then(function () {
+            return refreshRowAfterAction(row);
+          });
         }
 
         document.querySelectorAll(".sonarr-unmonitor").forEach(function (btn) {
@@ -824,11 +980,13 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
             if (!row) return;
             postJson("/insights/library-unwatched/sonarr/unmonitor", rowDataset(row))
               .then(function (j) {
-                alert(j.message || "Done.");
+                return alertLib(j.message || "Done.");
+              })
+              .then(function () {
                 return refreshRowAfterAction(row);
               })
               .catch(function (err) {
-                alert(err.message || String(err));
+                alertLib(err.message || String(err));
               });
           });
         });
@@ -848,14 +1006,16 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
                 : kind === "season"
                   ? "Unmonitor this season and delete all episode files on disk for this season?" + plexNote
                   : "Unmonitor this episode and delete its file on disk?" + plexNote;
-            if (!confirm(msg)) return;
-            postJson("/insights/library-unwatched/sonarr/remove-from-plex-and-unmonitor", rowDataset(row))
-              .then(function (j) {
-                return alertSonarrThenMaybePlex(row, j.message || "Sonarr done.");
-              })
-              .catch(function (err) {
-                alert(err.message || String(err));
-              });
+            confirmLibAction(msg).then(function (ok) {
+              if (!ok) return;
+              postJson("/insights/library-unwatched/sonarr/remove-from-plex-and-unmonitor", rowDataset(row))
+                .then(function (j) {
+                  return alertSonarrThenMaybePlex(row, j.message || "Sonarr done.");
+                })
+                .catch(function (err) {
+                  alertLib(err.message || String(err));
+                });
+            });
           });
         });
 
@@ -874,14 +1034,16 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
                 : kind === "season"
                   ? "Delete all episode files for this season from disk only (monitored flags unchanged)?" + plexNote
                   : "Delete this episode file from disk only (monitored state unchanged)?" + plexNote;
-            if (!confirm(msg)) return;
-            postJson("/insights/library-unwatched/sonarr/delete", rowDataset(row))
-              .then(function (j) {
-                return alertSonarrThenMaybePlex(row, j.message || "Sonarr done.");
-              })
-              .catch(function (err) {
-                alert(err.message || String(err));
-              });
+            confirmLibAction(msg).then(function (ok) {
+              if (!ok) return;
+              postJson("/insights/library-unwatched/sonarr/delete", rowDataset(row))
+                .then(function (j) {
+                  return alertSonarrThenMaybePlex(row, j.message || "Sonarr done.");
+                })
+                .catch(function (err) {
+                  alertLib(err.message || String(err));
+                });
+            });
           });
         });
       })();

@@ -5,6 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{% if page_title %}{{ site_title }} — {{ page_title }}{% else %}{{ site_title }}{% endif %}</title>
     <style>
+      /* Shared non-color design tokens (spacing, type scale, radii) */
+      body {
+        --space-1: 0.25rem;
+        --space-2: 0.5rem;
+        --space-3: 0.75rem;
+        --space-4: 1rem;
+        --space-5: 1.25rem;
+        --space-6: 1.5rem;
+        --space-8: 2rem;
+        --radius-sm: 6px;
+        --radius-md: 8px;
+        --font-size-small: 0.8125rem;
+        --font-size-body: 0.875rem;
+        --font-size-title: 1.65rem;
+        --shadow-card: 0 1px 2px rgb(0 0 0 / 0.06);
+        --touch-target-min: 44px;
+      }
       /* Shared layout: theme = CSS variables on body */
       body.theme-slate {
         color-scheme: dark;
@@ -112,10 +129,30 @@
         background: var(--page-bg);
         color: var(--text);
       }
+      .skip-link {
+        position: absolute;
+        left: -9999px;
+        top: 0;
+        z-index: 10000;
+        padding: var(--space-3) var(--space-4);
+        background: var(--btn-bg);
+        color: var(--btn-fg);
+        font-weight: 600;
+        text-decoration: none;
+        border-radius: var(--radius-sm);
+        box-shadow: var(--shadow-card);
+      }
+      .skip-link:focus {
+        position: fixed;
+        left: var(--space-4);
+        top: var(--space-4);
+        outline: 3px solid var(--link);
+        outline-offset: 2px;
+      }
       main {
         max-width: 1180px;
         margin: 0 auto;
-        padding: 24px;
+        padding: var(--space-8);
       }
       .app-header {
         display: flex;
@@ -131,42 +168,62 @@
       }
       .app-header h1 {
         margin: 0;
-        font-size: 1.65rem;
+        font-size: var(--font-size-title);
         color: var(--heading);
       }
       .nav {
-        margin-bottom: 12px;
+        margin-bottom: var(--space-3);
       }
-      .nav a {
+      .nav .nav__link {
         color: var(--link);
         text-decoration: none;
         margin-right: 14px;
+        display: inline-block;
+        min-height: var(--touch-target-min);
+        line-height: var(--touch-target-min);
+        padding: 0 var(--space-2);
+        box-sizing: border-box;
+        border-radius: var(--radius-sm);
       }
-      .nav a:hover {
+      .nav .nav__link:hover {
         text-decoration: underline;
+      }
+      .nav .nav__link--current {
+        font-weight: 600;
+        text-decoration: underline;
+        text-underline-offset: 4px;
+      }
+      a:focus-visible,
+      button:focus-visible,
+      summary:focus-visible,
+      input:focus-visible,
+      select:focus-visible,
+      textarea:focus-visible {
+        outline: 2px solid var(--link);
+        outline-offset: 2px;
       }
       .meta, .note, .muted {
         color: var(--muted);
       }
       .meta {
-        margin-bottom: 16px;
+        margin-bottom: var(--space-4);
       }
       h2 {
-        margin-top: 24px;
+        margin-top: var(--space-8);
         color: var(--heading);
       }
       table {
         width: 100%;
         border-collapse: collapse;
         background: var(--card-bg);
-        border-radius: 8px;
+        border-radius: var(--radius-md);
         overflow: hidden;
       }
       th, td {
         text-align: left;
         padding: 10px 12px;
         border-bottom: 1px solid var(--row-border);
-        font-size: 14px;
+        font-size: var(--font-size-body);
       }
       th {
         color: var(--th);
@@ -183,40 +240,80 @@
       }
       .status-card {
         border: 1px solid var(--border);
-        border-radius: 8px;
+        border-radius: var(--radius-md);
         padding: 12px;
         background: var(--card-bg);
       }
+      .table-scroll {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        margin-bottom: var(--space-4);
+      }
+      .table-scroll:focus-visible {
+        outline: 2px solid var(--link);
+        outline-offset: 2px;
+      }
       .site-footer {
-        margin-top: 32px;
-        padding-top: 16px;
+        margin-top: var(--space-8);
+        padding-top: var(--space-4);
         border-top: 1px solid var(--border);
-        font-size: 13px;
+        font-size: var(--font-size-small);
         color: var(--muted);
       }
       main code {
         font-size: 0.9em;
         color: var(--muted);
       }
+      /* Shared button + field primitives (extend in page_styles if needed) */
+      .btn-primary {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: var(--touch-target-min);
+        padding: 0 var(--space-5);
+        background: var(--btn-bg);
+        color: var(--btn-fg);
+        border: none;
+        border-radius: var(--radius-md);
+        font-size: var(--font-size-body);
+        font-weight: 500;
+        cursor: pointer;
+      }
+      .btn-primary:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          scroll-behavior: auto !important;
+          transition-duration: 0.01ms !important;
+          transition-delay: 0ms !important;
+          animation-duration: 0.01ms !important;
+          animation-delay: 0ms !important;
+        }
+      }
       {% block page_styles %}{% endblock %}
     </style>
     {% block extra_head %}{% endblock %}
   </head>
   <body class="theme-{{ theme }}">
-    <main>
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+    <main id="main-content">
       <header class="app-header">
         {% if logo_url %}
-        <img class="logo" src="{{ logo_url }}" alt="" width="200" height="48" />
+        <img class="logo" src="{{ logo_url }}" alt="{{ site_title }} logo" width="200" height="48" />
         {% endif %}
         <h1>{{ site_title }}</h1>
       </header>
-      <div class="nav">
-        <a href="/">Live Activity</a>
-        <a href="/history">History</a>
-        <a href="/insights/unwatched">Unwatched Insights</a>
-        <a href="/insights/library-unwatched">Library Unwatched</a>
-        <a href="/settings">Settings</a>
-      </div>
+      <nav class="nav" aria-label="Primary">
+        <a href="/" class="nav__link{% if nav_current == 'live' %} nav__link--current{% endif %}"{% if nav_current == 'live' %} aria-current="page"{% endif %}>Live Activity</a>
+        <a href="/history" class="nav__link{% if nav_current == 'history' %} nav__link--current{% endif %}"{% if nav_current == 'history' %} aria-current="page"{% endif %}>History</a>
+        <a href="/insights/unwatched" class="nav__link{% if nav_current == 'unwatched_insights' %} nav__link--current{% endif %}"{% if nav_current == 'unwatched_insights' %} aria-current="page"{% endif %}>Unwatched Insights</a>
+        <a href="/insights/library-unwatched" class="nav__link{% if nav_current == 'library_unwatched' %} nav__link--current{% endif %}"{% if nav_current == 'library_unwatched' %} aria-current="page"{% endif %}>Library Unwatched</a>
+        <a href="/settings" class="nav__link{% if nav_current == 'settings' %} nav__link--current{% endif %}"{% if nav_current == 'settings' %} aria-current="page"{% endif %}>Settings</a>
+      </nav>
       {% if nav_note %}
       <p class="note">{{ nav_note }}</p>
       {% endif %}

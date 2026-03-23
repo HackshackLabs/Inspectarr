@@ -126,12 +126,12 @@ async def plex_auth_validate(
             "profile": profile,
             "message": "No token for this profile. Sign in above, or paste a token and click Save configuration.",
         }
-    cid = str(settings.plex_client_identifier or "").strip() or "tautulli-inspector"
+    cid = str(settings.plex_client_identifier or "").strip() or "insecpectarr"
     headers = {
         "X-Plex-Token": token,
         "Accept": "application/json",
         "X-Plex-Client-Identifier": cid,
-        "X-Plex-Product": "Tautulli Inspector",
+        "X-Plex-Product": "Insecpectarr",
         "X-Plex-Version": "0.1.0",
     }
     try:

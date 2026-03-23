@@ -1,4 +1,4 @@
-# Tautulli Inspector
+# Insecpectarr
 
 Small "single pane of glass" dashboard that aggregates activity and history from multiple Tautulli instances.
 

@@ -384,6 +384,6 @@ You're successful when:
 
 ---
 
-## Tautulli Inspector (this repository)
+## Insecpectarr (this repository)
 
 Principles in this file apply to UI work here. A **concrete site review**, gaps vs these guidelines, and a **prioritized implementation backlog** are maintained in **[`docs/UI_IMPROVEMENTS.md`](docs/UI_IMPROVEMENTS.md)**—update that document when shipping UI changes.

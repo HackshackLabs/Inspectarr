@@ -17,7 +17,7 @@ from tautulli_inspector.settings import _settings_from_env
 _UNAUTH = JSONResponse(
     status_code=401,
     content={"detail": "Not authenticated"},
-    headers={"WWW-Authenticate": 'Basic realm="Tautulli Inspector"'},
+    headers={"WWW-Authenticate": 'Basic realm="Insecpectarr"'},
 )
 
 

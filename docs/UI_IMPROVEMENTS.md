@@ -1,6 +1,6 @@
 # UI review and implementation backlog
 
-This document records a design review of **Tautulli Inspector** against the principles and deliverables described in **[`UIDESIGN.md`](../UIDESIGN.md)** (design-system-first approach, WCAG AA, responsive framework, component consistency, and developer handoff patterns). Use it to prioritize UI work; update sections as items ship.
+This document records a design review of **Insecpectarr** against the principles and deliverables described in **[`UIDESIGN.md`](../UIDESIGN.md)** (design-system-first approach, WCAG AA, responsive framework, component consistency, and developer handoff patterns). Use it to prioritize UI work; update sections as items ship.
 
 ## Recently implemented (2026-03)
 

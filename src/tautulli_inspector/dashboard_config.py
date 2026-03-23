@@ -29,7 +29,7 @@ class PresentationConfig(BaseModel):
     """UI-only options stored under `presentation` in the dashboard config file."""
 
     theme: ThemeId = "slate"
-    site_title: str = Field(default="Tautulli Inspector", max_length=200)
+    site_title: str = Field(default="Insecpectarr", max_length=200)
     logo_file: str | None = Field(default=None, max_length=255)
     footer_text: str = Field(default="", max_length=500)
     custom_nav_note: str = Field(default="", max_length=300)

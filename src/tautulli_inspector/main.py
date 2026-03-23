@@ -1,4 +1,4 @@
-"""FastAPI entrypoint for Tautulli Inspector."""
+"""FastAPI entrypoint for Insecpectarr."""
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -19,7 +19,7 @@ from tautulli_inspector.settings import _settings_from_env, get_settings
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
-    app = FastAPI(title="Tautulli Inspector", version="0.1.0")
+    app = FastAPI(title="Insecpectarr", version="0.1.0")
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     app.add_middleware(SecurityHeadersMiddleware)

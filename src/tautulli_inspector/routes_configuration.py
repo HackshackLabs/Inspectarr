@@ -208,7 +208,7 @@ async def settings_save(request: Request) -> RedirectResponse:
 
     presentation = {
         "theme": theme,
-        "site_title": (scalar.get("site_title") or "Tautulli Inspector").strip()[:200],
+        "site_title": (scalar.get("site_title") or "Insecpectarr").strip()[:200],
         "footer_text": (scalar.get("footer_text") or "")[:500],
         "custom_nav_note": (scalar.get("custom_nav_note") or "")[:300],
         "logo_file": logo_name,

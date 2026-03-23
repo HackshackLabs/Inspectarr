@@ -1,4 +1,4 @@
-# Security review: Tautulli Inspector
+# Security review: Insecpectarr
 
 **Scope:** Application code under `src/tautulli_inspector/`, configuration patterns, and deployment assumptions.  
 **Method:** Aligns with the methodology in [`SECURITYENGINEER.md`](./SECURITYENGINEER.md): trust boundaries, OWASP-style risks, and concrete remediation (not exploit steps).
@@ -9,7 +9,7 @@
 
 | Item | Notes |
 |------|--------|
-| **Architecture** | Python FastAPI app; server-side templates (Jinja2); JSON file + SQLite caches for config and data. |
+| **Architecture** | Insecpectarr: Python FastAPI app; server-side templates (Jinja2); JSON file + SQLite caches for config and data. |
 | **Trust boundaries** | Browser ↔ app (HTTP Basic optional); app ↔ Tautulli / Sonarr / Plex / Plex.tv (admin-configured URLs and secrets). |
 | **Sensitive data** | Tautulli and Sonarr API keys, Plex tokens, Basic auth password, dashboard JSON at `DASHBOARD_CONFIG_PATH`, optional SQLite DB paths. |
 | **Attackers** | Unauthenticated network clients; authenticated users of the app (treated as admins); anyone who can read the host filesystem or backups. |

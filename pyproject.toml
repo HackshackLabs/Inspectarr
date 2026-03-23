@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "tautulli-inspector"
 version = "0.1.0"
-description = "Single-pane dashboard for multiple Tautulli servers."
+description = "Insecpectarr — single-pane dashboard for multiple Tautulli servers."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

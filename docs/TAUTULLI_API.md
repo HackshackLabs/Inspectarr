@@ -33,7 +33,7 @@ Notable response sections:
 - `response.data.stream_count`
 - `response.data.sessions` (array of active streams)
 
-Inspector usage notes:
+Insecpectarr usage notes:
 
 - Called in parallel across all configured servers.
 - `sessions` rows are normalized and tagged with `server_id`.
@@ -61,7 +61,7 @@ Notable response sections:
 - `response.data.recordsFiltered`
 - `response.data.recordsTotal`
 
-Inspector usage notes:
+Insecpectarr usage notes:
 
 - Called per server, then merged to one timeline.
 - Uses global timestamp-based merge-sort via canonical UTC epoch normalization.
@@ -77,7 +77,7 @@ Purpose:
 
 - Discover library sections and identify TV libraries (`section_type=show`) for inventory traversal.
 
-Inspector usage notes:
+Insecpectarr usage notes:
 
 - Called per server before inventory fetch in `/insights/library-unwatched`.
 
@@ -95,7 +95,7 @@ Typical query parameters:
 - `start`
 - `length`
 
-Inspector usage notes:
+Insecpectarr usage notes:
 
 - Used to page through show rows before season/episode traversal.
 - In library-unwatched mode, called incrementally with small `start`/`length` chunks per request.
@@ -112,7 +112,7 @@ Typical query parameters:
 - `cmd=get_children_metadata`
 - `rating_key`
 
-Inspector usage notes:
+Insecpectarr usage notes:
 
 - Called on show `rating_key` to fetch seasons, then on season `rating_key` to fetch episodes.
 - Supports inventory-joined report for shows/seasons/episodes not watched in the history index window.

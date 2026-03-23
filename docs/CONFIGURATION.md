@@ -14,7 +14,7 @@ Beyond environment variables (`.env` / `.env.local`), the app can load a **JSON 
 {
   "presentation": {
     "theme": "slate",
-    "site_title": "Tautulli Inspector",
+    "site_title": "Insecpectarr",
     "logo_file": "abc123.png",
     "footer_text": "",
     "custom_nav_note": ""

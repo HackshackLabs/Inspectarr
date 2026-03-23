@@ -41,7 +41,7 @@ async def plex_create_pin(
     headers = {
         "Accept": "application/json",
         "X-Plex-Client-Identifier": client_identifier,
-        "X-Plex-Product": "Tautulli Inspector",
+        "X-Plex-Product": "Insecpectarr",
         "X-Plex-Version": "0.1.0",
     }
     async with httpx.AsyncClient(timeout=timeout_seconds) as client:
@@ -62,7 +62,7 @@ async def plex_check_pin(
     headers = {
         "Accept": "application/json",
         "X-Plex-Client-Identifier": client_identifier,
-        "X-Plex-Product": "Tautulli Inspector",
+        "X-Plex-Product": "Insecpectarr",
         "X-Plex-Version": "0.1.0",
     }
     async with httpx.AsyncClient(timeout=timeout_seconds) as client:
@@ -110,7 +110,7 @@ async def plex_delete_library_metadata(
         "Accept": "application/json",
         "X-Plex-Token": tok,
         "X-Plex-Client-Identifier": cid,
-        "X-Plex-Product": "Tautulli Inspector",
+        "X-Plex-Product": "Insecpectarr",
         "X-Plex-Version": "0.1.0",
     }
     async with httpx.AsyncClient(timeout=timeout_seconds, follow_redirects=True) as client:

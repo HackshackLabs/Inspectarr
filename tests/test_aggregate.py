@@ -460,7 +460,9 @@ class LibraryUnwatchedReportTests(unittest.TestCase):
             max_items=200,
         )
         self.assertEqual(0, len(report["cumulative_unwatched"]["shows"]))
+        self.assertEqual(0, len(report["cumulative_unwatched"]["seasons"]))
         self.assertEqual(0, len(report["per_server"][0]["unwatched"]["shows"]))
+        self.assertEqual(0, len(report["per_server"][0]["unwatched"]["seasons"]))
 
     def test_show_excluded_if_show_row_has_play_count(self) -> None:
         inventory = [
@@ -488,6 +490,8 @@ class LibraryUnwatchedReportTests(unittest.TestCase):
             max_items=200,
         )
         self.assertEqual(0, len(report["cumulative_unwatched"]["shows"]))
+        self.assertEqual(0, len(report["cumulative_unwatched"]["seasons"]))
+        self.assertEqual(0, len(report["per_server"][0]["unwatched"]["seasons"]))
 
 
 class TvdbGuidTests(unittest.TestCase):

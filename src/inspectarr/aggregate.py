@@ -209,6 +209,10 @@ def build_library_unwatched_tv_report(
 
     When ``restrict_history_to_index_window`` is False, every loaded episode history row counts
     as watch evidence (all-time within the crawl). Index bounds are still returned for display.
+
+    Season rows use the same **ever-watched** evidence as show rows: history inside the index
+    window, plus Plex play counters / last-viewed on episodes, plus show-level watch metadata,
+    and season-level keys derived from watched episodes.
     """
     watched_episode_ids_by_server: dict[str, set[str]] = {}
     watched_episode_ids_global: set[str] = set()
@@ -244,6 +248,10 @@ def build_library_unwatched_tv_report(
         server_id: set(values) for server_id, values in watched_episode_ids_by_server.items()
     }
     watched_episode_ids_ever_global: set[str] = set(watched_episode_ids_global)
+    watched_season_ids_ever_by_server: dict[str, set[str]] = {
+        server_id: set(values) for server_id, values in watched_season_ids_by_server.items()
+    }
+    watched_season_ids_ever_global: set[str] = set(watched_season_ids_global)
 
     global_episode_entries: dict[str, dict] = {}
     global_season_entries: dict[str, dict] = {}
@@ -315,6 +323,18 @@ def build_library_unwatched_tv_report(
                 for k in _library_episode_watch_keys(episode):
                     watched_episode_ids_ever_by_server.setdefault(result.server_id, set()).add(k)
                     watched_episode_ids_ever_global.add(k)
+                if season_id:
+                    season_meta = {
+                        "season_rating_key": str(
+                            episode.get("server_season_rating_key") or episode.get("parent_rating_key") or ""
+                        ),
+                        "rating_key": str(
+                            episode.get("server_season_rating_key") or episode.get("parent_rating_key") or ""
+                        ),
+                    }
+                    for sk in _library_season_watched_keys(season_id, season_meta):
+                        watched_season_ids_ever_by_server.setdefault(result.server_id, set()).add(sk)
+                        watched_season_ids_ever_global.add(sk)
 
         # Show-level metadata is often more reliable for all-time watch evidence.
         for show in shows:
@@ -332,13 +352,17 @@ def build_library_unwatched_tv_report(
         ]
 
         season_unwatched_server = []
+        watched_seasons_ever = watched_season_ids_ever_by_server.get(result.server_id, set())
+        watched_ep_ever_server = watched_episode_ids_ever_by_server.get(result.server_id, set())
         for season_id, entry in server_season_entries.items():
+            show_key = _show_key_from_season_library_entry(entry)
+            if show_key and show_key in watched_show_ids_ever_server:
+                continue
             episode_ids = server_season_episode_ids.get(season_id, set())
-            watched_seasons_server = watched_season_ids_by_server.get(result.server_id, set())
-            if _library_season_watched_keys(season_id, entry) & watched_seasons_server:
+            if _library_season_watched_keys(season_id, entry) & watched_seasons_ever:
                 continue
             if episode_ids and not _any_episode_keys_intersect_watched(
-                episode_ids, server_episode_entries, watched_on_server
+                episode_ids, server_episode_entries, watched_ep_ever_server
             ):
                 season_copy = dict(entry)
                 season_copy["episode_count"] = len(episode_ids)
@@ -386,11 +410,14 @@ def build_library_unwatched_tv_report(
     ]
     cumulative_unwatched_seasons = []
     for season_id, entry in global_season_entries.items():
+        show_key = _show_key_from_season_library_entry(entry)
+        if show_key and show_key in watched_show_ids_ever_global:
+            continue
         episode_ids = global_season_episode_ids.get(season_id, set())
-        if _library_season_watched_keys(season_id, entry) & watched_season_ids_global:
+        if _library_season_watched_keys(season_id, entry) & watched_season_ids_ever_global:
             continue
         if episode_ids and not _any_episode_keys_intersect_watched(
-            episode_ids, global_episode_entries, watched_episode_ids_global
+            episode_ids, global_episode_entries, watched_episode_ids_ever_global
         ):
             season_copy = dict(entry)
             season_copy["episode_count"] = len(episode_ids)
@@ -683,6 +710,11 @@ def _show_identity_from_show(show: dict) -> str:
     if not title:
         return ""
     return f"show:{title}"
+
+
+def _show_key_from_season_library_entry(entry: dict) -> str:
+    """Show identity key for a season row (same normalization as episode-derived show keys)."""
+    return _show_identity_from_show({"title": entry.get("series_title") or entry.get("title")})
 
 
 def _season_entry_from_episode(episode: dict) -> dict:

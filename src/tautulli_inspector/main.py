@@ -1,0 +1,44 @@
+"""FastAPI entrypoint for Tautulli Inspector."""
+
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+
+from tautulli_inspector.dashboard_config import upload_dir
+from tautulli_inspector.routes_configuration import router as configuration_router
+from tautulli_inspector.routes_dashboard import router as dashboard_router
+from tautulli_inspector.routes_library_plex import router as library_plex_router
+from tautulli_inspector.routes_library_sonarr import router as library_sonarr_router
+from tautulli_inspector.routes_plex_auth import router as plex_auth_router
+from tautulli_inspector.settings import _settings_from_env, get_settings
+
+
+def create_app() -> FastAPI:
+    """Create and configure the FastAPI application."""
+    app = FastAPI(title="Tautulli Inspector", version="0.1.0")
+
+    @app.get("/healthz", tags=["system"])
+    def healthz() -> dict[str, str]:
+        return {"status": "ok"}
+
+    uploads_path = upload_dir(_settings_from_env())
+    uploads_path.mkdir(parents=True, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=str(uploads_path)), name="uploads")
+
+    app.include_router(dashboard_router)
+    app.include_router(library_sonarr_router)
+    app.include_router(library_plex_router)
+    app.include_router(plex_auth_router)
+    app.include_router(configuration_router)
+
+    return app
+
+
+app = create_app()
+
+
+def run() -> None:
+    """Run local development server."""
+    import uvicorn
+
+    settings = get_settings()
+    uvicorn.run("tautulli_inspector.main:app", host=settings.host, port=settings.port, reload=True)

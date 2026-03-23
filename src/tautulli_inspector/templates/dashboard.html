@@ -1,0 +1,251 @@
+{% extends "layout.html" %}
+{% block page_styles %}
+      h1, h2 {
+        margin: 0 0 12px;
+        color: var(--heading);
+      }
+      .meta {
+        margin-bottom: 20px;
+      }
+      .viz-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-bottom: 24px;
+      }
+      .viz-card {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px;
+        background: var(--card-bg);
+      }
+      .bar-row {
+        display: grid;
+        grid-template-columns: 140px 1fr 40px;
+        gap: 8px;
+        align-items: center;
+        margin: 8px 0;
+      }
+      .bar-track {
+        background: var(--row-border);
+        border-radius: 999px;
+        height: 10px;
+        overflow: hidden;
+      }
+      .bar-fill {
+        height: 10px;
+        background: linear-gradient(90deg, var(--accent-fill1), var(--accent-fill2));
+      }
+      @media (max-width: 900px) {
+        .viz-grid { grid-template-columns: 1fr; }
+      }
+      .server-stat-tooltip-anchor {
+        position: relative;
+        cursor: default;
+        outline: none;
+      }
+      .server-stat-tooltip-anchor:hover,
+      .server-stat-tooltip-anchor:focus-within {
+        z-index: 2;
+      }
+      .stream-tooltip-panel {
+        display: none;
+        position: absolute;
+        z-index: 100;
+        left: 0;
+        top: 100%;
+        margin-top: 8px;
+        min-width: 240px;
+        max-width: min(380px, 92vw);
+        padding: 10px 12px;
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+        font-size: 13px;
+        line-height: 1.45;
+        color: var(--text);
+        pointer-events: none;
+      }
+      .server-stat-tooltip-anchor:hover .stream-tooltip-panel,
+      .server-stat-tooltip-anchor:focus-within .stream-tooltip-panel {
+        display: block;
+      }
+      .stream-tooltip-heading {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
+      .stream-tooltip-list {
+        margin: 0;
+        padding-left: 18px;
+        max-height: 240px;
+        overflow-y: auto;
+      }
+      .stream-tooltip-list li {
+        margin-bottom: 6px;
+      }
+      .stream-tooltip-list li:last-child {
+        margin-bottom: 0;
+      }
+      .stream-tooltip-user {
+        color: var(--link);
+        font-weight: 500;
+      }
+      .bar-row.server-stat-tooltip-anchor {
+        padding: 4px 0;
+        border-radius: 6px;
+      }
+      th {
+        font-weight: 600;
+      }
+{% endblock %}
+{% block content %}
+    {% macro server_stream_tooltip(server_id, tip_id) %}
+      {% set lines = live_streams_by_server.get(server_id, []) %}
+      {% if lines %}
+      <div class="stream-tooltip-panel" id="{{ tip_id }}" role="tooltip">
+        <div class="stream-tooltip-heading">Now playing</div>
+        <ul class="stream-tooltip-list">
+          {% for item in lines %}
+          <li><span class="stream-tooltip-user">{{ item.user }}</span> — {{ item.title }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+    {% endmacro %}
+      <h2>Live activity</h2>
+      <p class="meta">
+        Configured servers: {{ configured_servers }} |
+        Active streams: {{ total_streams }} |
+        Updated: {{ updated_at.strftime("%Y-%m-%d %H:%M:%S %Z") }} |
+        Cache: {{ cache_state }} (age {{ "%.1f"|format(cache_age_seconds) }}s)
+      </p>
+      {% if timed_out_servers %}
+      <p class="meta">
+        Timed-out servers: {{ timed_out_servers | length }} |
+        Next retry in <span id="retry-countdown">{{ retry_countdown_seconds if retry_countdown_seconds is not none else "-" }}</span>s
+        (interval {{ "%.0f"|format(retry_interval_seconds) }}s)
+      </p>
+      <script>
+        (function () {
+          var el = document.getElementById("retry-countdown");
+          if (!el) return;
+          var current = parseInt(el.textContent, 10);
+          if (isNaN(current)) return;
+          setInterval(function () {
+            if (current > 0) {
+              current -= 1;
+              el.textContent = String(current);
+            } else {
+              window.location.reload();
+            }
+          }, 1000);
+        })();
+      </script>
+      {% endif %}
+
+      <h2>Server Health</h2>
+      <section class="status-grid">
+        {% for server in server_statuses %}
+        {% set card_tip = "live-tip-card-" ~ loop.index0 %}
+        {% set has_tip = live_streams_by_server.get(server.server_id) %}
+        <article
+          class="status-card{% if has_tip %} server-stat-tooltip-anchor{% endif %}"
+          {% if has_tip %}tabindex="0" aria-describedby="{{ card_tip }}"{% endif %}
+        >
+          <div><strong>{{ server.server_name }}</strong></div>
+          <div>ID: <span class="muted">{{ server.server_id }}</span></div>
+          <div>
+            Status:
+            <span class="{% if server.status == 'ok' %}status-ok{% else %}status-error{% endif %}">
+              {{ server.status }}
+            </span>
+          </div>
+          <div>Streams: {{ server.stream_count }}</div>
+          {% if server.error %}
+          <div class="status-error">Error: {{ server.error }}</div>
+          {% endif %}
+          {{ server_stream_tooltip(server.server_id, card_tip) }}
+        </article>
+        {% endfor %}
+      </section>
+
+      <section class="viz-grid">
+        <article class="viz-card">
+          <h2>Streams by Server</h2>
+          {% for server in server_statuses %}
+          {% set bar_tip = "live-tip-bar-" ~ loop.index0 %}
+          {% set has_bar_tip = live_streams_by_server.get(server.server_id) %}
+          <div
+            class="bar-row{% if has_bar_tip %} server-stat-tooltip-anchor{% endif %}"
+            {% if has_bar_tip %}tabindex="0" aria-describedby="{{ bar_tip }}"{% endif %}
+          >
+            <div class="muted">{{ server.server_name }}</div>
+            <div class="bar-track">
+              <div class="bar-fill" style="width: {{ (server.stream_count / server_stream_max * 100) if server_stream_max else 0 }}%"></div>
+            </div>
+            <div>{{ server.stream_count }}</div>
+            {{ server_stream_tooltip(server.server_id, bar_tip) }}
+          </div>
+          {% endfor %}
+        </article>
+        <article class="viz-card">
+          <h2>Streams by Media Type</h2>
+          {% if media_rows %}
+            {% set media_max = media_rows[0][1] %}
+            {% for label, count in media_rows %}
+            <div class="bar-row">
+              <div class="muted">{{ label }}</div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width: {{ (count / media_max * 100) if media_max else 0 }}%"></div>
+              </div>
+              <div>{{ count }}</div>
+            </div>
+            {% endfor %}
+          {% else %}
+            <div class="muted">No active streams.</div>
+          {% endif %}
+        </article>
+      </section>
+
+      <h2>Now Playing</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Server</th>
+            <th>User</th>
+            <th>Title</th>
+            <th>Type</th>
+            <th>Player</th>
+            <th>Progress</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if sessions %}
+            {% for session in sessions %}
+            <tr>
+              <td>{{ session.server_name }}</td>
+              <td>{{ session.friendly_name or session.user or "-" }}</td>
+              <td>
+                {{ session.grandparent_title or session.title or "-" }}
+                {% if session.parent_media_index and session.media_index %}
+                <span class="muted">S{{ session.parent_media_index }}E{{ session.media_index }}</span>
+                {% endif %}
+              </td>
+              <td>{{ session.media_type or "-" }}</td>
+              <td>{{ session.player.product if session.player else "-" }}</td>
+              <td>{{ session.progress_percent | default("-", true) }}</td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="6" class="muted">No active streams.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+{% endblock %}

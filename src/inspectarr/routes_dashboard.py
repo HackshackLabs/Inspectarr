@@ -32,6 +32,7 @@ from inspectarr.models import InventoryFetchResult
 from inspectarr.report_export import build_export_body, build_export_filename, media_type_for_format
 from inspectarr.settings import (
     Settings,
+    TautulliServer,
     get_settings,
     plex_mapped_tautulli_server_ids,
     plex_per_server_actions_available,
@@ -105,7 +106,7 @@ def _insights_unwatched_cache_key_seed(settings: Settings, days: int, media_type
 def _insights_library_unwatched_cache_key_seed(settings: Settings) -> str:
     return "|".join(
         [
-            "insights-library-unwatched-v9",
+            "insights-library-unwatched-v10",
             ",".join(sorted([server.id for server in settings.tautulli_servers])),
             f"history_len={settings.insights_history_length}",
             f"lib_hist_full={1 if settings.library_unwatched_use_full_history_crawl else 0}",
@@ -114,6 +115,113 @@ def _insights_library_unwatched_cache_key_seed(settings: Settings) -> str:
             f"sonarr_disk_filter={'1' if sonarr_is_configured(settings) else '0'}",
         ]
     )
+
+
+def _library_unwatched_inventory_progress_fingerprint(
+    inventory_cache: InventoryCache,
+    servers: list[TautulliServer],
+) -> tuple[tuple[str, str, int, int], ...]:
+    parts: list[tuple[str, str, int, int]] = []
+    for srv in servers:
+        for row in inventory_cache.get_server_progress(srv.id):
+            parts.append(
+                (
+                    srv.id,
+                    str(row.get("section_id") or ""),
+                    int(row.get("next_start") or 0),
+                    1 if row.get("completed") else 0,
+                )
+            )
+    return tuple(sorted(parts))
+
+
+def _library_unwatched_should_stop_inventory_loop(
+    chunk_results: list[InventoryFetchResult],
+    servers: list[TautulliServer],
+) -> tuple[bool, str]:
+    for r in chunk_results:
+        if r.server_id == "unknown":
+            return True, "internal_error"
+    if not servers:
+        return True, "no_servers"
+    by_id = {r.server_id: r for r in chunk_results}
+    for srv in servers:
+        chunk = by_id.get(srv.id)
+        if chunk is None:
+            return True, "missing_server"
+        if chunk.status != "ok":
+            return True, f"server_status:{chunk.status}"
+    if all(by_id[srv.id].index_complete for srv in servers):
+        return True, "complete"
+    return False, "continue"
+
+
+async def _library_unwatched_run_inventory_index(
+    *,
+    settings: Settings,
+    inventory_cache: InventoryCache,
+    inv_client: TautulliClient,
+) -> list[InventoryFetchResult]:
+    servers = settings.tautulli_servers
+    max_chunks = max(1, int(settings.library_unwatched_max_inventory_chunks_per_job))
+    last_results: list[InventoryFetchResult] = []
+    prev_fp: tuple[tuple[str, str, int, int], ...] | None = None
+
+    for iteration in range(max_chunks):
+        chunk_results = await inv_client.fetch_all_tv_inventory_chunk(
+            servers,
+            batch_shows_per_server=settings.tv_inventory_batch_shows_per_server,
+            get_next_start=lambda sid, sec: inventory_cache.get_next_start(sid, sec),
+        )
+        last_results = chunk_results
+
+        for chunk in chunk_results:
+            if chunk.server_id == "unknown":
+                continue
+            inventory_cache.upsert_items(chunk.server_id, "show", chunk.shows)
+            inventory_cache.upsert_items(chunk.server_id, "season", chunk.seasons)
+            inventory_cache.upsert_items(chunk.server_id, "episode", chunk.episodes)
+            for progress in chunk.section_progress:
+                inventory_cache.set_progress(
+                    server_id=chunk.server_id,
+                    section_id=str(progress.get("section_id") or ""),
+                    next_start=int(progress.get("next_start") or 0),
+                    records_total=int(progress.get("records_total") or 0),
+                    completed=bool(progress.get("completed")),
+                )
+
+        stop, reason = _library_unwatched_should_stop_inventory_loop(chunk_results, servers)
+        if stop:
+            if reason not in ("complete", "no_servers"):
+                logger.warning(
+                    "Library unwatched inventory index stopped: %s (iteration=%s)",
+                    reason,
+                    iteration,
+                )
+            break
+
+        fp = _library_unwatched_inventory_progress_fingerprint(inventory_cache, servers)
+        if fp == prev_fp:
+            logger.warning("Library unwatched inventory index stalled (iteration=%s)", iteration)
+            break
+        prev_fp = fp
+    else:
+        logger.warning(
+            "Library unwatched inventory reached max chunk iterations (%s); index may be partial",
+            max_chunks,
+        )
+
+    if not last_results and servers:
+        last_results = [
+            InventoryFetchResult(
+                server_id=s.id,
+                server_name=s.name,
+                status="internal_error",
+                error="inventory index produced no results",
+            )
+            for s in servers
+        ]
+    return last_results
 
 
 def _library_unwatched_export_rows(report: dict, group: LibraryUnwatchedExportGroup, server_id: str | None) -> list[dict]:
@@ -636,6 +744,7 @@ async def library_unwatched_insights(
             per_request_delay_seconds=settings.upstream_per_request_delay_seconds
             + settings.library_unwatched_history_extra_delay_seconds,
             inventory_inter_request_delay_seconds=settings.tv_inventory_inter_request_delay_seconds,
+            inventory_metadata_max_parallel=settings.tv_inventory_metadata_max_parallel,
         )
         activity_client = TautulliClient(
             timeout_seconds=settings.request_timeout_seconds,
@@ -674,8 +783,19 @@ async def library_unwatched_insights(
                     media_type="episode",
                 )
             )
+        inventory_task = asyncio.create_task(
+            _library_unwatched_run_inventory_index(
+                settings=settings,
+                inventory_cache=inventory_cache,
+                inv_client=inv_client,
+            )
+        )
         activity_task = asyncio.create_task(activity_client.fetch_all_activity(settings.tautulli_servers))
-        history_results, activity_results = await asyncio.gather(history_task, activity_task)
+        history_results, activity_results, chunk_results = await asyncio.gather(
+            history_task,
+            activity_task,
+            inventory_task,
+        )
         merged_activity = merge_activity(activity_results)
         activity_server_statuses = list(merged_activity.get("server_statuses") or [])
 
@@ -691,26 +811,6 @@ async def library_unwatched_insights(
         epochs = [int(row.get("canonical_utc_epoch", 0)) for row in history_rows if int(row.get("canonical_utc_epoch", 0)) > 0]
         index_start_epoch = min(epochs) if epochs else 0
         index_end_epoch = max(epochs) if epochs else 0
-
-        chunk_results = await inv_client.fetch_all_tv_inventory_chunk(
-            settings.tautulli_servers,
-            batch_shows_per_server=settings.tv_inventory_batch_shows_per_server,
-            get_next_start=lambda server_id, section_id: inventory_cache.get_next_start(server_id, section_id),
-        )
-        for chunk in chunk_results:
-            if chunk.server_id == "unknown":
-                continue
-            inventory_cache.upsert_items(chunk.server_id, "show", chunk.shows)
-            inventory_cache.upsert_items(chunk.server_id, "season", chunk.seasons)
-            inventory_cache.upsert_items(chunk.server_id, "episode", chunk.episodes)
-            for progress in chunk.section_progress:
-                inventory_cache.set_progress(
-                    server_id=chunk.server_id,
-                    section_id=str(progress.get("section_id") or ""),
-                    next_start=int(progress.get("next_start") or 0),
-                    records_total=int(progress.get("records_total") or 0),
-                    completed=bool(progress.get("completed")),
-                )
 
         inventory_results: list[InventoryFetchResult] = []
         for chunk in chunk_results:

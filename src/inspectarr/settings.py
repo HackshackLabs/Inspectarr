@@ -78,6 +78,20 @@ class Settings(BaseSettings):
         ge=0.0,
         alias="TV_INVENTORY_INTER_REQUEST_DELAY_SECONDS",
     )
+    tv_inventory_metadata_max_parallel: int = Field(
+        default=12,
+        ge=1,
+        le=64,
+        alias="TV_INVENTORY_METADATA_MAX_PARALLEL",
+        description="Concurrent get_children_metadata calls per server during TV inventory chunk fetch.",
+    )
+    library_unwatched_max_inventory_chunks_per_job: int = Field(
+        default=5000,
+        ge=1,
+        le=100_000,
+        alias="LIBRARY_UNWATCHED_MAX_INVENTORY_CHUNKS_PER_JOB",
+        description="Safety cap for how many inventory chunks one library-unwatched refresh may run.",
+    )
     library_unwatched_history_extra_delay_seconds: float = Field(
         default=0.22,
         ge=0.0,

@@ -37,11 +37,13 @@ class TautulliClient:
         max_parallel_servers: int = 2,
         per_request_delay_seconds: float = 0.0,
         inventory_inter_request_delay_seconds: float = 0.0,
+        inventory_metadata_max_parallel: int = 12,
     ) -> None:
         self.timeout_seconds = timeout_seconds
         self.max_parallel_servers = max(max_parallel_servers, 1)
         self.per_request_delay_seconds = max(per_request_delay_seconds, 0.0)
         self.inventory_inter_request_delay_seconds = max(inventory_inter_request_delay_seconds, 0.0)
+        self.inventory_metadata_max_parallel = max(1, int(inventory_metadata_max_parallel))
 
     async def fetch_all_activity(self, servers: list[TautulliServer]) -> list[ActivityFetchResult]:
         """Fetch activity from each configured server in parallel."""
@@ -699,6 +701,69 @@ class TautulliClient:
                 await asyncio.sleep(self.per_request_delay_seconds)
             return await coro
 
+    async def _expand_tv_show_to_seasons_episodes(
+        self,
+        client: httpx.AsyncClient,
+        server: TautulliServer,
+        show_row: dict,
+        meta_sem: asyncio.Semaphore,
+    ) -> tuple[list[dict], list[dict]]:
+        """Load seasons and episodes for one show; parallelize episode-tree fetches under meta_sem."""
+        show_key = str(show_row.get("rating_key") or "")
+        section_id = str(show_row.get("section_id") or "")
+        if not show_key:
+            return [], []
+
+        async with meta_sem:
+            seasons_payload = await self._fetch_cmd_payload(
+                client,
+                server,
+                "get_children_metadata",
+                rating_key=show_key,
+            )
+        seasons_raw = seasons_payload.get("response", {}).get("data", {}).get("children_list") or []
+        if not isinstance(seasons_raw, list):
+            seasons_raw = []
+
+        async def one_season(season: dict) -> tuple[dict | None, list[dict]]:
+            if not isinstance(season, dict):
+                return None, []
+            season_row = dict(season)
+            season_key = str(season_row.get("rating_key") or "")
+            if not season_key:
+                return None, []
+            season_row["server_show_rating_key"] = show_key
+            season_row["section_id"] = section_id
+            async with meta_sem:
+                episodes_payload = await self._fetch_cmd_payload(
+                    client,
+                    server,
+                    "get_children_metadata",
+                    rating_key=season_key,
+                )
+            raw_eps = episodes_payload.get("response", {}).get("data", {}).get("children_list") or []
+            if not isinstance(raw_eps, list):
+                raw_eps = []
+            ep_rows: list[dict] = []
+            for episode in raw_eps:
+                if not isinstance(episode, dict):
+                    continue
+                episode_row = dict(episode)
+                episode_row["server_show_rating_key"] = show_key
+                episode_row["server_season_rating_key"] = season_key
+                episode_row["section_id"] = section_id
+                ep_rows.append(episode_row)
+            return season_row, ep_rows
+
+        pairs = await asyncio.gather(*[one_season(s) for s in seasons_raw])
+        all_seasons: list[dict] = []
+        all_episodes: list[dict] = []
+        for season_row, ep_rows in pairs:
+            if season_row is not None:
+                all_seasons.append(season_row)
+            all_episodes.extend(ep_rows)
+        return all_seasons, all_episodes
+
     async def _fetch_tv_inventory_chunk(
         self,
         client: httpx.AsyncClient,
@@ -746,51 +811,24 @@ class TautulliClient:
                     overall_complete = False
 
                 show_rows = [row for row in page_rows if isinstance(row, dict) and str(row.get("media_type")) == "show"]
-                for show in show_rows:
-                    show_row = dict(show)
-                    show_key = str(show_row.get("rating_key") or "")
-                    if not show_key:
-                        continue
+                meta_sem = asyncio.Semaphore(self.inventory_metadata_max_parallel)
+
+                async def expand_show(raw_show: dict) -> tuple[dict, list[dict], list[dict]]:
+                    show_row = dict(raw_show)
                     show_row["section_id"] = section_id
-                    all_shows.append(show_row)
-
-                    seasons_payload = await self._fetch_cmd_payload(
-                        client,
-                        server,
-                        "get_children_metadata",
-                        rating_key=show_key,
+                    seasons_part, episodes_part = await self._expand_tv_show_to_seasons_episodes(
+                        client, server, show_row, meta_sem
                     )
-                    seasons = seasons_payload.get("response", {}).get("data", {}).get("children_list") or []
-                    if not isinstance(seasons, list):
-                        seasons = []
-                    for season in seasons:
-                        if not isinstance(season, dict):
-                            continue
-                        season_row = dict(season)
-                        season_key = str(season_row.get("rating_key") or "")
-                        if not season_key:
-                            continue
-                        season_row["server_show_rating_key"] = show_key
-                        season_row["section_id"] = section_id
-                        all_seasons.append(season_row)
+                    return show_row, seasons_part, episodes_part
 
-                        episodes_payload = await self._fetch_cmd_payload(
-                            client,
-                            server,
-                            "get_children_metadata",
-                            rating_key=season_key,
-                        )
-                        episodes = episodes_payload.get("response", {}).get("data", {}).get("children_list") or []
-                        if not isinstance(episodes, list):
-                            episodes = []
-                        for episode in episodes:
-                            if not isinstance(episode, dict):
-                                continue
-                            episode_row = dict(episode)
-                            episode_row["server_show_rating_key"] = show_key
-                            episode_row["server_season_rating_key"] = season_key
-                            episode_row["section_id"] = section_id
-                            all_episodes.append(episode_row)
+                if show_rows:
+                    expanded = await asyncio.gather(*[expand_show(s) for s in show_rows])
+                    for show_row, seasons_part, episodes_part in expanded:
+                        if not str(show_row.get("rating_key") or "").strip():
+                            continue
+                        all_shows.append(show_row)
+                        all_seasons.extend(seasons_part)
+                        all_episodes.extend(episodes_part)
 
                 section_progress.append(
                     {

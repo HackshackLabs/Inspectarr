@@ -169,6 +169,12 @@ SETTINGS_EDITOR_FIELDS: list[tuple[str, str, str]] = [
     ("tv_inventory_max_shows_per_server", "TV inventory max shows / server", "int"),
     ("tv_inventory_batch_shows_per_server", "TV inventory batch shows / request", "int"),
     ("tv_inventory_inter_request_delay_seconds", "TV inventory inter-request delay (s)", "float"),
+    ("tv_inventory_metadata_max_parallel", "TV inventory parallel metadata fetches", "int"),
+    (
+        "library_unwatched_max_inventory_chunks_per_job",
+        "Library-unwatched max inventory chunks / refresh",
+        "int",
+    ),
     (
         "library_unwatched_history_extra_delay_seconds",
         "Library-unwatched history extra delay (s)",

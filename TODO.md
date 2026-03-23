@@ -54,5 +54,22 @@
 ## P4 - Plex API (optional)
 
 - [x] Direct Plex delete on per-server Library Unwatched rows + `/settings` Plex mapping, dual tokens (primary/secondary), PIN sign-in (`docs/PLEX_API_LIBRARY_REMOVAL.md`, `docs/CONFIGURATION.md`).
-- [ ] Align `docs/PLEX_API_LIBRARY_REMOVAL.md` with current PMS OpenAPI when targeting a specific server version.
-- [ ] Optional: mocked `httpx` tests for PMS DELETE; empty-trash / alternate delete endpoints if needed.
+
+### Plex follow-ups (deferred; not sprint blockers)
+
+Pick these up when you pin a specific Plex Media Server version or need stronger regression coverage.
+
+- **Docs vs OpenAPI:** For a given PMS build, compare `docs/PLEX_API_LIBRARY_REMOVAL.md` to that version’s PMS OpenAPI (export from [Plex Media Server API](https://developer.plex.tv/pms/)) and update paths, parameters, or behavior notes if they differ.
+- **Tests and delete variants:** Optionally add `httpx`-mocked tests around `plex_delete_library_metadata` and the Library Unwatched delete route. If production needs empty-trash, delete-media, or other PMS endpoints, document the gap and extend the client the same way as metadata delete.
+
+---
+
+## Status
+
+Prioritized work through **P3** and the shipped **P4** Plex delete path is complete. The bullets above are maintenance and optional hardening, not open product milestones.
+
+---
+
+## Git workflow
+
+Follow `.cursor/rules/git-workflow.mdc`: use a **feature branch** for changes; verify before merge; **never commit** `data/dashboard_config.json` or other files with API keys, tokens, or personal endpoints; merge to `main` and delete the branch only **after** you have confirmed testing.

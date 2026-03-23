@@ -377,7 +377,7 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
       </td>
       {% endif %}
     {%- endmacro %}
-      <h2>Library unwatched</h2>
+      <h2>Unshelved mysteries</h2>
       <p class="meta">
         {{ configured_servers }} servers · index {{ index_start_display }}–{{ index_end_display }} ({{ "%.1f"|format(index_span_days) }}d) · {{ history_rows_considered }} history rows · updated {{ updated_at.strftime("%Y-%m-%d %H:%M UTC") }}
         · <a href="/insights/library-unwatched?refresh=1&show_start={{ show_start }}&season_start={{ season_start }}&episode_start={{ episode_start }}&server_start={{ server_start }}&length={{ length }}&max_items={{ max_items }}">Refresh</a>
@@ -417,15 +417,15 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
         </p>
         {% if sonarr_enabled %}
         <p class="note">
-          <strong>Sonarr</strong> shows monitored state and <strong>files on disk</strong> (same scope as the row). ⓘ opens paths. Red row = missing in Sonarr or no file on disk. Three actions differ: unmonitor-only, unmonitor+delete files, remove series / delete files only — see <code>docs/SONARR.md</code>. Per-server rows with Plex mapped may chain Plex library delete after destructive actions (<a href="/settings">Settings</a>).
+          <strong>Sonarr</strong> shows monitored state and <strong>files on disk</strong> (same scope as the row). ⓘ opens paths. Red row = missing in Sonarr or no file on disk. Three actions differ: unmonitor-only, unmonitor+delete files, remove series / delete files only — see <code>docs/SONARR.md</code>. Per-server rows with Plex mapped may chain Plex library delete after destructive actions (<a href="/settings">Inspector's clipboard</a>).
         </p>
         {% endif %}
       </details>
 
       <h2>Server health</h2>
-      <p class="meta muted">Same <strong>Tautulli API</strong> check as <a href="/">Live Activity</a> (<code>get_activity</code>), plus inventory snapshot status for this page.</p>
+      <p class="meta muted">Same <strong>Tautulli API</strong> check as <a href="/">Stream Stakeout</a> (<code>get_activity</code>), plus inventory snapshot status for this page.</p>
       {% if not library_unwatched_server_cards %}
-      <p class="note">No Tautulli servers are configured. Add <code>TAUTULLI_SERVERS_JSON</code> or use <a href="/settings">Settings</a>.</p>
+      <p class="note">No Tautulli servers are configured. Add <code>TAUTULLI_SERVERS_JSON</code> or use <a href="/settings">Inspector's clipboard</a>.</p>
       {% endif %}
       <section class="status-grid">
         {% for server in library_unwatched_server_cards %}

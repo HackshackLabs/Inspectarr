@@ -58,7 +58,7 @@
       <a href="/insights/unwatched/export?group={{ group }}&amp;format={{ fmt }}&amp;media_type={{ media_type }}&amp;days={{ days }}{% if sid %}&amp;server_id={{ sid }}{% endif %}">{{ fmt }}</a>{% if not loop.last %} · {% endif %}
       {% endfor %}
     {%- endmacro %}
-      <h2>Unwatched insights</h2>
+      <h2>Missing links</h2>
       <p class="meta">
         Media type: {{ media_type }} |
         Stale threshold: {{ days }} days |

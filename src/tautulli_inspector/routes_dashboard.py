@@ -204,7 +204,7 @@ async def dashboard(request: Request) -> HTMLResponse:
         name="dashboard.html",
         context=_template_ctx(
             request,
-            None,
+            "Stream Stakeout",
             nav_current="live",
             server_statuses=server_statuses,
             sessions=sessions,
@@ -375,7 +375,7 @@ async def history(
             name="history.html",
             context=_template_ctx(
                 request,
-                "History",
+                "Case File Replay",
                 nav_current="history",
                 server_statuses=pending_cards,
                 rows=[],
@@ -434,7 +434,7 @@ async def history(
         name="history.html",
         context=_template_ctx(
             request,
-            "History",
+            "Case File Replay",
             nav_current="history",
             server_statuses=server_statuses,
             rows=_with_humanized_history_rows(cache_payload["rows"]),
@@ -555,7 +555,7 @@ async def unwatched_insights(
             name="insights_unwatched.html",
             context=_template_ctx(
                 request,
-                "Unwatched Insights",
+                "Missing Links",
                 nav_current="unwatched_insights",
                 configured_servers=len(settings.tautulli_servers),
                 server_statuses=[],
@@ -587,7 +587,7 @@ async def unwatched_insights(
         name="insights_unwatched.html",
         context=_template_ctx(
             request,
-            "Unwatched Insights",
+            "Missing Links",
             nav_current="unwatched_insights",
             configured_servers=cache_payload["configured_servers"],
             server_statuses=cache_payload["server_statuses"],
@@ -796,7 +796,7 @@ async def library_unwatched_insights(
             name="insights_library_unwatched.html",
             context=_template_ctx(
                 request,
-                "Library Unwatched",
+                "Unshelved Mysteries",
                 nav_current="library_unwatched",
                 updated_at=datetime.now(timezone.utc),
                 configured_servers=len(settings.tautulli_servers),
@@ -914,7 +914,7 @@ async def library_unwatched_insights(
         name="insights_library_unwatched.html",
         context=_template_ctx(
             request,
-            "Library Unwatched",
+            "Unshelved Mysteries",
             nav_current="library_unwatched",
             updated_at=updated_at,
             configured_servers=cache_payload["configured_servers"],
@@ -963,7 +963,7 @@ async def export_library_unwatched(
     if payload is None:
         raise HTTPException(
             status_code=503,
-            detail="Report is not in cache yet. Open Library Unwatched and wait for indexing to finish, then retry.",
+            detail="Report is not in cache yet. Open Unshelved Mysteries and wait for indexing to finish, then retry.",
         )
     report = payload.get("report") or {}
     rows = _library_unwatched_export_rows(report, group, server_id)
@@ -1003,7 +1003,7 @@ async def export_unwatched_insights(
     if payload is None:
         raise HTTPException(
             status_code=503,
-            detail="Report is not in cache yet. Open Unwatched Insights and wait for it to load, then retry.",
+            detail="Report is not in cache yet. Open Missing Links and wait for it to load, then retry.",
         )
     report = payload.get("report") or {}
     rows = _unwatched_insights_export_rows(report, group, server_id)

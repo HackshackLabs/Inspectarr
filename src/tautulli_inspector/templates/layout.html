@@ -322,11 +322,11 @@
         <h1>{{ site_title }}</h1>
       </header>
       <nav class="nav" aria-label="Primary">
-        <a href="/" class="nav__link{% if nav_current == 'live' %} nav__link--current{% endif %}"{% if nav_current == 'live' %} aria-current="page"{% endif %}>Live Activity</a>
-        <a href="/history" class="nav__link{% if nav_current == 'history' %} nav__link--current{% endif %}"{% if nav_current == 'history' %} aria-current="page"{% endif %}>History</a>
-        <a href="/insights/unwatched" class="nav__link{% if nav_current == 'unwatched_insights' %} nav__link--current{% endif %}"{% if nav_current == 'unwatched_insights' %} aria-current="page"{% endif %}>Unwatched Insights</a>
-        <a href="/insights/library-unwatched" class="nav__link{% if nav_current == 'library_unwatched' %} nav__link--current{% endif %}"{% if nav_current == 'library_unwatched' %} aria-current="page"{% endif %}>Library Unwatched</a>
-        <a href="/settings" class="nav__link{% if nav_current == 'settings' %} nav__link--current{% endif %}"{% if nav_current == 'settings' %} aria-current="page"{% endif %}>Settings</a>
+        <a href="/" class="nav__link{% if nav_current == 'live' %} nav__link--current{% endif %}"{% if nav_current == 'live' %} aria-current="page"{% endif %}>Stream Stakeout</a>
+        <a href="/history" class="nav__link{% if nav_current == 'history' %} nav__link--current{% endif %}"{% if nav_current == 'history' %} aria-current="page"{% endif %}>Case File Replay</a>
+        <a href="/insights/unwatched" class="nav__link{% if nav_current == 'unwatched_insights' %} nav__link--current{% endif %}"{% if nav_current == 'unwatched_insights' %} aria-current="page"{% endif %}>Missing Links</a>
+        <a href="/insights/library-unwatched" class="nav__link{% if nav_current == 'library_unwatched' %} nav__link--current{% endif %}"{% if nav_current == 'library_unwatched' %} aria-current="page"{% endif %}>Unshelved Mysteries</a>
+        <a href="/settings" class="nav__link{% if nav_current == 'settings' %} nav__link--current{% endif %}"{% if nav_current == 'settings' %} aria-current="page"{% endif %}>Inspector's Clipboard</a>
       </nav>
       {% if nav_note %}
       <p class="note">{{ nav_note }}</p>

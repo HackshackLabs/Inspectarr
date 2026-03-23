@@ -149,7 +149,7 @@
 {% endblock %}
 {% block content %}
     <div class="settings-wrap">
-      <h2>Settings</h2>
+      <h2>Inspector's clipboard</h2>
       <p class="meta">
         Values are stored in <code>{{ config_path_display }}</code> (see documentation). Environment variables still apply for any key not listed under overrides, and for <code>DASHBOARD_CONFIG_PATH</code>.
       </p>
@@ -245,7 +245,7 @@
               <strong>X-Plex-Client-Identifier</strong>:
               {% if plex_client_identifier_configured %}set (see below){% else %}not created yet — click either Sign in once{% endif %}
               · <strong>Plex server mappings</strong>: {{ plex_servers_count }} in JSON
-              · <strong>Library Unwatched</strong> can chain Plex on {{ plex_chaining_server_count }} Tautulli server(s)
+              · <strong>Unshelved Mysteries</strong> can chain Plex on {{ plex_chaining_server_count }} Tautulli server(s)
               (needs mapping + token + client id).
             </span>
           </div>

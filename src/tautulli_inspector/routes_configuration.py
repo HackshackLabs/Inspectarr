@@ -118,7 +118,9 @@ async def settings_page(
     )
     ov = load_overrides_dict(env_base)
     plex_saved_ok = plex_saved in ("primary", "secondary")
-    ctx = build_template_globals("Settings", csrf_token=getattr(request.state, "csrf_token", "") or "")
+    ctx = build_template_globals(
+        "Inspector's Clipboard", csrf_token=getattr(request.state, "csrf_token", "") or ""
+    )
     ctx.update(
         {
             "request": request,

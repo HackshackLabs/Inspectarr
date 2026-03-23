@@ -21,6 +21,7 @@ from tautulli_inspector.aggregate import (
     epoch_to_utc_display,
     merge_activity,
     merge_history,
+    merge_history_rows_all,
 )
 from tautulli_inspector.history_cache import HistoryPageCache
 from tautulli_inspector.history_health import enrich_history_server_statuses
@@ -104,9 +105,10 @@ def _insights_unwatched_cache_key_seed(settings: Settings, days: int, media_type
 def _insights_library_unwatched_cache_key_seed(settings: Settings) -> str:
     return "|".join(
         [
-            "insights-library-unwatched-v6",
+            "insights-library-unwatched-v7",
             ",".join(sorted([server.id for server in settings.tautulli_servers])),
             f"history_len={settings.insights_history_length}",
+            f"lib_hist_full={1 if settings.library_unwatched_use_full_history_crawl else 0}",
             f"batch={settings.tv_inventory_batch_shows_per_server}",
             f"inventory_max={settings.tv_inventory_max_shows_per_server}",
             f"sonarr_disk_filter={'1' if sonarr_is_configured(settings) else '0'}",
@@ -628,7 +630,7 @@ async def library_unwatched_insights(
             float(settings.history_request_timeout_seconds),
             float(settings.tv_inventory_request_timeout_seconds),
         )
-        client = TautulliClient(
+        inv_client = TautulliClient(
             timeout_seconds=inv_timeout,
             max_parallel_servers=settings.upstream_max_parallel_servers,
             per_request_delay_seconds=settings.upstream_per_request_delay_seconds
@@ -642,30 +644,55 @@ async def library_unwatched_insights(
         )
         per_server_length = max(settings.insights_history_length, 100)
 
-        history_task = asyncio.create_task(
-            client.fetch_all_history(
-                settings.tautulli_servers,
-                start=0,
-                length=per_server_length,
-                media_type="episode",
+        if settings.library_unwatched_use_full_history_crawl:
+            crawl_parallel = min(
+                settings.upstream_max_parallel_servers,
+                settings.history_full_max_parallel_servers,
             )
-        )
+            history_client = TautulliClient(
+                timeout_seconds=settings.history_request_timeout_seconds,
+                max_parallel_servers=crawl_parallel,
+                per_request_delay_seconds=settings.upstream_per_request_delay_seconds
+                + settings.library_unwatched_history_extra_delay_seconds
+                + settings.history_additional_per_request_delay_seconds,
+            )
+            history_task = asyncio.create_task(
+                history_client.fetch_all_history_crawled(
+                    settings.tautulli_servers,
+                    media_type="episode",
+                    page_size=settings.history_full_page_size,
+                    inter_page_delay_seconds=settings.history_full_inter_page_delay_seconds,
+                    max_rows_per_server=settings.history_full_max_rows_per_server,
+                )
+            )
+        else:
+            history_task = asyncio.create_task(
+                inv_client.fetch_all_history(
+                    settings.tautulli_servers,
+                    start=0,
+                    length=per_server_length,
+                    media_type="episode",
+                )
+            )
         activity_task = asyncio.create_task(activity_client.fetch_all_activity(settings.tautulli_servers))
         history_results, activity_results = await asyncio.gather(history_task, activity_task)
         merged_activity = merge_activity(activity_results)
         activity_server_statuses = list(merged_activity.get("server_statuses") or [])
 
-        merged_history = merge_history(
-            history_results,
-            start=0,
-            length=per_server_length * max(len(settings.tautulli_servers), 1),
-        )
-        history_rows = merged_history["rows"]
+        if settings.library_unwatched_use_full_history_crawl:
+            history_rows = merge_history_rows_all(history_results)
+        else:
+            merged_history = merge_history(
+                history_results,
+                start=0,
+                length=per_server_length * max(len(settings.tautulli_servers), 1),
+            )
+            history_rows = merged_history["rows"]
         epochs = [int(row.get("canonical_utc_epoch", 0)) for row in history_rows if int(row.get("canonical_utc_epoch", 0)) > 0]
         index_start_epoch = min(epochs) if epochs else 0
         index_end_epoch = max(epochs) if epochs else 0
 
-        chunk_results = await client.fetch_all_tv_inventory_chunk(
+        chunk_results = await inv_client.fetch_all_tv_inventory_chunk(
             settings.tautulli_servers,
             batch_shows_per_server=settings.tv_inventory_batch_shows_per_server,
             get_next_start=lambda server_id, section_id: inventory_cache.get_next_start(server_id, section_id),
@@ -725,6 +752,7 @@ async def library_unwatched_insights(
             index_start_epoch=index_start_epoch,
             index_end_epoch=index_end_epoch,
             max_items=max_items,
+            restrict_history_to_index_window=not settings.library_unwatched_use_full_history_crawl,
         )
 
         if sonarr_is_configured(settings):

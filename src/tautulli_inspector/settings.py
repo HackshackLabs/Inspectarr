@@ -83,6 +83,15 @@ class Settings(BaseSettings):
         ge=0.0,
         alias="LIBRARY_UNWATCHED_HISTORY_EXTRA_DELAY_SECONDS",
     )
+    library_unwatched_use_full_history_crawl: bool = Field(
+        default=True,
+        alias="LIBRARY_UNWATCHED_USE_FULL_HISTORY_CRAWL",
+        description=(
+            "When True, walk episode history up to HISTORY_FULL_MAX_ROWS_PER_SERVER per server so "
+            "watch detection is all-time within that cap. When False, use one short page "
+            "(INSIGHTS_HISTORY_LENGTH) and only plays inside the min..max epoch window count."
+        ),
+    )
     tv_inventory_request_timeout_seconds: float = Field(
         default=75.0,
         ge=5.0,

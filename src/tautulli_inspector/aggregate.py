@@ -92,6 +92,22 @@ def merge_history(results: list[HistoryFetchResult], start: int = 0, length: int
     }
 
 
+def merge_history_rows_all(results: list[HistoryFetchResult]) -> list[dict]:
+    """Merge every history row from all servers (no pagination), newest-first by canonical UTC."""
+    merged_rows: list[dict] = []
+    for result in results:
+        for row in result.rows:
+            if not isinstance(row, dict):
+                continue
+            normalized = dict(row)
+            normalized["server_id"] = result.server_id
+            normalized["server_name"] = result.server_name
+            normalized["canonical_utc_epoch"] = _extract_canonical_utc_epoch(row)
+            merged_rows.append(normalized)
+    merged_rows.sort(key=lambda item: item.get("canonical_utc_epoch", 0), reverse=True)
+    return merged_rows
+
+
 def build_unwatched_media_report(
     rows: list[dict],
     cutoff_epoch: int,
@@ -186,8 +202,14 @@ def build_library_unwatched_tv_report(
     index_start_epoch: int,
     index_end_epoch: int,
     max_items: int = 500,
+    *,
+    restrict_history_to_index_window: bool = True,
 ) -> dict:
-    """Identify shows/seasons/episodes not watched in the index window."""
+    """Identify shows/seasons/episodes not watched in the index window.
+
+    When ``restrict_history_to_index_window`` is False, every loaded episode history row counts
+    as watch evidence (all-time within the crawl). Index bounds are still returned for display.
+    """
     watched_episode_ids_by_server: dict[str, set[str]] = {}
     watched_episode_ids_global: set[str] = set()
     watched_season_ids_by_server: dict[str, set[str]] = {}
@@ -198,7 +220,9 @@ def build_library_unwatched_tv_report(
         if media_type != "episode":
             continue
         row_epoch = int(row.get("canonical_utc_epoch") or 0)
-        if row_epoch < index_start_epoch or row_epoch > index_end_epoch:
+        if restrict_history_to_index_window and (
+            row_epoch < index_start_epoch or row_epoch > index_end_epoch
+        ):
             continue
         server_id = str(row.get("server_id") or "")
         season_id = _season_identity_from_history_row(row)

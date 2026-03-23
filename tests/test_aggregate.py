@@ -211,6 +211,68 @@ class LibraryUnwatchedReportTests(unittest.TestCase):
         self.assertEqual(0, len(report["cumulative_unwatched"]["shows"]))
         self.assertEqual(0, len(report["per_server"][0]["unwatched"]["episodes"]))
 
+    def test_full_history_counts_watch_outside_display_index_window(self) -> None:
+        """All-time mode uses every loaded row; plays older than min epoch still mark seasons watched."""
+        inventory = [
+            InventoryFetchResult(
+                server_id="s1",
+                server_name="Server 1",
+                status="ok",
+                shows=[{"rating_key": "show1", "title": "Old Watch Show"}],
+                seasons=[],
+                episodes=[
+                    {
+                        "rating_key": "ep1",
+                        "title": "Episode 1",
+                        "grandparent_title": "Old Watch Show",
+                        "parent_media_index": 1,
+                        "media_index": 1,
+                        "server_show_rating_key": "show1",
+                        "server_season_rating_key": "season1",
+                    },
+                    {
+                        "rating_key": "ep2",
+                        "title": "Episode 2",
+                        "grandparent_title": "Old Watch Show",
+                        "parent_media_index": 1,
+                        "media_index": 2,
+                        "server_show_rating_key": "show1",
+                        "server_season_rating_key": "season1",
+                    },
+                ],
+            )
+        ]
+        history_rows = [
+            {
+                "server_id": "s1",
+                "media_type": "episode",
+                "rating_key": "ep1",
+                "grandparent_title": "Old Watch Show",
+                "parent_media_index": 1,
+                "media_index": 1,
+                "canonical_utc_epoch": 50,
+            }
+        ]
+        report_window_only = build_library_unwatched_tv_report(
+            inventory_results=inventory,
+            history_rows=history_rows,
+            index_start_epoch=100,
+            index_end_epoch=200,
+            max_items=200,
+            restrict_history_to_index_window=True,
+        )
+        self.assertEqual(1, len(report_window_only["cumulative_unwatched"]["seasons"]))
+
+        report_all_time = build_library_unwatched_tv_report(
+            inventory_results=inventory,
+            history_rows=history_rows,
+            index_start_epoch=100,
+            index_end_epoch=200,
+            max_items=200,
+            restrict_history_to_index_window=False,
+        )
+        self.assertEqual(0, len(report_all_time["cumulative_unwatched"]["seasons"]))
+
     def test_library_unwatched_report_classifies_by_index_window(self) -> None:
         inventory = [
             InventoryFetchResult(

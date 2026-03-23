@@ -101,7 +101,7 @@ def _insights_unwatched_cache_key_seed(settings: Settings, days: int, media_type
 def _insights_library_unwatched_cache_key_seed(settings: Settings) -> str:
     return "|".join(
         [
-            "insights-library-unwatched-v4",
+            "insights-library-unwatched-v5",
             ",".join(sorted([server.id for server in settings.tautulli_servers])),
             f"history_len={settings.insights_history_length}",
             f"batch={settings.tv_inventory_batch_shows_per_server}",
@@ -632,14 +632,26 @@ async def library_unwatched_insights(
             + settings.library_unwatched_history_extra_delay_seconds,
             inventory_inter_request_delay_seconds=settings.tv_inventory_inter_request_delay_seconds,
         )
+        activity_client = TautulliClient(
+            timeout_seconds=settings.request_timeout_seconds,
+            max_parallel_servers=settings.upstream_max_parallel_servers,
+            per_request_delay_seconds=settings.upstream_per_request_delay_seconds,
+        )
         per_server_length = max(settings.insights_history_length, 100)
 
-        history_results = await client.fetch_all_history(
-            settings.tautulli_servers,
-            start=0,
-            length=per_server_length,
-            media_type="episode",
+        history_task = asyncio.create_task(
+            client.fetch_all_history(
+                settings.tautulli_servers,
+                start=0,
+                length=per_server_length,
+                media_type="episode",
+            )
         )
+        activity_task = asyncio.create_task(activity_client.fetch_all_activity(settings.tautulli_servers))
+        history_results, activity_results = await asyncio.gather(history_task, activity_task)
+        merged_activity = merge_activity(activity_results)
+        activity_server_statuses = list(merged_activity.get("server_statuses") or [])
+
         merged_history = merge_history(
             history_results,
             start=0,
@@ -722,6 +734,7 @@ async def library_unwatched_insights(
             "index_end_epoch": index_end_epoch,
             "index_span_days": index_span_days,
             "report": report,
+            "activity_server_statuses": activity_server_statuses,
         }
 
     cache_payload, load_state = await _get_or_schedule_cached_payload(
@@ -767,6 +780,7 @@ async def library_unwatched_insights(
                     settings,
                     {"per_server": []},
                     loading=True,
+                    activity_server_statuses=[],
                 ),
                 report={
                     "cumulative_unwatched": {
@@ -847,6 +861,7 @@ async def library_unwatched_insights(
         settings,
         report,
         loading=False,
+        activity_server_statuses=cache_payload.get("activity_server_statuses") or [],
     )
 
     return templates.TemplateResponse(
@@ -1106,6 +1121,7 @@ def _library_unwatched_server_card_rows(
     report: dict,
     *,
     loading: bool,
+    activity_server_statuses: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """One status card per configured Tautulli server, merged with report rows (never an empty grid)."""
     per_raw = report.get("per_server")
@@ -1118,38 +1134,71 @@ def _library_unwatched_server_card_rows(
         if sid:
             by_id[sid] = row
 
+    act_by_id: dict[str, dict[str, Any]] = {}
+    for row in activity_server_statuses or []:
+        if not isinstance(row, dict):
+            continue
+        aid = str(row.get("server_id") or "").strip()
+        if aid:
+            act_by_id[aid] = row
+
+    def _attach_activity(card: dict[str, Any]) -> None:
+        sid = str(card.get("server_id") or "").strip()
+        act = act_by_id.get(sid) if sid else None
+        if act:
+            st = str(act.get("status") or "").strip() or "unknown"
+            try:
+                sc = int(act.get("stream_count") or 0)
+            except (TypeError, ValueError):
+                sc = 0
+            card["activity_status"] = st
+            card["activity_stream_count"] = sc
+            card["activity_error"] = act.get("error")
+        elif loading:
+            card["activity_status"] = "pending"
+            card["activity_stream_count"] = 0
+            card["activity_error"] = None
+        else:
+            card["activity_status"] = "unknown"
+            card["activity_stream_count"] = 0
+            card["activity_error"] = None
+
     cards: list[dict[str, Any]] = []
     configured: set[str] = set()
     for srv in settings.tautulli_servers:
         sid = str(srv.id)
         configured.add(sid)
         if sid in by_id:
-            cards.append(by_id[sid])
+            card = dict(by_id[sid])
+            _attach_activity(card)
+            cards.append(card)
         elif loading:
-            cards.append(
-                {
-                    "server_id": sid,
-                    "server_name": srv.name,
-                    "status": "indexing",
-                    "index_complete": False,
-                    "inventory_counts": {"shows": 0, "seasons": 0, "episodes": 0},
-                    "error": None,
-                }
-            )
+            card = {
+                "server_id": sid,
+                "server_name": srv.name,
+                "status": "indexing",
+                "index_complete": False,
+                "inventory_counts": {"shows": 0, "seasons": 0, "episodes": 0},
+                "error": None,
+            }
+            _attach_activity(card)
+            cards.append(card)
         else:
-            cards.append(
-                {
-                    "server_id": sid,
-                    "server_name": srv.name,
-                    "status": "unknown",
-                    "index_complete": False,
-                    "inventory_counts": {"shows": 0, "seasons": 0, "episodes": 0},
-                    "error": None,
-                }
-            )
+            card = {
+                "server_id": sid,
+                "server_name": srv.name,
+                "status": "unknown",
+                "index_complete": False,
+                "inventory_counts": {"shows": 0, "seasons": 0, "episodes": 0},
+                "error": None,
+            }
+            _attach_activity(card)
+            cards.append(card)
     for sid, row in by_id.items():
         if sid not in configured:
-            cards.append(row)
+            card = dict(row)
+            _attach_activity(card)
+            cards.append(card)
     _normalize_library_unwatched_report({"per_server": cards})
     return cards
 

@@ -422,23 +422,36 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
         {% endif %}
       </details>
 
-      <h2>Server Index Status</h2>
+      <h2>Server health</h2>
+      <p class="meta muted">Same <strong>Tautulli API</strong> check as <a href="/">Live Activity</a> (<code>get_activity</code>), plus inventory snapshot status for this page.</p>
       {% if not library_unwatched_server_cards %}
       <p class="note">No Tautulli servers are configured. Add <code>TAUTULLI_SERVERS_JSON</code> or use <a href="/settings">Settings</a>.</p>
       {% endif %}
       <section class="status-grid">
         {% for server in library_unwatched_server_cards %}
         {% set srv_status = server.status | default('unknown', true) %}
+        {% set inv_ok = srv_status == 'ok' and server.index_complete %}
+        {% set inv_pending = srv_status == 'ok' and not server.index_complete %}
         <article class="status-card">
-          <div><strong>{{ server.server_name }}</strong> ({{ server.server_id }})</div>
+          <div><strong>{{ server.server_name }}</strong></div>
+          <div>ID: <span class="muted">{{ server.server_id }}</span></div>
           <div>
-            Status:
-            <span class="{% if srv_status == 'ok' %}status-ok{% elif srv_status == 'indexing' %}note{% else %}status-error{% endif %}">
-              {{ srv_status }}
+            Tautulli API:
+            <span class="{% if server.activity_status == 'ok' %}status-ok{% elif server.activity_status == 'pending' %}status-pending{% else %}status-error{% endif %}">
+              {{ server.activity_status }}</span>
+          </div>
+          <div>Streams: {{ server.activity_stream_count }}</div>
+          {% if server.activity_error %}
+          <div class="status-error">API error: {{ server.activity_error }}</div>
+          {% endif %}
+          <div>
+            Inventory snapshot:
+            <span class="{% if inv_ok %}status-ok{% elif inv_pending or srv_status == 'indexing' %}status-pending{% else %}status-error{% endif %}">
+              {% if inv_ok %}ok{% elif inv_pending or srv_status == 'indexing' %}indexing{% else %}{{ srv_status }}{% endif %}
             </span>
           </div>
-          <div>Shows: {{ server.inventory_counts.shows }}</div>
-          {% if server.error %}<div class="status-error">Error: {{ server.error }}</div>{% endif %}
+          <div>Shows in snapshot: {{ server.inventory_counts.shows }}</div>
+          {% if server.error %}<div class="status-error">Inventory error: {{ server.error }}</div>{% endif %}
           {% if loading and srv_status == 'indexing' %}
           <div class="note">Building a new snapshot in the background.</div>
           {% endif %}

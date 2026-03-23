@@ -47,6 +47,8 @@ class LibraryUnwatchedServerCardsTests(unittest.TestCase):
         self.assertEqual("indexing", cards[0]["status"])
         self.assertEqual("Alpha", cards[0]["server_name"])
         self.assertEqual("b", cards[1]["server_id"])
+        self.assertEqual("pending", cards[0]["activity_status"])
+        self.assertEqual(0, cards[0]["activity_stream_count"])
 
     def test_merges_report_rows_with_config(self) -> None:
         class _Cfg:
@@ -66,10 +68,61 @@ class LibraryUnwatchedServerCardsTests(unittest.TestCase):
                 }
             ]
         }
-        cards = _library_unwatched_server_card_rows(settings, report, loading=False)
+        cards = _library_unwatched_server_card_rows(
+            settings,
+            report,
+            loading=False,
+            activity_server_statuses=[
+                {
+                    "server_id": "a",
+                    "server_name": "Alpha",
+                    "status": "ok",
+                    "stream_count": 2,
+                    "error": None,
+                }
+            ],
+        )
         self.assertEqual(1, len(cards))
         self.assertEqual("ok", cards[0]["status"])
         self.assertEqual(3, cards[0]["inventory_counts"]["shows"])
+        self.assertEqual("ok", cards[0]["activity_status"])
+        self.assertEqual(2, cards[0]["activity_stream_count"])
+        self.assertIsNone(cards[0]["activity_error"])
+
+    def test_merges_live_activity_fields_when_api_degraded(self) -> None:
+        class _Cfg:
+            tautulli_servers = [
+                TautulliServer(id="a", name="Alpha", base_url="http://x", api_key="k"),
+            ]
+
+        settings = _Cfg()
+        report = {
+            "per_server": [
+                {
+                    "server_id": "a",
+                    "server_name": "Alpha",
+                    "status": "ok",
+                    "index_complete": True,
+                    "inventory_counts": {"shows": 1, "seasons": 0, "episodes": 0},
+                }
+            ]
+        }
+        cards = _library_unwatched_server_card_rows(
+            settings,
+            report,
+            loading=False,
+            activity_server_statuses=[
+                {
+                    "server_id": "a",
+                    "server_name": "Alpha",
+                    "status": "timeout",
+                    "stream_count": 0,
+                    "error": "Timed out",
+                }
+            ],
+        )
+        self.assertEqual("timeout", cards[0]["activity_status"])
+        self.assertEqual("Timed out", cards[0]["activity_error"])
 
 
 if __name__ == "__main__":

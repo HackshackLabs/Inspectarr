@@ -1,6 +1,10 @@
 """Unit tests for Library Unwatched Sonarr row state annotation."""
 
-from tautulli_inspector.sonarr_client import annotate_library_unwatched_row_state
+from tautulli_inspector.sonarr_client import (
+    annotate_library_unwatched_row_state,
+    _episode_file_id,
+    _episode_has_file_on_disk,
+)
 
 
 def test_sonarr_not_configured_payload() -> None:
@@ -87,3 +91,10 @@ def test_episode_no_file_on_disk() -> None:
     )
     assert p["media_state"] == "no_file"
     assert p["actions_disabled"] is False
+
+
+def test_episode_file_id_from_sonarr_list_shape() -> None:
+    """Sonarr list payloads often use episodeFileId / hasFile without a nested episodeFile dict."""
+    assert _episode_file_id({"episodeFile": None, "episodeFileId": 901}) == 901
+    assert _episode_has_file_on_disk({"hasFile": True, "episodeFile": None}) is True
+    assert _episode_has_file_on_disk({"episodeFileId": 3, "hasFile": False}) is True

@@ -73,7 +73,7 @@ JSON body:
 ```
 
 - **show** — sets the series `monitored` flag to `false` in Sonarr.
-- **season** — sets all episodes in that season to unmonitored.
+- **season** — sets all episodes in that season to unmonitored via `PUT /api/v3/episode/monitor`, then sets the season’s **`monitored`** flag on `PUT /api/v3/series` (same as the Sonarr UI season header). Episode updates are applied first so the series PUT is not overwritten by Sonarr’s season rollup.
 - **episode** — sets one episode to unmonitored.
 
 ### `POST /insights/library-unwatched/sonarr/remove-from-plex-and-unmonitor`

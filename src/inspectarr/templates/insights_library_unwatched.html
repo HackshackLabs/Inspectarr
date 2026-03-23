@@ -419,6 +419,14 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
             } catch (e) {}
           }
 
+          try {
+            var bootUrl = new URL(window.location.href);
+            var refParam = (bootUrl.searchParams.get("refresh") || "").trim().toLowerCase();
+            if (refParam === "1" || refParam === "true" || refParam === "yes" || refParam === "on") {
+              clearWaitTimerStorage();
+            }
+          } catch (e) {}
+
           function initWaitTimers() {
             var now = Date.now();
             var totalStarted;

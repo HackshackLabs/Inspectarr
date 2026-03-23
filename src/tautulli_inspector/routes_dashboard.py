@@ -8,6 +8,7 @@ from pathlib import Path
 from time import monotonic
 from typing import Any, Awaitable, Callable, Literal
 
+import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
@@ -35,6 +36,7 @@ from tautulli_inspector.settings import (
     plex_per_server_actions_available,
     sonarr_is_configured,
 )
+from tautulli_inspector.sonarr_client import filter_library_inventory_results_by_sonarr_disk
 from tautulli_inspector.tautulli_client import TautulliClient
 
 logger = logging.getLogger(__name__)
@@ -99,11 +101,12 @@ def _insights_unwatched_cache_key_seed(settings: Settings, days: int, media_type
 def _insights_library_unwatched_cache_key_seed(settings: Settings) -> str:
     return "|".join(
         [
-            "insights-library-unwatched-v3",
+            "insights-library-unwatched-v4",
             ",".join(sorted([server.id for server in settings.tautulli_servers])),
             f"history_len={settings.insights_history_length}",
             f"batch={settings.tv_inventory_batch_shows_per_server}",
             f"inventory_max={settings.tv_inventory_max_shows_per_server}",
+            f"sonarr_disk_filter={'1' if sonarr_is_configured(settings) else '0'}",
         ]
     )
 
@@ -688,6 +691,19 @@ async def library_unwatched_insights(
                 )
             )
 
+        if sonarr_is_configured(settings):
+            try:
+                async with httpx.AsyncClient(timeout=settings.sonarr_request_timeout_seconds) as sonarr_http:
+                    inventory_results = await filter_library_inventory_results_by_sonarr_disk(
+                        sonarr_http,
+                        settings.sonarr_base_url,
+                        settings.sonarr_api_key,
+                        inventory_results,
+                        max_parallel_series_fetches=max(4, settings.upstream_max_parallel_servers * 3),
+                    )
+            except Exception as exc:
+                logger.warning("Library unwatched Sonarr disk filter skipped: %s", exc)
+
         report = build_library_unwatched_tv_report(
             inventory_results=inventory_results,
             history_rows=history_rows,
@@ -747,9 +763,11 @@ async def library_unwatched_insights(
                 sonarr_enabled=sonarr_is_configured(settings),
                 plex_per_server_enabled=plex_per_server_actions_available(settings),
                 plex_mapped_server_ids=plex_mapped_tautulli_server_ids(settings),
-                library_unwatched_placeholders=[
-                    {"server_id": s.id, "server_name": s.name} for s in settings.tautulli_servers
-                ],
+                library_unwatched_server_cards=_library_unwatched_server_card_rows(
+                    settings,
+                    {"per_server": []},
+                    loading=True,
+                ),
                 report={
                     "cumulative_unwatched": {
                         "shows": {"items": [], "total": 0, "has_next": False},
@@ -825,6 +843,11 @@ async def library_unwatched_insights(
     server_prev_start = max(server_start - length, 0) if server_start > 0 else None
     server_next_start = server_start + length if server_has_next else None
     updated_at = datetime.fromtimestamp(int(cache_payload["updated_at_epoch"]), tz=timezone.utc)
+    library_unwatched_server_cards = _library_unwatched_server_card_rows(
+        settings,
+        report,
+        loading=False,
+    )
 
     return templates.TemplateResponse(
         request=request,
@@ -856,7 +879,7 @@ async def library_unwatched_insights(
             sonarr_enabled=sonarr_is_configured(settings),
             plex_per_server_enabled=plex_per_server_actions_available(settings),
             plex_mapped_server_ids=plex_mapped_tautulli_server_ids(settings),
-            library_unwatched_placeholders=[],
+            library_unwatched_server_cards=library_unwatched_server_cards,
             report=paginated_report,
             loading=False,
             load_state=load_state,
@@ -1076,6 +1099,59 @@ def _normalize_library_unwatched_report(report: dict) -> None:
             counts.setdefault("shows", 0)
             counts.setdefault("seasons", 0)
             counts.setdefault("episodes", 0)
+
+
+def _library_unwatched_server_card_rows(
+    settings: Settings,
+    report: dict,
+    *,
+    loading: bool,
+) -> list[dict[str, Any]]:
+    """One status card per configured Tautulli server, merged with report rows (never an empty grid)."""
+    per_raw = report.get("per_server")
+    per_list: list[dict] = (
+        [x for x in per_raw if isinstance(x, dict)] if isinstance(per_raw, list) else []
+    )
+    by_id: dict[str, dict[str, Any]] = {}
+    for row in per_list:
+        sid = str(row.get("server_id") or "").strip()
+        if sid:
+            by_id[sid] = row
+
+    cards: list[dict[str, Any]] = []
+    configured: set[str] = set()
+    for srv in settings.tautulli_servers:
+        sid = str(srv.id)
+        configured.add(sid)
+        if sid in by_id:
+            cards.append(by_id[sid])
+        elif loading:
+            cards.append(
+                {
+                    "server_id": sid,
+                    "server_name": srv.name,
+                    "status": "indexing",
+                    "index_complete": False,
+                    "inventory_counts": {"shows": 0, "seasons": 0, "episodes": 0},
+                    "error": None,
+                }
+            )
+        else:
+            cards.append(
+                {
+                    "server_id": sid,
+                    "server_name": srv.name,
+                    "status": "unknown",
+                    "index_complete": False,
+                    "inventory_counts": {"shows": 0, "seasons": 0, "episodes": 0},
+                    "error": None,
+                }
+            )
+    for sid, row in by_id.items():
+        if sid not in configured:
+            cards.append(row)
+    _normalize_library_unwatched_report({"per_server": cards})
+    return cards
 
 
 def _paginate_list(items: list[dict], start: int, length: int) -> dict:

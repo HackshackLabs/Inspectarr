@@ -423,36 +423,27 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
       </details>
 
       <h2>Server Index Status</h2>
+      {% if not library_unwatched_server_cards %}
+      <p class="note">No Tautulli servers are configured. Add <code>TAUTULLI_SERVERS_JSON</code> or use <a href="/settings">Settings</a>.</p>
+      {% endif %}
       <section class="status-grid">
-        {% if loading and library_unwatched_placeholders %}
-          {% for s in library_unwatched_placeholders %}
-          <article class="status-card">
-            <div><strong>{{ s.server_name }}</strong> ({{ s.server_id }})</div>
-            <div>
-              Status:
-              <span class="status-error">indexing…</span>
-            </div>
-            <div>Index complete: in progress</div>
-            <div class="note">Refreshing cleared the cache; building a new snapshot in the background.</div>
-          </article>
-          {% endfor %}
-        {% else %}
-          {% for server in report["per_server"] %}
-          {% set srv_status = server.status | default('unknown', true) %}
-          <article class="status-card">
-            <div><strong>{{ server.server_name }}</strong> ({{ server.server_id }})</div>
-            <div>
-              Status:
-              <span class="{% if srv_status == 'ok' %}status-ok{% else %}status-error{% endif %}">
-                {{ srv_status }}
-              </span>
-            </div>
-            <div>Index complete: {{ "yes" if server.index_complete else "in progress" }}</div>
-            <div>Shows: {{ server.inventory_counts.shows }}</div>
-            {% if server.error %}<div class="status-error">Error: {{ server.error }}</div>{% endif %}
-          </article>
-          {% endfor %}
-        {% endif %}
+        {% for server in library_unwatched_server_cards %}
+        {% set srv_status = server.status | default('unknown', true) %}
+        <article class="status-card">
+          <div><strong>{{ server.server_name }}</strong> ({{ server.server_id }})</div>
+          <div>
+            Status:
+            <span class="{% if srv_status == 'ok' %}status-ok{% elif srv_status == 'indexing' %}note{% else %}status-error{% endif %}">
+              {{ srv_status }}
+            </span>
+          </div>
+          <div>Shows: {{ server.inventory_counts.shows }}</div>
+          {% if server.error %}<div class="status-error">Error: {{ server.error }}</div>{% endif %}
+          {% if loading and srv_status == 'indexing' %}
+          <div class="note">Building a new snapshot in the background.</div>
+          {% endif %}
+        </article>
+        {% endfor %}
       </section>
 
       <h2>Cumulative Unwatched</h2>

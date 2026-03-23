@@ -38,7 +38,7 @@ def _validate_kind(kind: str) -> SonarrKind:
 
 
 @router.get("/insights/library-unwatched/sonarr/status", tags=["dashboard"])
-@limiter.limit("120/minute")
+@limiter.limit("300/minute")
 async def library_sonarr_status(
     request: Request,
     kind: str = Query(..., description="show | season | episode"),

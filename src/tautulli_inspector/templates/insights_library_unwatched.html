@@ -633,7 +633,39 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
         var tip = document.getElementById("sonarr-tooltip");
         var cache = Object.create(null);
         var hideTimer = null;
-        var maxParallelInline = 4;
+        var maxParallelInline = 3;
+        /* Minimum spacing between starting Sonarr status fetches (~109/min per tab) to avoid SlowAPI 429. */
+        var sonarrStatusMinStartGapMs = 550;
+        var nextSonarrStatusSlot = 0;
+
+        function awaitSonarrStatusSlot() {
+          var now = Date.now();
+          var slot = Math.max(now, nextSonarrStatusSlot);
+          nextSonarrStatusSlot = slot + sonarrStatusMinStartGapMs;
+          var wait = slot - Date.now();
+          if (wait <= 0) {
+            return Promise.resolve();
+          }
+          return new Promise(function (resolve) {
+            setTimeout(resolve, wait);
+          });
+        }
+
+        function fetchSonarrStatusWithThrottle(url) {
+          function attempt() {
+            return fetch(url).then(function (r) {
+              if (r.status === 429) {
+                return new Promise(function (resolve) {
+                  setTimeout(function () {
+                    resolve(fetch(url));
+                  }, 2500);
+                });
+              }
+              return r;
+            });
+          }
+          return awaitSonarrStatusSlot().then(attempt);
+        }
 
         function alertLib(message) {
           var d = document.getElementById("lib-ui-alert");
@@ -841,7 +873,7 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
           }
           inlineEl.textContent = "Loading Sonarr…";
           inlineEl.classList.add("muted");
-          return fetch("/insights/library-unwatched/sonarr/status?" + key)
+          return fetchSonarrStatusWithThrottle("/insights/library-unwatched/sonarr/status?" + key)
             .then(function (r) {
               return r.json();
             })
@@ -904,7 +936,7 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
               return;
             }
             showTip("Loading Sonarr…", ev.clientX, ev.clientY);
-            fetch("/insights/library-unwatched/sonarr/status?" + key)
+            fetchSonarrStatusWithThrottle("/insights/library-unwatched/sonarr/status?" + key)
               .then(function (r) {
                 return r.json();
               })

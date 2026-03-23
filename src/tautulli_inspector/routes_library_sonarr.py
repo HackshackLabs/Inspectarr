@@ -38,7 +38,8 @@ def _validate_kind(kind: str) -> SonarrKind:
 
 
 @router.get("/insights/library-unwatched/sonarr/status", tags=["dashboard"])
-@limiter.limit("120/minute")
+# One request per table row; 120/minute caused mass 429s and "Sonarr unavailable" UI on large pages.
+@limiter.limit("6000/minute")
 async def library_sonarr_status(
     request: Request,
     kind: str = Query(..., description="show | season | episode"),

@@ -100,9 +100,9 @@
       .export-row a:hover { text-decoration: underline; }
       .sonarr-cell {
         vertical-align: top;
-        font-size: 12px;
-        min-width: 200px;
-        max-width: 420px;
+        font-size: 11px;
+        min-width: 140px;
+        max-width: 380px;
       }
       .sonarr-row {
         display: flex;
@@ -134,15 +134,16 @@
       .sonarr-actions {
         display: flex;
         flex-wrap: wrap;
-        gap: var(--space-2, 8px);
+        gap: 4px;
         align-items: center;
       }
       .sonarr-btn, .sonarr-tip {
         font: inherit;
-        font-size: var(--font-size-small, 0.8125rem);
-        min-height: var(--touch-target-min, 44px);
-        padding: var(--space-2) var(--space-3);
-        border-radius: var(--radius-sm, 6px);
+        font-size: 11px;
+        line-height: 1.25;
+        min-height: 0;
+        padding: 3px 7px;
+        border-radius: 4px;
         border: 1px solid var(--border);
         background: color-mix(in srgb, var(--card-bg) 80%, var(--text));
         color: var(--text);
@@ -156,9 +157,9 @@
       }
       .sonarr-tip {
         font-weight: 700;
-        width: var(--touch-target-min, 44px);
-        min-width: var(--touch-target-min, 44px);
-        height: var(--touch-target-min, 44px);
+        width: 22px;
+        min-width: 22px;
+        height: 22px;
         padding: 0;
         display: inline-flex;
         align-items: center;
@@ -272,10 +273,23 @@
         font-weight: 500;
         display: inline-flex;
         align-items: center;
-        min-height: var(--touch-target-min, 44px);
-        padding: 0 var(--space-2, 8px);
+        min-height: 0;
+        padding: 2px 6px;
         border-radius: var(--radius-sm, 6px);
         box-sizing: border-box;
+      }
+      .lib-meta-details {
+        margin: 0 0 var(--space-4, 1rem);
+        font-size: var(--font-size-small, 0.8125rem);
+      }
+      .lib-meta-details > summary {
+        cursor: pointer;
+        color: var(--link);
+        font-weight: 500;
+      }
+      .lib-meta-details .meta {
+        margin-top: var(--space-2, 8px);
+        margin-bottom: 0;
       }
       .lib-pager-a:hover { text-decoration: underline; }
 {% endblock %}
@@ -365,37 +379,32 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
     {%- endmacro %}
       <h2>Library unwatched</h2>
       <p class="meta">
-        Configured servers: {{ configured_servers }} |
-        History rows considered: {{ history_rows_considered }} |
-        Index window: {{ index_start_display }} to {{ index_end_display }} ({{ "%.1f"|format(index_span_days) }} days) |
-        Inventory batch size: {{ batch_shows }} shows/server/request |
-        Throttle: parallel {{ throttle_parallel }}, delay {{ "%.2f"|format(throttle_delay_seconds) }}s/request |
-        Updated: {{ updated_at.strftime("%Y-%m-%d %H:%M:%S UTC") }} |
-        Load state: {{ load_state }} |
-        <a href="/insights/library-unwatched?refresh=1&show_start={{ show_start }}&season_start={{ season_start }}&episode_start={{ episode_start }}&server_start={{ server_start }}&length={{ length }}&max_items={{ max_items }}">Refresh now</a>
+        {{ configured_servers }} servers · index {{ index_start_display }}–{{ index_end_display }} ({{ "%.1f"|format(index_span_days) }}d) · {{ history_rows_considered }} history rows · updated {{ updated_at.strftime("%Y-%m-%d %H:%M UTC") }}
+        · <a href="/insights/library-unwatched?refresh=1&show_start={{ show_start }}&season_start={{ season_start }}&episode_start={{ episode_start }}&server_start={{ server_start }}&length={{ length }}&max_items={{ max_items }}">Refresh</a>
       </p>
       {% if loading %}
-      <p class="note">Library insights are indexing in the background. This page will refresh automatically.</p>
+      <p class="note">Indexing… page reloads shortly.</p>
       <script>
         setTimeout(function () { window.location.reload(); }, 3000);
       </script>
       {% endif %}
       {% if retry_needed and not loading %}
-      <p class="note">Timed-out servers are being retried in the background. Reload this page in a few seconds for updated status.</p>
+      <p class="note">Retrying timed-out servers; reload in a few seconds.</p>
       <script>
         setTimeout(function () { window.location.reload(); }, 5000);
       </script>
       {% endif %}
-      <p class="note">
-        This report joins TV library inventory to episode watch history in the index window.
-      </p>
-      {% if sonarr_enabled %}
-      <p class="note">
-        Sonarr column loads <strong>monitored</strong> state and Sonarr <strong>file count</strong> (episode files on disk) per row. Rows tint <strong>red</strong> when Sonarr reports the series, season, or episode as <strong>missing</strong>, or when there are <strong>no episode files on disk</strong> for that row’s scope. Use <strong>ⓘ</strong> for path details. Matching uses TVDB id when present, otherwise the series title against your Sonarr library.
-        The three buttons are <strong>not</strong> duplicates: <em>Unmonitor only</em> changes monitoring and keeps files; <em>Unmonitor + delete files</em> unmonitors then deletes files (series or season stays in Sonarr); <em>Remove series</em> / <em>Delete files only</em> / <em>Delete file only</em> follow the third Sonarr path (drop series from Sonarr, or delete files without the unmonitor step). Full API mapping is documented in the repo file <code>docs/SONARR.md</code>.
-        On <strong>per-server</strong> tables, when Plex is configured in <a href="/settings">Settings</a> and the row has a <code>ratingKey</code>, the second and third buttons also run Plex to remove the same library item after Sonarr succeeds. Cumulative tables are Sonarr-only (no per-server rating key).
-      </p>
-      {% endif %}
+      <details class="lib-meta-details">
+        <summary>Indexing details &amp; Sonarr help</summary>
+        <p class="meta">
+          TV inventory joined to watch history in the index window. Batch {{ batch_shows }} shows/request · throttle {{ throttle_parallel }} parallel, {{ "%.2f"|format(throttle_delay_seconds) }}s delay · load state: {{ load_state }}.
+        </p>
+        {% if sonarr_enabled %}
+        <p class="note">
+          <strong>Sonarr</strong> shows monitored state and <strong>files on disk</strong> (same scope as the row). ⓘ opens paths. Red row = missing in Sonarr or no file on disk. Three actions differ: unmonitor-only, unmonitor+delete files, remove series / delete files only — see <code>docs/SONARR.md</code>. Per-server rows with Plex mapped may chain Plex library delete after destructive actions (<a href="/settings">Settings</a>).
+        </p>
+        {% endif %}
+      </details>
 
       <h2>Server Index Status</h2>
       <section class="status-grid">
@@ -430,18 +439,18 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
           {% endif %}
           {{ cumulative_pager_block(show_pagination) }}
           <table>
-            <thead><tr><th>Show</th><th>Episodes in library</th>{% if sonarr_enabled %}<th>Sonarr</th>{% endif %}</tr></thead>
+            <thead><tr><th>Show</th>{% if sonarr_enabled %}<th>Sonarr</th>{% else %}<th>Episodes in library</th>{% endif %}</tr></thead>
             <tbody>
               {% if report["cumulative_unwatched"]["shows"]["items"] %}
                 {% for item in report["cumulative_unwatched"]["shows"]["items"] %}
                 <tr>
                   <td>{{ item.title }}</td>
-                  <td>{{ item.episode_count }}</td>
+                  {% if not sonarr_enabled %}<td>{{ item.episode_count }}</td>{% endif %}
                   {{ sonarr_actions("show", item) }}
                 </tr>
                 {% endfor %}
               {% else %}
-                <tr><td colspan="{% if sonarr_enabled %}3{% else %}2{% endif %}">No fully unwatched shows in this index window.</td></tr>
+                <tr><td colspan="2">No fully unwatched shows in this index window.</td></tr>
               {% endif %}
             </tbody>
           </table>
@@ -454,18 +463,18 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
           {% endif %}
           {{ cumulative_pager_block(season_pagination) }}
           <table>
-            <thead><tr><th>Season</th><th>Episodes in season</th>{% if sonarr_enabled %}<th>Sonarr</th>{% endif %}</tr></thead>
+            <thead><tr><th>Season</th>{% if sonarr_enabled %}<th>Sonarr</th>{% else %}<th>Episodes in season</th>{% endif %}</tr></thead>
             <tbody>
               {% if report["cumulative_unwatched"]["seasons"]["items"] %}
                 {% for item in report["cumulative_unwatched"]["seasons"]["items"] %}
                 <tr>
                   <td>{{ item.title }}</td>
-                  <td>{{ item.episode_count }}</td>
+                  {% if not sonarr_enabled %}<td>{{ item.episode_count }}</td>{% endif %}
                   {{ sonarr_actions("season", item) }}
                 </tr>
                 {% endfor %}
               {% else %}
-                <tr><td colspan="{% if sonarr_enabled %}3{% else %}2{% endif %}">No fully unwatched seasons in this index window.</td></tr>
+                <tr><td colspan="2">No fully unwatched seasons in this index window.</td></tr>
               {% endif %}
             </tbody>
           </table>
@@ -534,36 +543,36 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
 
               <h4>Unwatched Shows</h4>
               <table>
-                <thead><tr><th>Show</th><th>Episodes</th>{% if sonarr_enabled %}<th>Sonarr</th>{% endif %}</tr></thead>
+                <thead><tr><th>Show</th>{% if sonarr_enabled %}<th>Sonarr</th>{% else %}<th>Episodes</th>{% endif %}</tr></thead>
                 <tbody>
                   {% if server["unwatched"]["shows"]["items"] %}
                     {% for item in server["unwatched"]["shows"]["items"] %}
                     <tr>
                       <td>{{ item.title }}</td>
-                      <td>{{ item.episode_count }}</td>
+                      {% if not sonarr_enabled %}<td>{{ item.episode_count }}</td>{% endif %}
                       {{ sonarr_actions("show", item, server.server_id) }}
                     </tr>
                     {% endfor %}
                   {% else %}
-                    <tr><td colspan="{% if sonarr_enabled %}3{% else %}2{% endif %}">None</td></tr>
+                    <tr><td colspan="2">None</td></tr>
                   {% endif %}
                 </tbody>
               </table>
 
               <h4>Unwatched Seasons</h4>
               <table>
-                <thead><tr><th>Season</th><th>Episodes</th>{% if sonarr_enabled %}<th>Sonarr</th>{% endif %}</tr></thead>
+                <thead><tr><th>Season</th>{% if sonarr_enabled %}<th>Sonarr</th>{% else %}<th>Episodes</th>{% endif %}</tr></thead>
                 <tbody>
                   {% if server["unwatched"]["seasons"]["items"] %}
                     {% for item in server["unwatched"]["seasons"]["items"] %}
                     <tr>
                       <td>{{ item.title }}</td>
-                      <td>{{ item.episode_count }}</td>
+                      {% if not sonarr_enabled %}<td>{{ item.episode_count }}</td>{% endif %}
                       {{ sonarr_actions("season", item, server.server_id) }}
                     </tr>
                     {% endfor %}
                   {% else %}
-                    <tr><td colspan="{% if sonarr_enabled %}3{% else %}2{% endif %}">None</td></tr>
+                    <tr><td colspan="2">None</td></tr>
                   {% endif %}
                 </tbody>
               </table>

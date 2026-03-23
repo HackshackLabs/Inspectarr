@@ -10,6 +10,8 @@ When `SONARR_BASE_URL` and `SONARR_API_KEY` are set, `/insights/library-unwatche
 
 The UI proxies your browser to this app, which calls Sonarr’s HTTP API (v3-style paths under `/api/v3/`). The app caches the Sonarr series list briefly (about 45s) to avoid downloading `/api/v3/series` once per table row; the cache is cleared after successful write actions.
 
+On **show** and **season** rows, when Sonarr is configured the page does **not** show a separate Plex-inventory “episodes in library” column—**Files:** in the Sonarr cell is the authoritative on-disk count for that row’s scope. If Sonarr is not configured, the inventory episode count column is shown instead.
+
 ### Row highlight (removed / no media)
 
 After each status fetch, the table row may tint **red**:

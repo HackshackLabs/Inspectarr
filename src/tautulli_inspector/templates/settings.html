@@ -51,6 +51,10 @@
       .actions {
         margin-top: 20px;
       }
+      .actions-top {
+        margin-top: 0;
+        margin-bottom: 20px;
+      }
       .actions button {
         background: var(--btn-bg);
         color: var(--btn-fg);
@@ -128,6 +132,9 @@
       {% endif %}
 
       <form method="post" action="/settings" enctype="multipart/form-data">
+        <div class="actions actions-top">
+          <button type="submit">Save configuration</button>
+        </div>
         <fieldset>
           <legend>Appearance</legend>
           <div class="field-grid">
@@ -199,7 +206,7 @@
             </span>
           </div>
           <p class="hint">
-            <strong>Two separate steps:</strong> (1) <strong>Tokens</strong> — Sign in (saved to JSON immediately) or paste a token and click <strong>Save configuration</strong> at the bottom of this page.
+            <strong>Two separate steps:</strong> (1) <strong>Tokens</strong> — Sign in (saved to JSON immediately) or paste a token and click <strong>Save configuration</strong> at the top or bottom of this page.
             (2) <strong>Plex servers JSON</strong> — lists each Plex <code>base_url</code> and which <code>tautulli_server_id</code> it belongs to; Sign-in never fills this textarea. You must edit it and Save.
           </p>
           <p class="hint">

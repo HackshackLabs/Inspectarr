@@ -100,22 +100,117 @@ async def fetch_season_episodes(
     return data if isinstance(data, list) else []
 
 
+def _episode_season_number(ep: dict[str, Any]) -> int | None:
+    try:
+        sn = ep.get("seasonNumber")
+        if sn is None:
+            return None
+        return int(sn)
+    except (TypeError, ValueError):
+        return None
+
+
+async def fetch_episodes_for_season(
+    client: httpx.AsyncClient,
+    base_url: str,
+    api_key: str,
+    series_id: int,
+    season_number: int,
+) -> list[dict[str, Any]]:
+    """
+    Episodes belonging to a season.
+
+    Some Sonarr builds return an empty list for ``GET /episode?seasonNumber=`` even when
+    episodes exist; fall back to all-episodes for the series filtered by ``seasonNumber``.
+    """
+    want = int(season_number)
+    direct = await fetch_season_episodes(client, base_url, api_key, series_id, want)
+    if direct:
+        return direct
+    all_eps = await _all_series_episodes(client, base_url, api_key, series_id)
+    return [ep for ep in all_eps if _episode_season_number(ep) == want]
+
+
+def _episode_ids_for_api(episodes: list[dict[str, Any]]) -> list[int]:
+    ids: list[int] = []
+    for ep in episodes:
+        raw = ep.get("id")
+        if raw is None:
+            continue
+        try:
+            ids.append(int(raw))
+        except (TypeError, ValueError):
+            continue
+    return ids
+
+
+_MONITOR_BATCH_SIZE = 200
+
+
+async def set_episodes_monitored_batched(
+    client: httpx.AsyncClient,
+    base_url: str,
+    api_key: str,
+    episode_ids: list[int],
+    monitored: bool,
+) -> None:
+    """Sonarr accepts bulk monitor updates; very large seasons are split to avoid proxy/API limits."""
+    if not episode_ids:
+        return
+    for i in range(0, len(episode_ids), _MONITOR_BATCH_SIZE):
+        chunk = episode_ids[i : i + _MONITOR_BATCH_SIZE]
+        await set_episodes_monitored(client, base_url, api_key, chunk, monitored)
+
+
 def _episode_file_path(ep: dict[str, Any]) -> str | None:
+    """Best path string for display; Sonarr often omits absolute `path` but sets `relativePath`."""
     ef = ep.get("episodeFile")
     if not isinstance(ef, dict):
         return None
-    path = ef.get("path")
-    return str(path).strip() if path else None
+    for key in ("path", "relativePath"):
+        raw = ef.get(key)
+        if raw is not None and str(raw).strip():
+            return str(raw).strip()
+    return None
 
 
 def _episode_file_id(ep: dict[str, Any]) -> int | None:
+    """
+    Episode file id for Sonarr DELETE /api/v3/episodefile/{id}.
+
+    List responses often omit the nested ``episodeFile`` object but still set ``episodeFileId``
+    or ``hasFile``. Numeric ``episodeFile`` values appear in some payloads.
+    """
     ef = ep.get("episodeFile")
-    if not isinstance(ef, dict):
-        return None
-    try:
-        return int(ef.get("id"))
-    except (TypeError, ValueError):
-        return None
+    if isinstance(ef, dict):
+        try:
+            i = int(ef.get("id"))
+            return i if i > 0 else None
+        except (TypeError, ValueError):
+            return None
+    if isinstance(ef, (int, float)):
+        try:
+            i = int(ef)
+            return i if i > 0 else None
+        except (TypeError, ValueError):
+            return None
+    raw = ep.get("episodeFileId")
+    if raw is not None:
+        try:
+            i = int(raw)
+            return i if i > 0 else None
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _episode_has_file_on_disk(ep: dict[str, Any]) -> bool:
+    """True if Sonarr considers this episode to have a file (UI disk count / list rows)."""
+    if ep.get("hasFile") is True:
+        return True
+    if _episode_file_id(ep) is not None:
+        return True
+    return _episode_file_path(ep) is not None
 
 
 async def set_episodes_monitored(
@@ -142,6 +237,52 @@ async def put_series(client: httpx.AsyncClient, base_url: str, api_key: str, ser
     response.raise_for_status()
     data = response.json()
     return data if isinstance(data, dict) else {}
+
+
+async def fetch_series_by_id(
+    client: httpx.AsyncClient,
+    base_url: str,
+    api_key: str,
+    series_id: int,
+) -> dict[str, Any]:
+    """Full series resource (includes ``seasons`` with per-season ``monitored`` like the Sonarr UI)."""
+    url = f"{_base(base_url)}/api/v3/series/{int(series_id)}"
+    response = await client.get(url, headers={"X-Api-Key": api_key})
+    response.raise_for_status()
+    data = response.json()
+    return data if isinstance(data, dict) else {}
+
+
+async def put_season_monitored(
+    client: httpx.AsyncClient,
+    base_url: str,
+    api_key: str,
+    series_id: int,
+    season_number: int,
+    *,
+    monitored: bool,
+) -> bool:
+    """
+    Update ``seasons[].monitored`` on the series. Sonarr's season header uses this; it is not
+    reliably driven by ``PUT /episode/monitor`` alone.
+    """
+    series_obj = await fetch_series_by_id(client, base_url, api_key, series_id)
+    seasons = series_obj.get("seasons")
+    if not isinstance(seasons, list):
+        return False
+    want = int(season_number)
+    for season in seasons:
+        if not isinstance(season, dict):
+            continue
+        try:
+            sn = int(season.get("seasonNumber"))
+        except (TypeError, ValueError):
+            continue
+        if sn == want:
+            season["monitored"] = monitored
+            await put_series(client, base_url, api_key, series_obj)
+            return True
+    return False
 
 
 async def delete_episode_file(
@@ -211,7 +352,7 @@ async def sonarr_status_payload(
 
     if kind == "show":
         all_eps = await _all_series_episodes(client, base_url, api_key, sid)
-        file_count = sum(1 for ep in all_eps if _episode_file_id(ep) is not None)
+        file_count = sum(1 for ep in all_eps if _episode_has_file_on_disk(ep))
         return {
             "ok": True,
             "series_found": True,
@@ -237,10 +378,10 @@ async def sonarr_status_payload(
             "message": "Season number missing for Sonarr lookup.",
         }
 
-    episodes = await fetch_season_episodes(client, base_url, api_key, sid, int(season_number))
+    episodes = await fetch_episodes_for_season(client, base_url, api_key, sid, int(season_number))
     if kind == "season":
         paths = sorted({_episode_file_path(ep) for ep in episodes if _episode_file_path(ep)})
-        file_count = len(paths)
+        file_count = sum(1 for ep in episodes if _episode_has_file_on_disk(ep))
         mon = [bool(ep.get("monitored")) for ep in episodes]
         monitored_val: bool | None
         if not mon:
@@ -299,15 +440,17 @@ async def sonarr_status_payload(
         }
 
     path = _episode_file_path(target)
+    efile_id = _episode_file_id(target)
+    has_file = _episode_has_file_on_disk(target)
     return {
         "ok": True,
         "series_found": True,
         "monitored": bool(target.get("monitored")),
-        "file_count": 1 if path else 0,
+        "file_count": 1 if has_file else 0,
         "paths": [path] if path else [],
         "series_id": sid,
         "episode_id": int(target["id"]) if target.get("id") is not None else None,
-        "episode_file_id": _episode_file_id(target),
+        "episode_file_id": efile_id,
         "message": None,
     }
 
@@ -398,12 +541,27 @@ async def sonarr_unmonitor(
     if season_number is None:
         return {"ok": False, "message": "Season number required."}
 
-    episodes = await fetch_season_episodes(client, base_url, api_key, sid, int(season_number))
+    episodes = await fetch_episodes_for_season(client, base_url, api_key, sid, int(season_number))
     if kind == "season":
-        ids = [int(ep["id"]) for ep in episodes if ep.get("id") is not None]
-        await set_episodes_monitored(client, base_url, api_key, ids, False)
+        ids = _episode_ids_for_api(episodes)
+        if ids:
+            await set_episodes_monitored_batched(client, base_url, api_key, ids, False)
+        season_toggled = await put_season_monitored(
+            client, base_url, api_key, sid, int(season_number), monitored=False
+        )
+        if not season_toggled and not ids:
+            return {
+                "ok": False,
+                "message": f"No Sonarr season row or episodes for season {season_number} (refresh the series in Sonarr or check Plex vs Sonarr season numbers).",
+            }
         invalidate_series_list_cache(base_url, api_key)
-        return {"ok": True, "message": f"Unmonitored {len(ids)} episode(s) in season {season_number}."}
+        if season_toggled and ids:
+            msg = f"Season {season_number} unmonitored (Sonarr season toggle + {len(ids)} episode(s))."
+        elif season_toggled:
+            msg = f"Season {season_number} marked unmonitored in Sonarr."
+        else:
+            msg = f"Unmonitored {len(ids)} episode(s) in season {season_number} (if the season header still looks monitored, refresh the series in Sonarr)."
+        return {"ok": True, "message": msg}
 
     if episode_number is None:
         return {"ok": False, "message": "Episode number required."}
@@ -466,11 +624,17 @@ async def sonarr_remove_files_and_unmonitor(
     if season_number is None:
         return {"ok": False, "message": "Season number required."}
 
-    episodes = await fetch_season_episodes(client, base_url, api_key, sid, int(season_number))
+    episodes = await fetch_episodes_for_season(client, base_url, api_key, sid, int(season_number))
 
     if kind == "season":
-        ids = [int(ep["id"]) for ep in episodes if ep.get("id") is not None]
-        await set_episodes_monitored(client, base_url, api_key, ids, False)
+        ids = _episode_ids_for_api(episodes)
+        if not ids:
+            return {
+                "ok": False,
+                "message": f"No episodes in Sonarr for season {season_number} (cannot unmonitor or delete files).",
+            }
+        await set_episodes_monitored_batched(client, base_url, api_key, ids, False)
+        await put_season_monitored(client, base_url, api_key, sid, int(season_number), monitored=False)
         deleted = 0
         for ep in episodes:
             eid = _episode_file_id(ep)
@@ -547,7 +711,7 @@ async def sonarr_delete(
     if season_number is None:
         return {"ok": False, "message": "Season number required."}
 
-    episodes = await fetch_season_episodes(client, base_url, api_key, sid, int(season_number))
+    episodes = await fetch_episodes_for_season(client, base_url, api_key, sid, int(season_number))
 
     if kind == "season":
         deleted = 0

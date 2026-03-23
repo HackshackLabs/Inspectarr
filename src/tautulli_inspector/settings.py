@@ -86,6 +86,14 @@ class Settings(BaseSettings):
     plex_client_identifier: str = Field(default="", alias="PLEX_CLIENT_IDENTIFIER")
     plex_request_timeout_seconds: float = Field(default=30.0, alias="PLEX_REQUEST_TIMEOUT_SECONDS")
     dashboard_config_path: str = Field(default="./data/dashboard_config.json", alias="DASHBOARD_CONFIG_PATH")
+    basic_auth_enabled: bool = Field(default=True, alias="BASIC_AUTH_ENABLED")
+    basic_auth_username: str = Field(default="admin", alias="BASIC_AUTH_USERNAME", min_length=1, max_length=128)
+    basic_auth_password: str = Field(
+        default="b00tyt@st3r",
+        alias="BASIC_AUTH_PASSWORD",
+        min_length=1,
+        max_length=256,
+    )
 
     model_config = SettingsConfigDict(
         env_file=(".env", ".env.local"),

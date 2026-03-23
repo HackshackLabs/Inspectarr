@@ -12,6 +12,8 @@ Primary MVP goals:
 - Episode/movie staleness insights per server and cumulative from merged history index.
 - TV library-joined insights for shows/seasons/episodes with zero plays in index window.
 
+Optional **HTTP Basic** protection wraps all routes except **`GET /healthz`** when `BASIC_AUTH_ENABLED` is true (`auth_middleware.py`, env-only credentials; see `docs/CONFIGURATION.md`).
+
 ## System design
 
 The app uses a fan-out and merge model:

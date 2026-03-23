@@ -50,7 +50,13 @@ If a key is **absent** from `overrides`, the value comes from the environment (o
 
 ## Security
 
-The Settings page is **unauthenticated**, like the rest of the dashboard. Anyone who can open the app can change upstream API keys, Plex tokens, and destructive Sonarr/Plex actions. For non-localhost deployments, place the app behind a reverse proxy with authentication (see `docs/DEPLOYMENT.md`).
+### HTTP Basic (application)
+
+When **`BASIC_AUTH_ENABLED`** is true (default), every route except **`GET /healthz`** requires a valid **`Authorization: Basic …`** header. Username and password come from **`.env` / environment only** (`BASIC_AUTH_USERNAME`, `BASIC_AUTH_PASSWORD`); defaults are `admin` / `b00tyt@st3r` — **change them** before exposing the app. Dashboard JSON **cannot** override these fields. Set **`BASIC_AUTH_ENABLED=false`** for open local development without a login prompt.
+
+### Settings page
+
+Anyone who passes Basic auth can use **/settings** and change upstream API keys, Plex tokens, and operational tuning stored in the dashboard file. For defense in depth on the public internet, still use TLS (reverse proxy) and consider proxy-level auth (see `docs/DEPLOYMENT.md`).
 
 ## Process / env cache
 

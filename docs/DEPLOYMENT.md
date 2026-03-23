@@ -8,9 +8,9 @@ Use:
 
 - `tautulli-inspector` bound on a private interface or localhost
 - Reverse proxy for TLS termination
-- Authentication at the reverse proxy layer (basic auth or SSO)
+- Authentication: **built-in HTTP Basic** (`.env`: `BASIC_AUTH_*`, see `docs/CONFIGURATION.md`) and/or at the **reverse proxy** (basic auth or SSO)
 
-Do not expose the app directly to the internet without auth.
+Do not expose the app directly to the internet without auth (change default Basic credentials at minimum).
 
 ## Reverse proxy auth options
 

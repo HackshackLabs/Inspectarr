@@ -186,6 +186,7 @@ Run:
 ## Security notes
 
 - Never commit real API keys, `.env`, or other secrets.
+- **HTTP Basic auth** is on by default (`BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD` in `.env`; default password must be changed for any non-local use). **`GET /healthz`** stays unauthenticated for probes. Set **`BASIC_AUTH_ENABLED=false`** to disable.
 - Keep dashboard bound to localhost for MVP (`127.0.0.1`) unless protected by a reverse proxy and auth.
 - Treat upstream Tautulli endpoints as sensitive operational surfaces.
 - Sonarr actions can unmonitor and delete files on disk; Plex actions can delete library items (and often media files) on your PMS; protect the dashboard the same way as Tautulli keys if exposed beyond localhost.

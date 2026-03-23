@@ -102,7 +102,9 @@ def apply_dashboard_overrides(base: Settings) -> Settings:
     ov = load_overrides_dict(base)
     if not ov:
         return base
-    allowed = set(Settings.model_fields.keys()) - {"model_config"}
+    # Basic auth credentials must never be overridden from dashboard JSON (env / .env only).
+    _auth_keys = frozenset({"basic_auth_enabled", "basic_auth_username", "basic_auth_password"})
+    allowed = set(Settings.model_fields.keys()) - {"model_config"} - _auth_keys
     filtered = {k: v for k, v in ov.items() if k in allowed}
     if not filtered:
         return base

@@ -168,6 +168,12 @@ SETTINGS_EDITOR_FIELDS: list[tuple[str, str, str]] = [
     ("insights_history_length", "Insights history rows / server", "int"),
     ("tv_inventory_max_shows_per_server", "TV inventory max shows / server", "int"),
     ("tv_inventory_batch_shows_per_server", "TV inventory batch shows / request", "int"),
+    ("tv_inventory_inter_request_delay_seconds", "TV inventory inter-request delay (s)", "float"),
+    (
+        "library_unwatched_history_extra_delay_seconds",
+        "Library-unwatched history extra delay (s)",
+        "float",
+    ),
     ("inventory_cache_db_path", "Inventory cache DB path", "text"),
     ("insights_cache_db_path", "Insights cache DB path", "text"),
     ("insights_cache_ttl_seconds", "Insights cache TTL (s)", "float"),

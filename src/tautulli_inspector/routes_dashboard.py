@@ -621,7 +621,9 @@ async def library_unwatched_insights(
         client = TautulliClient(
             timeout_seconds=settings.history_request_timeout_seconds,
             max_parallel_servers=settings.upstream_max_parallel_servers,
-            per_request_delay_seconds=settings.upstream_per_request_delay_seconds,
+            per_request_delay_seconds=settings.upstream_per_request_delay_seconds
+            + settings.library_unwatched_history_extra_delay_seconds,
+            inventory_inter_request_delay_seconds=settings.tv_inventory_inter_request_delay_seconds,
         )
         per_server_length = max(settings.insights_history_length, 100)
 

@@ -36,10 +36,12 @@ class TautulliClient:
         timeout_seconds: float,
         max_parallel_servers: int = 2,
         per_request_delay_seconds: float = 0.0,
+        inventory_inter_request_delay_seconds: float = 0.0,
     ) -> None:
         self.timeout_seconds = timeout_seconds
         self.max_parallel_servers = max(max_parallel_servers, 1)
         self.per_request_delay_seconds = max(per_request_delay_seconds, 0.0)
+        self.inventory_inter_request_delay_seconds = max(inventory_inter_request_delay_seconds, 0.0)
 
     async def fetch_all_activity(self, servers: list[TautulliServer]) -> list[ActivityFetchResult]:
         """Fetch activity from each configured server in parallel."""
@@ -892,6 +894,8 @@ class TautulliClient:
         if response_meta.get("result") != "success":
             message = response_meta.get("message", "Unknown Tautulli API error")
             raise ValueError(f"{cmd} failed: {message}")
+        if self.inventory_inter_request_delay_seconds > 0:
+            await asyncio.sleep(self.inventory_inter_request_delay_seconds)
         return payload
 
 

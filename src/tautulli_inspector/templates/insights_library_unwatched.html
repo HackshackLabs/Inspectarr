@@ -633,7 +633,19 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
         var tip = document.getElementById("sonarr-tooltip");
         var cache = Object.create(null);
         var hideTimer = null;
-        var maxParallelInline = 4;
+        var maxParallelInline = 2;
+        var minMsBetweenSonarrStarts = 160;
+        var nextSonarrSlotMs = Date.now();
+        function scheduleSonarrRequest(runFn) {
+          return new Promise(function (resolve, reject) {
+            var slot = nextSonarrSlotMs;
+            nextSonarrSlotMs = slot + minMsBetweenSonarrStarts;
+            var delay = Math.max(0, slot - Date.now());
+            setTimeout(function () {
+              runFn().then(resolve, reject);
+            }, delay);
+          });
+        }
 
         function alertLib(message) {
           var d = document.getElementById("lib-ui-alert");
@@ -841,18 +853,19 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
           }
           inlineEl.textContent = "Loading Sonarr…";
           inlineEl.classList.add("muted");
-          return fetch("/insights/library-unwatched/sonarr/status?" + key)
-            .then(function (r) {
-              return r.json();
-            })
-            .then(function (data) {
-              cache[key] = data;
-              apply(data);
-            })
-            .catch(function () {
-              inlineEl.classList.remove("muted");
-              inlineEl.innerHTML = '<span class="status-error">Sonarr status failed</span>';
-            });
+          return scheduleSonarrRequest(function () {
+            return fetch("/insights/library-unwatched/sonarr/status?" + key)
+              .then(function (r) {
+                return r.json();
+              })
+              .then(function (data) {
+                cache[key] = data;
+                apply(data);
+              });
+          }).catch(function () {
+            inlineEl.classList.remove("muted");
+            inlineEl.innerHTML = '<span class="status-error">Sonarr status failed</span>';
+          });
         }
 
         function showTip(html, x, y) {
@@ -904,10 +917,11 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
               return;
             }
             showTip("Loading Sonarr…", ev.clientX, ev.clientY);
-            fetch("/insights/library-unwatched/sonarr/status?" + key)
-              .then(function (r) {
+            scheduleSonarrRequest(function () {
+              return fetch("/insights/library-unwatched/sonarr/status?" + key).then(function (r) {
                 return r.json();
-              })
+              });
+            })
               .then(function (data) {
                 cache[key] = data;
                 applyRowMediaState(row, data);

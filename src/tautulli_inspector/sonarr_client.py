@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 _series_list_cache_lock = Lock()
 _series_list_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
-_SERIES_LIST_CACHE_TTL_SECONDS = 45.0
+_SERIES_LIST_CACHE_TTL_SECONDS = 90.0
 
 
 def invalidate_series_list_cache(base_url: str, api_key: str) -> None:

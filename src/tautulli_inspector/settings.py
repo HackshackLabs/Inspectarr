@@ -73,6 +73,16 @@ class Settings(BaseSettings):
     insights_history_length: int = Field(default=2000, alias="INSIGHTS_HISTORY_LENGTH")
     tv_inventory_max_shows_per_server: int = Field(default=300, alias="TV_INVENTORY_MAX_SHOWS_PER_SERVER")
     tv_inventory_batch_shows_per_server: int = Field(default=25, alias="TV_INVENTORY_BATCH_SHOWS_PER_SERVER")
+    tv_inventory_inter_request_delay_seconds: float = Field(
+        default=0.28,
+        ge=0.0,
+        alias="TV_INVENTORY_INTER_REQUEST_DELAY_SECONDS",
+    )
+    library_unwatched_history_extra_delay_seconds: float = Field(
+        default=0.22,
+        ge=0.0,
+        alias="LIBRARY_UNWATCHED_HISTORY_EXTRA_DELAY_SECONDS",
+    )
     inventory_cache_db_path: str = Field(default="./data/inventory_cache.sqlite", alias="INVENTORY_CACHE_DB_PATH")
     insights_cache_db_path: str = Field(default="./data/insights_cache.sqlite", alias="INSIGHTS_CACHE_DB_PATH")
     insights_cache_ttl_seconds: float = Field(default=10800.0, alias="INSIGHTS_CACHE_TTL_SECONDS")

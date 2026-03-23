@@ -37,7 +37,19 @@ Rows prefer a **TVDB id** parsed from Plex/Tautulli metadata (`guid` / `grandpar
 
 For the most reliable matches, use TheTVDB as the metadata agent in Plex for TV libraries.
 
+Series resolution also checks Sonarr **`alternateTitles`** and **`sortTitle`**, and treats a Plex title segment before the first `//` as a fallback (for example `.hack//SIGN` vs a shorter Sonarr **title**). When both episode and grandparent Plex guids carry a TVDB id, **grandparent (series) is preferred** so show and season rows stay aligned with the same Sonarr series.
+
 ## HTTP endpoints (same origin as the dashboard)
+
+### `GET /insights/library-unwatched/build-status`
+
+Used only by the library-unwatched **loading** page. Returns JSON:
+
+- `ready` — `true` when the insights cache already holds a snapshot for the current cache key.
+- `refresh_in_progress` — `true` when a background compute task is still running.
+
+The browser polls this on an interval (see template) and performs a full navigation when `ready` becomes true. Not required for normal report viewing.
+
 
 ### `GET /insights/library-unwatched/sonarr/status`
 

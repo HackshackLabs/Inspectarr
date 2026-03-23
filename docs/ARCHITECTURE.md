@@ -24,24 +24,23 @@ The app uses a fan-out and merge model:
 4. Aggregated datasets are sorted and returned to Jinja templates.
 5. UI renders merged data and per-server health strip.
 
-## Proposed module layout
+## Repository layout (selected)
 
 ```text
-inspectarr/
-  README.md
-  TODO.md
-  .env.example
-  docs/
-    ARCHITECTURE.md
-    TAUTULLI_API.md
-    DECISIONS.md
-  src/inspectarr/
-    main.py
-    settings.py
-    tautulli_client.py
-    aggregate.py
-    routes_dashboard.py
-    templates/
+src/inspectarr/
+  main.py                 # FastAPI app
+  settings.py             # pydantic-settings from env + JSON overrides
+  tautulli_client.py      # upstream fan-out
+  aggregate.py            # merge helpers, library-unwatched report builder
+  sonarr_client.py        # Sonarr v3 helpers for library-unwatched
+  plex_client.py          # optional Plex delete / auth helpers
+  routes_dashboard.py     # HTML pages: /, /history, insights
+  routes_library_sonarr.py
+  routes_library_plex.py
+  routes_configuration.py # /settings
+  templates/              # Jinja2
+src/tautulli_inspector/   # legacy entry shim (uvicorn module path)
+docs/                     # operator and contributor docs
 ```
 
 ## Data flow
@@ -128,8 +127,7 @@ The dashboard should never fail hard solely due to one upstream node.
 - **Timestamp normalization drift**: history rows may expose different timestamp fields (`started`, `date`) and formats/timezones. Mitigate by converting to one canonical UTC epoch field before sort and render.
 - **Identity mismatch across servers**: same person may have different names/ids across instances. Mitigate by displaying `server_id`/`server_name` everywhere and documenting that user-level filters are best-effort until an explicit identity map is added.
 - **API key exposure in logs**: Tautulli uses query-string keys, which are easy to leak in request logs and error traces. Mitigate by redacting `apikey` in all logs and avoiding raw URL logging.
-- **Fan-out refresh load**: frequent dashboard polling can multiply upstream calls and stress smaller hosts. Mitigate with short-lived in-memory caching for activity/history and optional staggered refresh intervals.
-- **Fan-out refresh load**: frequent dashboard polling can multiply upstream calls and stress smaller hosts. Mitigate with short-lived in-memory stale-while-revalidate cache for activity and optional staggered refresh intervals.
+- **Fan-out refresh load**: frequent dashboard polling can multiply upstream calls and stress smaller hosts. Mitigate with short-lived in-memory stale-while-revalidate cache for activity, optional SQLite TTL cache for `/history`, and optional staggered refresh intervals.
 - **Partial outage ambiguity**: operators can misread missing rows as "no activity" when a server is degraded. Mitigate by making server health state prominent and time-stamping last successful fetch per server.
 
 For ongoing tracking, see the explicit risk register in `docs/KNOWN_ISSUES.md`.
@@ -156,6 +154,10 @@ To avoid long blocking scans on large libraries, TV inventory indexing is increm
 - report uses cached inventory built so far and displays indexing progress
 - server-identification panels are standardized to the history-page card grid sizing across dashboard pages for consistent operations UI
 
-Insights pages (`/insights/unwatched`, `/insights/library-unwatched`) use background snapshot refresh with persisted cache (3-hour TTL by default). When a snapshot is missing or expired, the page renders quickly in pending mode and auto-refreshes until the background job materializes the cached payload. The library-unwatched cache key seed includes a version token so older SQLite rows are ignored after incompatible payload changes; the page also normalizes each `per_server` row (non-empty `status`, default `inventory_counts`) so the Server Index Status block never renders an empty status label for legacy snapshots.
+Insights pages (`/insights/unwatched`, `/insights/library-unwatched`) use background snapshot refresh with persisted cache (3-hour TTL by default). When a snapshot is missing or expired, the page renders quickly in pending mode and auto-refreshes until the background job materializes the cached payload. Library-unwatched also exposes **`GET /insights/library-unwatched/build-status`** (JSON: `ready`, `refresh_in_progress`) so the wait view can poll without reloading the full HTML every few seconds; timers and open `<details>` sections persist across optional fallback reloads via `sessionStorage`.
+
+The library-unwatched cache key seed includes a version token so older SQLite rows are ignored after incompatible payload changes; the page normalizes each `per_server` row (non-empty `status`, default `inventory_counts`) so the Server Index Status block never renders an empty status label for legacy snapshots.
+
+**Season vs show unwatched (library-unwatched):** cumulative **season** rows use the same **ever-watched** evidence as **show** rows (history in the loaded window plus Plex play/last-viewed metadata and show-level watch flags), not window-only history for seasons.
 
 The **`/settings`** page edits a JSON file (`DASHBOARD_CONFIG_PATH`, default under `./data/`) with two sections: `presentation` (site title, one of five themes, optional logo file under `uploads/`, footer and nav note) and `overrides` (subset of application `Settings` merged over environment on each `get_settings()` call). See `docs/CONFIGURATION.md`. Environment-only values remain LRU-cached per process via `_settings_from_env()`; the merged settings read the JSON file without a separate merge cache.

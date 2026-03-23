@@ -10,25 +10,15 @@ Small "single pane of glass" dashboard that aggregates activity and history from
 - Shows per-server health so one failed node does not blank the dashboard.
 - Front page includes visual stream summaries by server and media type.
 
-## Current status
+## Features (shipped)
 
-MVP application skeleton is in place with:
+- **Live dashboard** (`/`) — merged `get_activity`, per-server health, stream summaries
+- **History** (`/history`) — global merge-sort timeline, filters, optional SQLite page cache, week vs all-time crawl modes
+- **Unwatched insights** (`/insights/unwatched`) — stale candidates from history index
+- **Library unwatched** (`/insights/library-unwatched`) — TV inventory joined to watch history; incremental indexing; optional **Sonarr** actions and **Plex** delete chaining on per-server rows
+- **Settings** (`/settings`) — themes, branding, `TAUTULLI_SERVERS_JSON`, Sonarr/Plex fields, and safe overrides persisted to `DASHBOARD_CONFIG_PATH`
 
-- FastAPI app entrypoint under `src/inspectarr/main.py`
-- Environment-driven settings loader
-- Tautulli fan-out client for `get_activity` and `get_history`
-- Merged live dashboard page at `/`
-- Merged history page at `/history` with global ordering and filters
-- Stale insights page at `/insights/unwatched`
-- Library-joined unwatched page at `/insights/library-unwatched` with incremental indexing progress
-- Settings UI at `/settings` (themes, site title, logo, Tautulli/Sonarr and timing options via JSON config file)
-
-## Planned stack
-
-- Python
-- FastAPI
-- Jinja2 templates
-- Optional htmx for lightweight auto-refresh
+Stack: Python 3.11+, FastAPI, Jinja2 (server-rendered UI).
 
 ## Prerequisites
 
@@ -137,15 +127,27 @@ Example:
 
 ## Run locally
 
-1. Create and activate a virtual environment.
-2. Install dependencies:
-   - `pip install -r requirements.txt`
-3. Copy `.env.example` to `.env` (or use `.env.local`) and set values.
-4. Run the app:
-   - `uvicorn inspectarr.main:app --reload`
-   - or `inspectarr`
+1. Copy `.env.example` to `.env` and set at least `TAUTULLI_SERVERS_JSON` and auth-related variables.
+2. Install and run (pick one):
 
-By default, the dashboard is available at `http://127.0.0.1:8000/`.
+   **uv (recommended)**
+
+   ```bash
+   uv sync
+   uv run uvicorn inspectarr.main:app --reload --host 127.0.0.1 --port 8000
+   ```
+
+   **pip**
+
+   ```bash
+   python -m venv .venv && source .venv/bin/activate
+   pip install -e .
+   uvicorn inspectarr.main:app --reload --host 127.0.0.1 --port 8000
+   ```
+
+   Legacy entry name: `uvicorn tautulli_inspector.main:app` still works via the shim under `src/tautulli_inspector/`.
+
+By default, open `http://127.0.0.1:8000/`.
 
 Pages:
 
@@ -157,21 +159,26 @@ Pages:
 - `GET /insights/unwatched` stale media insights (per-server and cumulative)
   - query params: `media_type` (`episode|movie`), `days`, `max_items`, `refresh`
   - exports (cached full lists, not HTML page slices): `GET /insights/unwatched/export?group=cumulative_stale|server_stale&format=txt|csv|json|xml&media_type=…&days=…` (add `server_id` for `server_stale`)
-- `GET /insights/library-unwatched` TV inventory joined with index-window watch history
+- `GET /insights/library-unwatched` TV inventory joined with watch history (see `LIBRARY_UNWATCHED_USE_FULL_HISTORY_CRAWL` for all-time vs window-scoped history)
   - query params: `show_start`, `season_start`, `episode_start`, `server_start`, `length`, `max_items`, `refresh`
-  - cumulative shows/seasons/episodes appear side-by-side in columns on wide viewports; per-server unwatched inventory is collapsed by default (expand to view)
+  - while the insights snapshot is building, the page polls `GET /insights/library-unwatched/build-status` and then reloads when ready
+  - cumulative shows/seasons/episodes appear side-by-side on wide viewports; per-server unwatched inventory is in a collapsible `<details>` section
   - exports (cached full lists): `GET /insights/library-unwatched/export?group=cumulative_shows|cumulative_seasons|cumulative_episodes|server_shows|server_seasons|server_episodes&format=txt|csv|json|xml` (add `server_id` for `server_*` groups)
-  - show-level unwatched lists require no recorded watch evidence ever (episode play/view metadata or watched history)
-  - season-level unwatched lists exclude seasons with any in-window watch evidence (including parsed `SxEy` title formats)
-  - timed-out/incomplete server index states auto-schedule background retries and surface retry status in UI
-  - cumulative lists are globally deduped and exclude items watched on any server in the window
-  - optional Sonarr column (when `SONARR_BASE_URL` and `SONARR_API_KEY` are set): each row loads **monitored** + **file count** inline; **ⓘ** shows paths; **Unmonitor**, **Remove & unmonitor**, and **Delete** (see `docs/SONARR.md`)
-  - Sonarr API (proxied by this app): `GET /insights/library-unwatched/sonarr/status` (includes `file_count`), `POST …/sonarr/unmonitor`, `POST …/sonarr/remove-from-plex-and-unmonitor`, `POST …/sonarr/delete`
-  - optional Plex ( **`/settings`**, primary/secondary tokens): on **per-server** tables, **Remove & unmonitor** and **Delete** call Sonarr then `POST /insights/library-unwatched/plex/delete-library-item` when the row has a `ratingKey` and Plex is mapped for that server. Cumulative tables are Sonarr-only.
+  - **show**-level unwatched: no “ever watched” evidence (Plex play/view metadata, show-level flags, or matching history)
+  - **season**-level unwatched: same **ever-watched** rules as shows (not window-only), plus history rows that only expose `SxEy` in titles where applicable
+  - timed-out/incomplete server index states auto-schedule background retries; UI shows retry status
+  - cumulative lists are deduped across servers; a watch on any server in the indexed window excludes that item from cumulative lists
+  - optional Sonarr (`SONARR_BASE_URL`, `SONARR_API_KEY`): per-row **monitored**, **file count**, **ⓘ** paths, **Unmonitor** / **Remove & unmonitor** / **Delete** — see `docs/SONARR.md`
+  - Sonarr routes: `GET …/sonarr/status`, `POST …/sonarr/unmonitor`, `POST …/sonarr/remove-from-plex-and-unmonitor`, `POST …/sonarr/delete`
+  - optional Plex (`/settings` tokens + mapping): on **per-server** rows with `ratingKey`, destructive Sonarr actions can chain `POST …/plex/delete-library-item`. Cumulative rows are Sonarr-only.
 
 ## Run tests
 
-- `PYTHONPATH=src python -m unittest discover -s tests -p "test_*.py"`
+```bash
+uv run python -m unittest discover -s tests -q
+```
+
+Or: `PYTHONPATH=src python -m unittest discover -s tests`
 
 ## Docker
 
@@ -196,14 +203,20 @@ Run:
 
 ## Docs
 
-- `UIDESIGN.md` — UI design principles for contributors and agents
-- `docs/UI_IMPROVEMENTS.md` — Site review vs those principles; prioritized UI backlog
-- **UI implementation:** shared tokens, focus styles, skip link, and nav live in `src/inspectarr/templates/layout.html` (`nav_current` is set per route in `routes_dashboard.py` and `routes_configuration.py`)
-- `docs/ARCHITECTURE.md`
-- `docs/CONFIGURATION.md`
-- `docs/SONARR.md`
-- `docs/TAUTULLI_API.md`
-- `docs/DECISIONS.md`
-- `docs/DEPLOYMENT.md`
-- `docs/KNOWN_ISSUES.md`
-- `TODO.md`
+| Doc | Purpose |
+|-----|---------|
+| `docs/ARCHITECTURE.md` | Data flow, merge rules, caching, library-unwatched behavior |
+| `docs/CONFIGURATION.md` | Environment variables and dashboard JSON overrides |
+| `docs/SONARR.md` | Sonarr matching, API routes, button semantics |
+| `docs/PLEX_API_LIBRARY_REMOVAL.md` | Plex delete chaining from library-unwatched |
+| `docs/TAUTULLI_API.md` | Tautulli endpoints used by the client |
+| `docs/DEPLOYMENT.md` | Reverse proxy, TLS, container notes |
+| `docs/KNOWN_ISSUES.md` | Risk register |
+| `docs/DECISIONS.md` | Design decisions |
+| `SECURITY_REVIEW.md` | Security review summary |
+| `UIDESIGN.md` / `docs/UI_IMPROVEMENTS.md` | UI principles and backlog for contributors |
+| `TODO.md` | Maintainer checklist (mostly historical) |
+
+Shared layout, nav, and theme tokens: `src/inspectarr/templates/layout.html` (`nav_current` set from `routes_dashboard.py` / `routes_configuration.py`).
+
+The `trash/` folder holds optional material moved out of the repo root for review (see `trash/README.md`); it is safe to delete after you inspect it.

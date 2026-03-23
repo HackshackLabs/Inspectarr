@@ -1,1 +1,2 @@
+# Editable install (see pyproject.toml). Prefer: uv sync   or   pip install -e .
 -e .

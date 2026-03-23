@@ -12,7 +12,7 @@ Status values:
 
 | ID | Issue | Impact | Current mitigation | Status | Follow-up |
 | --- | --- | --- | --- | --- | --- |
-| KI-001 | Global pagination across multiple Tautulli servers can be incorrect when using identical `start`/`length` per server. | Missing or reordered events in combined history timeline. | Use global merge-sort strategy with over-fetch and trim. | mitigating | Implement and test merged pagination semantics in P1. |
+| KI-001 | Global pagination across multiple Tautulli servers can be incorrect when using identical `start`/`length` per server. | Missing or reordered events in combined history timeline. | History uses global merge-sort after per-server fetch; trim after merge. | mitigating | Continue validating edge cases at very large `length` / filter combos. |
 | KI-002 | History timestamps may differ by field and format (`started`, `date`, timezone differences). | Incorrect ordering and misleading time display. | Normalize to canonical UTC epoch before merge and render. | mitigating | Continue broadening tests against real-world payload variants. |
 | KI-003 | User identity can drift across servers (different usernames/ids for same person). | Filters and attribution can be inconsistent across merged views. | Always include `server_id`/`server_name`; treat cross-server identity filters as best-effort. | open | Add optional identity map and user reconciliation workflow in future phase. |
 | KI-004 | Tautulli API key appears in query string parameters. | Secret leakage via logs, traces, or copied URLs. | Client logging redacts `apikey` in URLs and exception text; avoid raw URL logging. | mitigating | Add integration tests around representative HTTP client exception formats. |

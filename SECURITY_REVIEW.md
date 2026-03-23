@@ -1,7 +1,7 @@
 # Security review: Insecpectarr
 
 **Scope:** Application code under `src/inspectarr/`, configuration patterns, and deployment assumptions.  
-**Method:** Aligns with the methodology in [`SECURITYENGINEER.md`](./SECURITYENGINEER.md): trust boundaries, OWASP-style risks, and concrete remediation (not exploit steps).
+**Method:** Trust-boundary review, OWASP-oriented risk categories, and concrete remediation guidance (not exploit steps).
 
 ---
 
@@ -29,7 +29,7 @@
 
 ## Findings (prioritized)
 
-Severity uses **Critical / High / Medium / Low / Informational**. Each item includes **remediation** (required by SECURITYENGINEER.md).
+Severity uses **Critical / High / Medium / Low / Informational**. Each item includes **remediation**.
 
 ### High — Default Basic auth password in source and example env
 
@@ -71,7 +71,7 @@ Severity uses **Critical / High / Medium / Low / Informational**. Each item incl
 
 **Remediation:**
 
-- Add headers via middleware or document **mandatory** reverse proxy headers (as in SECURITYENGINEER.md’s Nginx example). Start with `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` minimal defaults, and `Content-Security-Policy` appropriate to inline styles/scripts currently used on `/settings`.
+- Add headers via middleware or document **mandatory** reverse proxy headers (see `SecurityHeadersMiddleware` in `security_middleware.py` for app defaults). Start with `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` minimal defaults, and `Content-Security-Policy` appropriate to inline styles/scripts currently used on `/settings`.
 
 ---
 
@@ -138,7 +138,7 @@ Severity uses **Critical / High / Medium / Low / Informational**. Each item incl
 
 ### Informational — No automated security pipeline in repo
 
-**Gap vs. SECURITYENGINEER.md:** No visible CI jobs for SAST (Semgrep), dependency scanning (Trivy/pip-audit), or secret scanning (Gitleaks).
+**Gap:** Beyond `.github/workflows/security.yml`, there is room to expand CI with SAST (Semgrep), dependency scanning (Trivy/pip-audit), or secret scanning (Gitleaks).
 
 **Remediation:**
 
@@ -166,7 +166,7 @@ Severity uses **Critical / High / Medium / Low / Informational**. Each item incl
 
 ## References
 
-- Internal: [`SECURITYENGINEER.md`](./SECURITYENGINEER.md) — role expectations, STRIDE-style thinking, secure patterns, and CI examples.
+- Optional archived prompt: `trash/SECURITYENGINEER.md` (agent-style checklist; not required reading for operators).
 - OWASP: [CSRF](https://owasp.org/www-community/attacks/csrf), [SSRF](https://owasp.org/www-community/attacks/Server_Side_Request_Forgery), secure headers cheat sheets.
 
 ---

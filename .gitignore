@@ -1,5 +1,9 @@
 uv.lock
 
+# Editor / agent debug logs (keep out of commits)
+.cursor/*.log
+trash/*.log
+
 .env
 .env.local
 .env.*

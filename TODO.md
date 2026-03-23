@@ -45,7 +45,8 @@
 - [x] Tighten show-level unwatched semantics: include show only when no episode has any watch record ever.
 - [x] Add explicit `refresh=1` force-recompute controls for history and insights pages.
 - [x] Add configurable upstream throttling (parallel fan-out cap + per-request delay) to reduce timeout pressure.
-- [x] Tighten season-level unwatched matching to exclude seasons with any in-window watch evidence, including `SxEy` full-title parsing fallback.
+- [x] Align season-level unwatched with show-level **ever-watched** evidence (history window + Plex play/last-viewed + show metadata), not window-only history for seasons.
+- [x] Tighten season-level history matching with `SxEy` full-title parsing fallback where titles lack structured season/episode fields.
 - [x] Surface retry/throttle visibility on library-unwatched and auto-schedule retries for timed-out/incomplete servers.
 - [x] Add front-page visual summaries (streams by server and media type) for faster at-a-glance interpretation.
 - [x] Add live-activity timeout retry scheduling with visible countdown until next retry.
@@ -72,4 +73,4 @@ Prioritized work through **P3** and the shipped **P4** Plex delete path is compl
 
 ## Git workflow
 
-Follow `.cursor/rules/git-workflow.mdc`: use a **feature branch** for changes; verify before merge; **never commit** `data/dashboard_config.json` or other files with API keys, tokens, or personal endpoints; merge to `main` and delete the branch only **after** you have confirmed testing.
+Follow `.cursor/rules/git-workflow.mdc`: use a **feature branch** for changes; verify before merge; **never commit** `data/dashboard_config.json` or other files with API keys, tokens, or personal endpoints; merge to `main` and delete the branch only **after** you have confirmed testing was successful. If further fixes happen, continue adding your changes and committing to the branch when your steps are complete.

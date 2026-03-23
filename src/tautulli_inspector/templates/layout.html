@@ -261,6 +261,19 @@
         font-size: var(--font-size-small);
         color: var(--muted);
       }
+      .site-footer-user {
+        margin-bottom: var(--space-3);
+      }
+      .site-footer-credits {
+        margin: 0;
+      }
+      .site-footer-credits a {
+        color: var(--link);
+        text-decoration: none;
+      }
+      .site-footer-credits a:hover {
+        text-decoration: underline;
+      }
       main code {
         font-size: 0.9em;
         color: var(--muted);
@@ -319,9 +332,15 @@
       <p class="note">{{ nav_note }}</p>
       {% endif %}
       {% block content %}{% endblock %}
-      {% if footer_text %}
-      <footer class="site-footer">{{ footer_text }}</footer>
-      {% endif %}
+      <footer class="site-footer" aria-label="Site footer">
+        {% if footer_text %}
+        <div class="site-footer-user">{{ footer_text }}</div>
+        {% endif %}
+        <p class="site-footer-credits">
+          From the digital minds @
+          <a href="https://labs.hackshack.sh" rel="noopener noreferrer">Hackshack Labs</a>
+        </p>
+      </footer>
     </main>
   </body>
 </html>

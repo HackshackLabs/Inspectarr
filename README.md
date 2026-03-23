@@ -214,7 +214,7 @@ Run:
 | `docs/KNOWN_ISSUES.md` | Risk register |
 | `docs/DECISIONS.md` | Design decisions |
 | `SECURITY_REVIEW.md` | Security review summary |
-| `UIDESIGN.md` / `docs/UI_IMPROVEMENTS.md` | UI principles and backlog for contributors |
+| `docs/UI_IMPROVEMENTS.md` | UI backlog vs archived principles in `trash/UIDESIGN.md` |
 | `TODO.md` | Maintainer checklist (mostly historical) |
 
 Shared layout, nav, and theme tokens: `src/inspectarr/templates/layout.html` (`nav_current` set from `routes_dashboard.py` / `routes_configuration.py`).

@@ -166,6 +166,51 @@ class UnwatchedReportTests(unittest.TestCase):
 
 
 class LibraryUnwatchedReportTests(unittest.TestCase):
+    def test_watched_when_series_title_differs_but_episode_rating_key_matches(self) -> None:
+        """History often uses a longer grandparent_title than Plex inventory (e.g. anime)."""
+        inventory = [
+            InventoryFetchResult(
+                server_id="s1",
+                server_name="Server 1",
+                status="ok",
+                shows=[{"rating_key": "show1", "title": "Initial D"}],
+                seasons=[],
+                episodes=[
+                    {
+                        "rating_key": "ep99",
+                        "title": "The Ultimate Tofu Store Showdown",
+                        "grandparent_title": "Initial D",
+                        "parent_media_index": 1,
+                        "media_index": 1,
+                        "server_show_rating_key": "show1",
+                        "server_season_rating_key": "season1",
+                    },
+                ],
+            )
+        ]
+        history_rows = [
+            {
+                "server_id": "s1",
+                "media_type": "episode",
+                "rating_key": "ep99",
+                "grandparent_title": "Initial D: First Stage",
+                "parent_media_index": 1,
+                "media_index": 1,
+                "canonical_utc_epoch": 150,
+            }
+        ]
+        report = build_library_unwatched_tv_report(
+            inventory_results=inventory,
+            history_rows=history_rows,
+            index_start_epoch=100,
+            index_end_epoch=200,
+            max_items=200,
+        )
+        self.assertEqual(0, len(report["cumulative_unwatched"]["episodes"]))
+        self.assertEqual(0, len(report["cumulative_unwatched"]["seasons"]))
+        self.assertEqual(0, len(report["cumulative_unwatched"]["shows"]))
+        self.assertEqual(0, len(report["per_server"][0]["unwatched"]["episodes"]))
+
     def test_library_unwatched_report_classifies_by_index_window(self) -> None:
         inventory = [
             InventoryFetchResult(

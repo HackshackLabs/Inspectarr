@@ -496,7 +496,7 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
         })();
       </script>
       {% endif %}
-      <details class="lib-meta-details">
+      <details class="lib-meta-details" id="lib-unwatched-meta-details" data-details-persist>
         <summary>Indexing details &amp; Sonarr help</summary>
         <p class="meta">
           TV inventory joined to watch history in the index window. Batch {{ batch_shows }} shows/request · throttle {{ throttle_parallel }} parallel, {{ "%.2f"|format(throttle_delay_seconds) }}s delay · load state: {{ load_state }}.
@@ -625,7 +625,7 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
         </div>
       </div>
 
-      <details class="per-server-details">
+      <details class="per-server-details" id="lib-unwatched-per-server-details" data-details-persist>
         <summary>Per-server Unwatched Inventory (click to expand)</summary>
         <div class="per-server-details-body">
           <p class="note">Per-server page start {{ server_start }}, size {{ length }}</p>
@@ -1234,4 +1234,52 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
       })();
     </script>
     {% endif %}
+    <script>
+      (function () {
+        var STORAGE_KEY = "inspectarr:libUnwatched:detailsOpen";
+        function persistDetails() {
+          return document.querySelectorAll("details[data-details-persist][id]");
+        }
+        function saveOpenDetails() {
+          var ids = [];
+          persistDetails().forEach(function (el) {
+            if (el.open) ids.push(el.id);
+          });
+          try {
+            sessionStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
+          } catch (e) {}
+        }
+        function restoreOpenDetails() {
+          var raw;
+          try {
+            raw = sessionStorage.getItem(STORAGE_KEY);
+          } catch (e) {
+            return;
+          }
+          if (!raw) return;
+          var ids;
+          try {
+            ids = JSON.parse(raw);
+          } catch (e) {
+            return;
+          }
+          if (!Array.isArray(ids)) return;
+          ids.forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el && el.tagName === "DETAILS") el.open = true;
+          });
+        }
+        function wire() {
+          restoreOpenDetails();
+          persistDetails().forEach(function (el) {
+            el.addEventListener("toggle", saveOpenDetails);
+          });
+        }
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", wire);
+        } else {
+          wire();
+        }
+      })();
+    </script>
 {% endblock %}

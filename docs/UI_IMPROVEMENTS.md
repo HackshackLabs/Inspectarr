@@ -1,6 +1,6 @@
 # UI review and implementation backlog
 
-This document records a design review of **Insecpectarr** against the principles and deliverables described in **[`UIDESIGN.md`](../trash/UIDESIGN.md)** (archived in `trash/` for maintainer review): design-system-first approach, WCAG AA, responsive framework, component consistency, and developer handoff patterns. Use it to prioritize UI work; update sections as items ship.
+This document records a design review of **Insecpectarr** against a design-system-style target: WCAG-minded contrast and focus, responsive layout, shared tokens, component consistency, and clear handoff patterns. Use it to prioritize UI work; update sections as items ship.
 
 ## Recently implemented (2026-03)
 
@@ -21,14 +21,14 @@ This document records a design review of **Insecpectarr** against the principles
 | **Feedback** | Banners on Settings; Library Unwatched uses **modal `<dialog>`** for destructive confirmations and result messages (fallback to native dialogs if `HTMLDialogElement` missing). |
 | **Motion** | `prefers-reduced-motion: reduce` collapses transitions/animations globally. |
 
-## Gaps vs `trash/UIDESIGN.md`
+## Gaps vs design-system target
 
 1. **Design tokens** — Baseline tokens live on `body` in `layout.html`; per-page styles still repeat some raw lengths—migrate incrementally to `var(--space-*)` / `var(--radius-*)`.
 2. **Component library** — Buttons, inputs, and cards are still mostly redefined per template; shared `.btn-primary` is available for adoption.
 3. **WCAG AA** — Focus rings and larger touch targets improved on primary flows; full contrast audit and remaining small controls not yet verified.
 4. **Semantic HTML & landmarks** — Skip link, `main` id, and `<nav>` are in place; wide tables still lack `<caption>` / scroll wrappers in several views.
 5. **Keyboard & assistive tech** — Tooltips rely on hover/focus-within (dashboard stream tooltips are better than pure hover-only). Library Unwatched uses **`<dialog>`** for confirmations (native fallback only); further improvements (e.g. `aria-modal` parity, return focus to invoking control) remain optional.
-6. **Responsive framework** — Some breakpoints exist (dashboard viz, library cumulative columns); there is no documented breakpoint grid or container scale like the archived doc’s mobile-first tiers.
+6. **Responsive framework** — Some breakpoints exist (dashboard viz, library cumulative columns); there is no documented breakpoint grid or container scale for mobile-first tiers.
 7. **Loading / empty / error states** — Pending snapshots use text + auto-reload; no skeleton or shared spinner pattern as described in the design deliverable template.
 8. **Dark mode story** — Multiple dark themes exist; there is no “system” preference sync (`prefers-color-scheme`) unless the user picks `paper` vs dark themes manually.
 
@@ -54,7 +54,7 @@ This document records a design review of **Insecpectarr** against the principles
 ### P2 — Polish and handoff
 
 10. ~~**Active navigation state**~~ — Shipped: `nav_current` + `aria-current="page"` + `.nav__link--current`.
-11. **Typography scale** — Optional webfont pair per archived `UIDESIGN.md`; tokens already document system scale.
+11. **Typography scale** — Optional webfont pair; tokens already document system scale.
 12. **Empty states** — Dedicated empty-state blocks (icon or short message + next action) for zero-row tables where today copy is minimal.
 13. **Loading pattern** — Lightweight shared “pending” component (spinner or skeleton row) for History / insights pending mode instead of text-only.
 14. **Contrast QA** — Run automated checks (e.g. axe, Lighthouse) on each theme, especially `theme-ember` / `theme-forest` muted text on `card-bg`; adjust `--muted` / `--text` if any pair fails **4.5:1** for body text.

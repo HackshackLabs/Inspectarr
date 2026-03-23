@@ -166,7 +166,6 @@ Severity uses **Critical / High / Medium / Low / Informational**. Each item incl
 
 ## References
 
-- Optional archived prompt: `trash/SECURITYENGINEER.md` (agent-style checklist; not required reading for operators).
 - OWASP: [CSRF](https://owasp.org/www-community/attacks/csrf), [SSRF](https://owasp.org/www-community/attacks/Server_Side_Request_Forgery), secure headers cheat sheets.
 
 ---

@@ -214,9 +214,7 @@ Run:
 | `docs/KNOWN_ISSUES.md` | Risk register |
 | `docs/DECISIONS.md` | Design decisions |
 | `SECURITY_REVIEW.md` | Security review summary |
-| `docs/UI_IMPROVEMENTS.md` | UI backlog vs archived principles in `trash/UIDESIGN.md` |
+| `docs/UI_IMPROVEMENTS.md` | UI review backlog and implementation notes |
 | `TODO.md` | Maintainer checklist (mostly historical) |
 
 Shared layout, nav, and theme tokens: `src/inspectarr/templates/layout.html` (`nav_current` set from `routes_dashboard.py` / `routes_configuration.py`).
-
-The `trash/` folder holds optional material moved out of the repo root for review (see `trash/README.md`); it is safe to delete after you inspect it.

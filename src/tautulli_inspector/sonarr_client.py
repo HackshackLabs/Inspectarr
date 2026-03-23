@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import time
@@ -9,6 +10,8 @@ from threading import Lock
 from typing import Any, Literal
 
 import httpx
+
+from tautulli_inspector.models import InventoryFetchResult
 
 logger = logging.getLogger(__name__)
 
@@ -770,3 +773,146 @@ async def _all_series_episodes(
     response.raise_for_status()
     data = response.json()
     return data if isinstance(data, list) else []
+
+
+def _inventory_episode_tvdb_id(ep: dict[str, Any]) -> int | None:
+    """TVDB series id from Tautulli/Plex inventory episode metadata."""
+    from tautulli_inspector.aggregate import tvdb_id_from_guid
+
+    g = tvdb_id_from_guid(ep.get("guid"))
+    if g is not None:
+        return g
+    return tvdb_id_from_guid(ep.get("grandparent_guid"))
+
+
+def _inventory_episode_season_episode_numbers(ep: dict[str, Any]) -> tuple[int | None, int | None]:
+    """Plex ``parent_media_index`` / ``media_index`` as ints when present."""
+    try:
+        sn = ep.get("parent_media_index")
+        en = ep.get("media_index")
+        if sn is None or en is None:
+            return None, None
+        return int(sn), int(en)
+    except (TypeError, ValueError):
+        return None, None
+
+
+def _sonarr_season_episode_pairs_with_files(all_eps: list[dict[str, Any]]) -> set[tuple[int, int]]:
+    """``(seasonNumber, episodeNumber)`` for Sonarr episodes that currently have a file on disk."""
+    pairs: set[tuple[int, int]] = set()
+    for sep in all_eps:
+        if not _episode_has_file_on_disk(sep):
+            continue
+        try:
+            sn = int(sep["seasonNumber"])
+            en = int(sep["episodeNumber"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        pairs.add((sn, en))
+    return pairs
+
+
+async def _ensure_sonarr_pairs_with_files_cached(
+    client: httpx.AsyncClient,
+    base_url: str,
+    api_key: str,
+    series_id: int,
+    sid_files_cache: dict[int, set[tuple[int, int]]],
+    fetch_sem: asyncio.Semaphore,
+) -> None:
+    if series_id in sid_files_cache:
+        return
+    async with fetch_sem:
+        if series_id in sid_files_cache:
+            return
+        all_eps = await _all_series_episodes(client, base_url, api_key, series_id)
+        sid_files_cache[series_id] = _sonarr_season_episode_pairs_with_files(all_eps)
+
+
+async def filter_inventory_episodes_by_sonarr_disk(
+    client: httpx.AsyncClient,
+    base_url: str,
+    api_key: str,
+    episodes: list[dict[str, Any]],
+    *,
+    series_list: list[dict[str, Any]],
+    sid_files_cache: dict[int, set[tuple[int, int]]],
+    fetch_sem: asyncio.Semaphore,
+) -> list[dict[str, Any]]:
+    """
+    Remove Tautulli inventory episodes whose series exists in Sonarr but that SxxEyy has no file.
+
+    Rows are kept when the series is not in Sonarr, when S/E numbers are missing, or when Sonarr
+    reports a file for that episode. This trims Plex metadata ghosts after disk deletes.
+    """
+    kept: list[dict[str, Any]] = []
+    for ep in episodes:
+        if not isinstance(ep, dict):
+            continue
+        tvdb_id = _inventory_episode_tvdb_id(ep)
+        title = str(ep.get("grandparent_title") or "").strip()
+        if tvdb_id is None and not title:
+            kept.append(ep)
+            continue
+        series = resolve_series(series_list, tvdb_id, title if title else None)
+        if not series:
+            kept.append(ep)
+            continue
+        sid = int(series["id"])
+        await _ensure_sonarr_pairs_with_files_cached(
+            client, base_url, api_key, sid, sid_files_cache, fetch_sem
+        )
+        pairs = sid_files_cache.get(sid, set())
+        sn, en = _inventory_episode_season_episode_numbers(ep)
+        if sn is None or en is None:
+            kept.append(ep)
+            continue
+        if (sn, en) in pairs:
+            kept.append(ep)
+    return kept
+
+
+async def filter_library_inventory_results_by_sonarr_disk(
+    client: httpx.AsyncClient,
+    base_url: str,
+    api_key: str,
+    inventory_results: list[InventoryFetchResult],
+    *,
+    max_parallel_series_fetches: int = 10,
+) -> list[InventoryFetchResult]:
+    """
+    Apply :func:`filter_inventory_episodes_by_sonarr_disk` to each result's ``episodes`` list.
+
+    Entries with ``server_id == "unknown"`` are passed through unchanged.
+    """
+    series_list = await fetch_series_list_cached(client, base_url, api_key)
+    sid_files_cache: dict[int, set[tuple[int, int]]] = {}
+    fetch_sem = asyncio.Semaphore(max(1, int(max_parallel_series_fetches)))
+    out: list[InventoryFetchResult] = []
+    for inv in inventory_results:
+        if inv.server_id == "unknown":
+            out.append(inv)
+            continue
+        filtered = await filter_inventory_episodes_by_sonarr_disk(
+            client,
+            base_url,
+            api_key,
+            inv.episodes,
+            series_list=series_list,
+            sid_files_cache=sid_files_cache,
+            fetch_sem=fetch_sem,
+        )
+        out.append(
+            InventoryFetchResult(
+                server_id=inv.server_id,
+                server_name=inv.server_name,
+                status=inv.status,
+                shows=inv.shows,
+                seasons=inv.seasons,
+                episodes=filtered,
+                section_progress=inv.section_progress,
+                index_complete=inv.index_complete,
+                error=inv.error,
+            )
+        )
+    return out

@@ -424,13 +424,9 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
             lastBuildStep = "";
           }
 
-          try {
-            var bootUrl = new URL(window.location.href);
-            var refParam = (bootUrl.searchParams.get("refresh") || "").trim().toLowerCase();
-            if (refParam === "1" || refParam === "true" || refParam === "yes" || refParam === "on") {
-              clearWaitTimerStorage();
-            }
-          } catch (e) {}
+          // Full page load of this wait UI (F5, tab refresh, fallback reload): always start timers from
+          // zero. sessionStorage is only for in-page polling, not across navigations.
+          clearWaitTimerStorage();
 
           function initWaitTimers() {
             var now = Date.now();

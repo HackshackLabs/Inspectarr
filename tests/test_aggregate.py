@@ -517,6 +517,28 @@ class SonarrResolveSeriesTests(unittest.TestCase):
         assert found is not None
         self.assertEqual(3, found["id"])
 
+    def test_resolve_matches_sonarr_alternate_title(self) -> None:
+        rows = [
+            {
+                "id": 4,
+                "tvdbId": 2,
+                "title": ".hack",
+                "cleanTitle": "hack",
+                "alternateTitles": [{"title": ".hack//SIGN"}],
+            }
+        ]
+        found = resolve_series(rows, None, ".hack//SIGN")
+        self.assertIsNotNone(found)
+        assert found is not None
+        self.assertEqual(4, found["id"])
+
+    def test_resolve_stem_before_double_slash_matches_shorter_sonarr_title(self) -> None:
+        rows = [{"id": 5, "tvdbId": 3, "title": ".hack", "cleanTitle": "hack"}]
+        found = resolve_series(rows, None, ".hack//SIGN")
+        self.assertIsNotNone(found)
+        assert found is not None
+        self.assertEqual(5, found["id"])
+
 
 if __name__ == "__main__":
     unittest.main()

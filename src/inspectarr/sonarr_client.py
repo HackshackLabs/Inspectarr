@@ -64,6 +64,45 @@ async def fetch_series_list(client: httpx.AsyncClient, base_url: str, api_key: s
     return data if isinstance(data, list) else []
 
 
+def _norm_series_title_for_match(title: str) -> str:
+    return " ".join(str(title or "").strip().lower().split())
+
+
+def _series_title_match_candidates(series_title: str | None) -> list[str]:
+    """Normalized Plex/library titles to try against Sonarr (full title + common stems)."""
+    raw = str(series_title or "").strip()
+    if not raw:
+        return []
+    norm = _norm_series_title_for_match(raw)
+    out: list[str] = [norm]
+    if "//" in raw:
+        stem = raw.split("//", 1)[0].strip()
+        if stem:
+            sn = _norm_series_title_for_match(stem)
+            if sn and sn not in out:
+                out.append(sn)
+    return out
+
+
+def _sonarr_series_title_variants(s: dict[str, Any]) -> set[str]:
+    """Normalized titles Sonarr may use (primary, sort, TVDB alternates)."""
+    variants: set[str] = set()
+    for key in ("title", "sortTitle"):
+        t = s.get(key)
+        if t is not None and str(t).strip():
+            variants.add(_norm_series_title_for_match(str(t)))
+    alts = s.get("alternateTitles")
+    if isinstance(alts, list):
+        for item in alts:
+            if not isinstance(item, dict):
+                continue
+            t = item.get("title")
+            if t is not None and str(t).strip():
+                variants.add(_norm_series_title_for_match(str(t)))
+    variants.discard("")
+    return variants
+
+
 def resolve_series(
     series_list: list[dict[str, Any]],
     tvdb_id: int | None,
@@ -73,15 +112,19 @@ def resolve_series(
         for s in series_list:
             if s.get("tvdbId") == tvdb_id:
                 return s
-    title_norm = " ".join(str(series_title or "").strip().lower().split())
-    if not title_norm:
+    candidates = _series_title_match_candidates(series_title)
+    if not candidates:
         return None
     for s in series_list:
-        if str(s.get("title") or "").strip().lower() == title_norm:
+        variants = _sonarr_series_title_variants(s)
+        if variants & set(candidates):
             return s
         clean = str(s.get("cleanTitle") or "").strip().lower()
-        if clean and clean == title_norm.replace(" ", ""):
-            return s
+        if not clean:
+            continue
+        for cand in candidates:
+            if clean == cand.replace(" ", ""):
+                return s
     return None
 
 

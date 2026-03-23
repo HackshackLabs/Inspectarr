@@ -407,15 +407,63 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
           var POLL_SEC = 10;
           var FALLBACK_RELOAD_SEC = 60;
           var STATUS_URL = "/insights/library-unwatched/build-status";
-          var totalStarted = Date.now();
-          var phase = "indexing";
-          var phaseStarted = Date.now();
+          var SK_TOTAL = "inspectarr:libUnwatched:waitTotalEpoch";
+          var SK_PHASE = "inspectarr:libUnwatched:waitPhase";
+          var SK_PHASE_START = "inspectarr:libUnwatched:waitPhaseStartEpoch";
+
+          function clearWaitTimerStorage() {
+            try {
+              sessionStorage.removeItem(SK_TOTAL);
+              sessionStorage.removeItem(SK_PHASE);
+              sessionStorage.removeItem(SK_PHASE_START);
+            } catch (e) {}
+          }
+
+          function initWaitTimers() {
+            var now = Date.now();
+            var totalStarted;
+            var phaseStarted;
+            var phase;
+            try {
+              var te = sessionStorage.getItem(SK_TOTAL);
+              if (te) {
+                var t = parseInt(te, 10);
+                if (!isNaN(t) && t > 0 && t <= now) totalStarted = t;
+              }
+              if (totalStarted === undefined) {
+                totalStarted = now;
+                sessionStorage.setItem(SK_TOTAL, String(totalStarted));
+              }
+              phase = sessionStorage.getItem(SK_PHASE) === "building" ? "building" : "indexing";
+              var pe = sessionStorage.getItem(SK_PHASE_START);
+              if (pe) {
+                var p = parseInt(pe, 10);
+                if (!isNaN(p) && p >= totalStarted && p <= now) phaseStarted = p;
+              }
+              if (phaseStarted === undefined) phaseStarted = totalStarted;
+            } catch (e) {
+              totalStarted = now;
+              phaseStarted = now;
+              phase = "indexing";
+            }
+            return { totalStarted: totalStarted, phaseStarted: phaseStarted, phase: phase };
+          }
+
+          var timers = initWaitTimers();
+          var totalStarted = timers.totalStarted;
+          var phaseStarted = timers.phaseStarted;
+          var phase = timers.phase;
+
           var elTotal = document.getElementById("lib-idx-elapsed-total");
           var elPhase = document.getElementById("lib-idx-elapsed-phase");
           var elPhaseLabel = document.getElementById("lib-idx-phase-label");
           var elLast = document.getElementById("lib-idx-last-check");
           var elC = document.getElementById("lib-idx-countdown");
           var countdown = POLL_SEC;
+
+          if (elPhaseLabel) {
+            elPhaseLabel.textContent = phase === "building" ? "Building report" : "Indexing";
+          }
 
           function fmtElapsed(totalSec) {
             var m = Math.floor(totalSec / 60);
@@ -434,7 +482,8 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
             }
           }
 
-          function hardReload() {
+          function hardReload(clearWaitTimers) {
+            if (clearWaitTimers) clearWaitTimerStorage();
             try {
               var u = new URL(window.location.href);
               u.searchParams.delete("refresh");
@@ -450,6 +499,10 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
                 phase = "building";
                 phaseStarted = Date.now();
                 if (elPhaseLabel) elPhaseLabel.textContent = "Building report";
+                try {
+                  sessionStorage.setItem(SK_PHASE, "building");
+                  sessionStorage.setItem(SK_PHASE_START, String(phaseStarted));
+                } catch (e) {}
               }
             }
           }
@@ -469,7 +522,7 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
               var j = await r.json();
               if (j.ready) {
                 setLastCheck(true, "OK — report ready");
-                hardReload();
+                hardReload(true);
                 return;
               }
               applyPhaseFromPayload(j);
@@ -494,7 +547,9 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
           }, 1000);
 
           void pollStatus();
-          setTimeout(hardReload, FALLBACK_RELOAD_SEC * 1000);
+          setTimeout(function () {
+            hardReload(false);
+          }, FALLBACK_RELOAD_SEC * 1000);
         })();
       </script>
       {% endif %}

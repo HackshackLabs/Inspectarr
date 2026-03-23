@@ -36,7 +36,10 @@ from tautulli_inspector.settings import (
     plex_per_server_actions_available,
     sonarr_is_configured,
 )
-from tautulli_inspector.sonarr_client import filter_library_inventory_results_by_sonarr_disk
+from tautulli_inspector.sonarr_client import (
+    filter_library_inventory_results_by_sonarr_disk,
+    prune_library_unwatched_report_show_seasons_without_sonarr_files,
+)
 from tautulli_inspector.tautulli_client import TautulliClient
 
 logger = logging.getLogger(__name__)
@@ -101,7 +104,7 @@ def _insights_unwatched_cache_key_seed(settings: Settings, days: int, media_type
 def _insights_library_unwatched_cache_key_seed(settings: Settings) -> str:
     return "|".join(
         [
-            "insights-library-unwatched-v5",
+            "insights-library-unwatched-v6",
             ",".join(sorted([server.id for server in settings.tautulli_servers])),
             f"history_len={settings.insights_history_length}",
             f"batch={settings.tv_inventory_batch_shows_per_server}",
@@ -723,6 +726,20 @@ async def library_unwatched_insights(
             index_end_epoch=index_end_epoch,
             max_items=max_items,
         )
+
+        if sonarr_is_configured(settings):
+            try:
+                async with httpx.AsyncClient(timeout=settings.sonarr_request_timeout_seconds) as sonarr_http:
+                    await prune_library_unwatched_report_show_seasons_without_sonarr_files(
+                        sonarr_http,
+                        settings.sonarr_base_url,
+                        settings.sonarr_api_key,
+                        report,
+                        max_parallel_series_fetches=max(4, settings.upstream_max_parallel_servers * 3),
+                    )
+            except Exception as exc:
+                logger.warning("Library unwatched Sonarr show/season file prune skipped: %s", exc)
+
         index_span_days = 0.0
         if index_start_epoch > 0 and index_end_epoch >= index_start_epoch:
             index_span_days = (index_end_epoch - index_start_epoch) / 86400.0

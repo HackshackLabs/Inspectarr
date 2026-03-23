@@ -916,3 +916,136 @@ async def filter_library_inventory_results_by_sonarr_disk(
             )
         )
     return out
+
+
+def _library_unwatched_row_tvdb_id(item: dict[str, Any]) -> int | None:
+    raw = item.get("tvdb_id")
+    if raw is None:
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _library_unwatched_row_series_title(item: dict[str, Any]) -> str | None:
+    st = item.get("series_title")
+    if st is not None and str(st).strip():
+        return str(st).strip()
+    t2 = item.get("title")
+    if t2 is not None and str(t2).strip():
+        return str(t2).strip()
+    return None
+
+
+def _sonarr_episodes_on_disk_show_scope(eps: list[dict[str, Any]]) -> int:
+    return sum(1 for ep in eps if _episode_has_file_on_disk(ep))
+
+
+def _sonarr_episodes_on_disk_season_scope(eps: list[dict[str, Any]], season_number: int) -> int:
+    want = int(season_number)
+    return sum(
+        1
+        for ep in eps
+        if _episode_season_number(ep) == want and _episode_has_file_on_disk(ep)
+    )
+
+
+async def prune_library_unwatched_report_show_seasons_without_sonarr_files(
+    client: httpx.AsyncClient,
+    base_url: str,
+    api_key: str,
+    report: dict[str, Any],
+    *,
+    max_parallel_series_fetches: int = 10,
+) -> dict[str, Any]:
+    """
+    Remove cumulative and per-server unwatched *shows* and *seasons* when Sonarr has no episode
+    files on disk for that scope (or the series is missing from Sonarr). Keeps Plex-only ghosts
+    out of those lists while leaving rows that still have disk files (Tautulli watch logic
+    unchanged). Uses the same cached ``/api/v3/series`` list as other Sonarr helpers.
+    """
+    series_list = await fetch_series_list_cached(client, base_url, api_key)
+    sid_cache: dict[int, list[dict[str, Any]]] = {}
+    sem = asyncio.Semaphore(max(1, int(max_parallel_series_fetches)))
+
+    async def ensure_eps(sid: int) -> None:
+        if sid in sid_cache:
+            return
+        async with sem:
+            if sid in sid_cache:
+                return
+            sid_cache[sid] = await _all_series_episodes(client, base_url, api_key, sid)
+
+    def resolve_sid(item: dict[str, Any]) -> int | None:
+        tvdb = _library_unwatched_row_tvdb_id(item)
+        title = _library_unwatched_row_series_title(item)
+        ser = resolve_series(series_list, tvdb, title)
+        if not ser:
+            return None
+        try:
+            return int(ser["id"])
+        except (TypeError, ValueError, KeyError):
+            return None
+
+    needed: set[int] = set()
+    cu = report.get("cumulative_unwatched") if isinstance(report.get("cumulative_unwatched"), dict) else {}
+    for item in cu.get("shows") or []:
+        if isinstance(item, dict) and (sid := resolve_sid(item)) is not None:
+            needed.add(sid)
+    for item in cu.get("seasons") or []:
+        if isinstance(item, dict) and (sid := resolve_sid(item)) is not None:
+            needed.add(sid)
+    for card in report.get("per_server") or []:
+        if not isinstance(card, dict):
+            continue
+        uw = card.get("unwatched")
+        if not isinstance(uw, dict):
+            continue
+        for item in uw.get("shows") or []:
+            if isinstance(item, dict) and (sid := resolve_sid(item)) is not None:
+                needed.add(sid)
+        for item in uw.get("seasons") or []:
+            if isinstance(item, dict) and (sid := resolve_sid(item)) is not None:
+                needed.add(sid)
+
+    await asyncio.gather(*(ensure_eps(s) for s in sorted(needed)))
+
+    def keep_show(item: dict[str, Any]) -> bool:
+        sid = resolve_sid(item)
+        if sid is None:
+            return False
+        eps = sid_cache.get(sid, [])
+        return _sonarr_episodes_on_disk_show_scope(eps) > 0
+
+    def keep_season(item: dict[str, Any]) -> bool:
+        sid = resolve_sid(item)
+        if sid is None:
+            return False
+        sn = item.get("season_number")
+        if sn is None:
+            return True
+        try:
+            sn_int = int(sn)
+        except (TypeError, ValueError):
+            return True
+        eps = sid_cache.get(sid, [])
+        return _sonarr_episodes_on_disk_season_scope(eps, sn_int) > 0
+
+    if isinstance(cu.get("shows"), list):
+        cu["shows"] = [x for x in cu["shows"] if isinstance(x, dict) and keep_show(x)]
+    if isinstance(cu.get("seasons"), list):
+        cu["seasons"] = [x for x in cu["seasons"] if isinstance(x, dict) and keep_season(x)]
+
+    for card in report.get("per_server") or []:
+        if not isinstance(card, dict):
+            continue
+        uw = card.get("unwatched")
+        if not isinstance(uw, dict):
+            continue
+        if isinstance(uw.get("shows"), list):
+            uw["shows"] = [x for x in uw["shows"] if isinstance(x, dict) and keep_show(x)]
+        if isinstance(uw.get("seasons"), list):
+            uw["seasons"] = [x for x in uw["seasons"] if isinstance(x, dict) and keep_season(x)]
+
+    return report

@@ -66,6 +66,42 @@ def test_filter_drops_episode_without_sonarr_file() -> None:
     asyncio.run(run())
 
 
+def test_filter_uses_grandparent_tvdb_when_episode_guid_differs() -> None:
+    async def run() -> None:
+        series_list = [{"id": 9, "tvdbId": 12345, "title": "Test Show"}]
+        inv_eps = [
+            {
+                "guid": "com.plexapp.agents.thetvdb://99999/1/1?lang=en",
+                "grandparent_guid": "com.plexapp.agents.thetvdb://12345?lang=en",
+                "grandparent_title": "Test Show",
+                "parent_media_index": 1,
+                "media_index": 1,
+                "rating_key": "keep",
+            },
+        ]
+        sonarr_eps = [{"seasonNumber": 1, "episodeNumber": 1, "hasFile": True}]
+        client = MagicMock()
+        cache: dict[int, set[tuple[int, int]]] = {}
+        sem = asyncio.Semaphore(10)
+        with patch(
+            "inspectarr.sonarr_client._all_series_episodes",
+            new=AsyncMock(return_value=sonarr_eps),
+        ):
+            out = await filter_inventory_episodes_by_sonarr_disk(
+                client,
+                "http://sonarr",
+                "key",
+                inv_eps,
+                series_list=series_list,
+                sid_files_cache=cache,
+                fetch_sem=sem,
+            )
+        assert len(out) == 1
+        assert out[0]["rating_key"] == "keep"
+
+    asyncio.run(run())
+
+
 def test_filter_keeps_when_series_not_in_sonarr() -> None:
     async def run() -> None:
         series_list = [{"id": 9, "tvdbId": 99999, "title": "Other"}]

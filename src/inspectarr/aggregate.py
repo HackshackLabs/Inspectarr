@@ -488,7 +488,8 @@ def tvdb_id_from_guid(guid: object) -> int | None:
 
 
 def _episode_tvdb_id(episode: dict) -> int | None:
-    return tvdb_id_from_guid(episode.get("guid")) or tvdb_id_from_guid(episode.get("grandparent_guid"))
+    """Series TVDB id for Sonarr matching; prefer show (grandparent) over episode guid."""
+    return tvdb_id_from_guid(episode.get("grandparent_guid")) or tvdb_id_from_guid(episode.get("guid"))
 
 
 def _merge_library_action_metadata(dst: dict, src: dict) -> None:
@@ -717,7 +718,7 @@ def _show_entry_from_episode(episode: dict) -> dict:
         "episode_count": 0,
         "rating_key": str(episode.get("server_show_rating_key") or episode.get("grandparent_rating_key") or ""),
         "show_rating_key": str(episode.get("server_show_rating_key") or ""),
-        "tvdb_id": tvdb_id_from_guid(episode.get("grandparent_guid")) or _episode_tvdb_id(episode),
+        "tvdb_id": _episode_tvdb_id(episode),
     }
 
 

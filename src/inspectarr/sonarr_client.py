@@ -822,10 +822,10 @@ def _inventory_episode_tvdb_id(ep: dict[str, Any]) -> int | None:
     """TVDB series id from Tautulli/Plex inventory episode metadata."""
     from inspectarr.aggregate import tvdb_id_from_guid
 
-    g = tvdb_id_from_guid(ep.get("guid"))
+    g = tvdb_id_from_guid(ep.get("grandparent_guid"))
     if g is not None:
         return g
-    return tvdb_id_from_guid(ep.get("grandparent_guid"))
+    return tvdb_id_from_guid(ep.get("guid"))
 
 
 def _inventory_episode_season_episode_numbers(ep: dict[str, Any]) -> tuple[int | None, int | None]:
@@ -1007,6 +1007,9 @@ async def prune_library_unwatched_report_show_seasons_without_sonarr_files(
     files on disk for that scope (or the series is missing from Sonarr). Keeps Plex-only ghosts
     out of those lists while leaving rows that still have disk files (Tautulli watch logic
     unchanged). Uses the same cached ``/api/v3/series`` list as other Sonarr helpers.
+
+    Season rows without a usable ``season_number`` fall back to the same series-wide file check
+    as shows so they cannot stay listed when the parent series has no Sonarr files.
     """
     series_list = await fetch_series_list_cached(client, base_url, api_key)
     sid_cache: dict[int, list[dict[str, Any]]] = {}
@@ -1065,14 +1068,14 @@ async def prune_library_unwatched_report_show_seasons_without_sonarr_files(
         sid = resolve_sid(item)
         if sid is None:
             return False
+        eps = sid_cache.get(sid, [])
         sn = item.get("season_number")
         if sn is None:
-            return True
+            return _sonarr_episodes_on_disk_show_scope(eps) > 0
         try:
             sn_int = int(sn)
         except (TypeError, ValueError):
-            return True
-        eps = sid_cache.get(sid, [])
+            return _sonarr_episodes_on_disk_show_scope(eps) > 0
         return _sonarr_episodes_on_disk_season_scope(eps, sn_int) > 0
 
     if isinstance(cu.get("shows"), list):

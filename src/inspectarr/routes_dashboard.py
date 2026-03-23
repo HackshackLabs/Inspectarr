@@ -105,7 +105,7 @@ def _insights_unwatched_cache_key_seed(settings: Settings, days: int, media_type
 def _insights_library_unwatched_cache_key_seed(settings: Settings) -> str:
     return "|".join(
         [
-            "insights-library-unwatched-v7",
+            "insights-library-unwatched-v8",
             ",".join(sorted([server.id for server in settings.tautulli_servers])),
             f"history_len={settings.insights_history_length}",
             f"lib_hist_full={1 if settings.library_unwatched_use_full_history_crawl else 0}",

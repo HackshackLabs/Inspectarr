@@ -3,6 +3,7 @@
 import unittest
 
 from inspectarr.aggregate import (
+    _episode_tvdb_id,
     build_library_unwatched_tv_report,
     build_unwatched_media_report,
     merge_activity,
@@ -496,6 +497,13 @@ class TvdbGuidTests(unittest.TestCase):
             121361,
             tvdb_id_from_guid("com.plexapp.agents.thetvdb://121361/6/1?lang=en"),
         )
+
+    def test_episode_tvdb_prefers_grandparent_series_id(self) -> None:
+        ep = {
+            "guid": "com.plexapp.agents.thetvdb://99999/1/1?lang=en",
+            "grandparent_guid": "com.plexapp.agents.thetvdb://74196?lang=en",
+        }
+        self.assertEqual(74196, _episode_tvdb_id(ep))
 
     def test_returns_none_without_thetvdb(self) -> None:
         self.assertIsNone(tvdb_id_from_guid(None))

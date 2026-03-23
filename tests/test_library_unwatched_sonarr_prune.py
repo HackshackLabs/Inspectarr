@@ -129,6 +129,46 @@ class LibraryUnwatchedSonarrPruneTests(unittest.TestCase):
         asyncio.run(run())
         self.assertEqual(report["cumulative_unwatched"]["seasons"], [])
 
+    def test_season_dropped_when_season_number_missing_and_no_sonarr_files(self) -> None:
+        report: dict = {
+            "cumulative_unwatched": {
+                "shows": [],
+                "seasons": [
+                    {
+                        "title": "Loose Show - Season ?",
+                        "series_title": "Loose Show",
+                        "tvdb_id": 66666,
+                        "episode_count": 1,
+                    },
+                ],
+            },
+            "per_server": [],
+        }
+        series = [{"id": 8, "tvdbId": 66666, "title": "Loose Show"}]
+
+        async def run() -> None:
+            mock_client = MagicMock()
+            with (
+                patch(
+                    "inspectarr.sonarr_client.fetch_series_list_cached",
+                    new_callable=AsyncMock,
+                    return_value=series,
+                ),
+                patch(
+                    "inspectarr.sonarr_client._all_series_episodes",
+                    new_callable=AsyncMock,
+                    return_value=[
+                        {"seasonNumber": 1, "episodeNumber": 1, "hasFile": False},
+                    ],
+                ),
+            ):
+                await prune_library_unwatched_report_show_seasons_without_sonarr_files(
+                    mock_client, "http://sonarr", "key", report
+                )
+
+        asyncio.run(run())
+        self.assertEqual(report["cumulative_unwatched"]["seasons"], [])
+
     def test_per_server_lists_pruned_same_as_cumulative(self) -> None:
         report: dict = {
             "cumulative_unwatched": {"shows": [], "seasons": []},

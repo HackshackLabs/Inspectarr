@@ -1,0 +1,16 @@
+.env
+.env.local
+.env.*
+!.env.example
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+
+# Local runtime: secrets and caches (use .env.example / docs for setup)
+data/dashboard_config.json
+data/*.sqlite
+data/*.sqlite-journal
+data/*.sqlite-wal
+data/*.sqlite-shm

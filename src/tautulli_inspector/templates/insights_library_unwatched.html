@@ -1,0 +1,828 @@
+{% extends "layout.html" %}
+{% block page_styles %}
+      main { max-width: 1320px; }
+      h2 { margin-top: 24px; color: var(--heading); }
+      h3, h4 { color: var(--heading); }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: var(--card-bg);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      th, td {
+        text-align: left;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--row-border);
+        font-size: 14px;
+      }
+      th { color: var(--th); }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 14px;
+      }
+      .card {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px;
+        background: var(--card-bg);
+      }
+      details { margin-top: 12px; }
+      summary {
+        cursor: pointer;
+        font-weight: 600;
+        color: var(--th);
+        margin-bottom: 8px;
+      }
+      details.per-server-details > summary {
+        font-size: 1.1rem;
+        list-style: none;
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--card-bg);
+      }
+      details.per-server-details > summary::-webkit-details-marker { display: none; }
+      details.per-server-details > summary::before {
+        content: "▶";
+        display: inline-block;
+        margin-right: 8px;
+        font-size: 0.65em;
+        color: var(--muted);
+        transform: translateY(-0.05em);
+        transition: transform 0.15s ease;
+      }
+      details.per-server-details[open] > summary::before {
+        transform: rotate(90deg) translateX(1px);
+      }
+      details.per-server-details[open] > summary {
+        border-bottom-left-radius: 0;
+        border-bottom-right-radius: 0;
+        border-bottom-color: transparent;
+      }
+      details.per-server-details .per-server-details-body {
+        border: 1px solid var(--border);
+        border-top: none;
+        border-radius: 0 0 8px 8px;
+        padding: 12px;
+        background: color-mix(in srgb, var(--page-bg) 88%, var(--text));
+      }
+      .cumulative-columns {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+        align-items: start;
+      }
+      @media (max-width: 1024px) {
+        .cumulative-columns { grid-template-columns: 1fr; }
+      }
+      .cumulative-col {
+        min-width: 0;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px;
+        background: var(--card-bg);
+        overflow-x: auto;
+      }
+      .cumulative-col h3 {
+        margin: 0 0 8px;
+        font-size: 1rem;
+        color: var(--heading);
+      }
+      .cumulative-col table { font-size: 13px; }
+      .export-row {
+        font-size: 12px;
+        margin: 6px 0 10px;
+        line-height: 1.65;
+      }
+      .export-row a { color: var(--link); text-decoration: none; }
+      .export-row a:hover { text-decoration: underline; }
+      .sonarr-cell {
+        vertical-align: top;
+        font-size: 12px;
+        min-width: 200px;
+        max-width: 420px;
+      }
+      .sonarr-row {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+      }
+      .sonarr-inline {
+        font-size: 12px;
+        line-height: 1.45;
+        color: var(--text);
+      }
+      .sonarr-inline .sonarr-mon { font-weight: 600; }
+      .sonarr-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        align-items: center;
+      }
+      .sonarr-btn, .sonarr-tip {
+        font: inherit;
+        font-size: 11px;
+        padding: 2px 6px;
+        border-radius: 4px;
+        border: 1px solid var(--border);
+        background: color-mix(in srgb, var(--card-bg) 80%, var(--text));
+        color: var(--text);
+        cursor: pointer;
+        text-align: left;
+      }
+      .sonarr-btn:hover, .sonarr-tip:hover {
+        border-color: var(--link);
+        color: var(--link);
+      }
+      .sonarr-tip {
+        font-weight: 700;
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        line-height: 20px;
+        text-align: center;
+      }
+      #sonarr-tooltip {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        max-width: min(420px, 92vw);
+        padding: 10px 12px;
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 12px;
+        line-height: 1.45;
+        color: var(--text);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+        pointer-events: none;
+      }
+      #sonarr-tooltip.visible { display: block; }
+      #sonarr-tooltip .paths {
+        margin: 6px 0 0;
+        padding-left: 18px;
+        word-break: break-all;
+      }
+      .lib-pager {
+        margin-top: 10px;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      .lib-pager-meta {
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      .lib-pager-links {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 4px 6px;
+      }
+      .lib-pager-sep {
+        color: var(--muted);
+        user-select: none;
+        font-size: 11px;
+      }
+      .lib-pager-off {
+        color: var(--muted);
+        opacity: 0.5;
+      }
+      .lib-pager-a {
+        color: var(--link);
+        text-decoration: none;
+        font-weight: 500;
+      }
+      .lib-pager-a:hover { text-decoration: underline; }
+{% endblock %}
+{% block content %}
+    {% macro lib_export(group, sid=None) -%}
+      {% for fmt in ["txt", "csv", "json", "xml"] %}
+      <a href="/insights/library-unwatched/export?group={{ group }}&amp;format={{ fmt }}{% if sid %}&amp;server_id={{ sid }}{% endif %}">{{ fmt }}</a>{% if not loop.last %} · {% endif %}
+      {% endfor %}
+    {%- endmacro %}
+    {% macro lib_unwatched_href(t) -%}
+href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1] }}&amp;episode_start={{ t[2] }}&amp;server_start={{ server_start }}&amp;length={{ length }}&amp;max_items={{ max_items }}"
+    {%- endmacro %}
+    {% macro cumulative_pager_block(pag) -%}
+      {% if pag.page_label %}
+      <div class="lib-pager">
+        <div class="lib-pager-meta">{{ pag.page_label }} · {{ pag.range_label }} · {{ length }} per page</div>
+        {% if pag.any %}
+        <div class="lib-pager-links" aria-label="Page navigation">
+          {% if 'first' in pag.triples %}
+          <a class="lib-pager-a" {{ lib_unwatched_href(pag.triples['first']) }}>First</a>
+          {% else %}
+          <span class="lib-pager-off">First</span>
+          {% endif %}
+          <span class="lib-pager-sep">|</span>
+          {% if 'prev' in pag.triples %}
+          <a class="lib-pager-a" {{ lib_unwatched_href(pag.triples['prev']) }}>Previous</a>
+          {% else %}
+          <span class="lib-pager-off">Previous</span>
+          {% endif %}
+          <span class="lib-pager-sep">|</span>
+          {% if 'next' in pag.triples %}
+          <a class="lib-pager-a" {{ lib_unwatched_href(pag.triples['next']) }}>Next</a>
+          {% else %}
+          <span class="lib-pager-off">Next</span>
+          {% endif %}
+          <span class="lib-pager-sep">|</span>
+          {% if 'last' in pag.triples %}
+          <a class="lib-pager-a" {{ lib_unwatched_href(pag.triples['last']) }}>Last</a>
+          {% else %}
+          <span class="lib-pager-off">Last</span>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+    {%- endmacro %}
+    {% macro sonarr_actions(kind, item, server_id=none) -%}
+      {% if sonarr_enabled %}
+      {% set match_title = (item.series_title or item.title or '') | trim %}
+      {% set can_sonarr = item.tvdb_id or match_title %}
+      {% set rk = (item.rating_key | default('') | string | trim) %}
+      {% set plex_chain = server_id is not none and plex_per_server_enabled and server_id in plex_mapped_server_ids and rk %}
+      <td class="sonarr-cell">
+        {% if can_sonarr %}
+        <span
+          class="sonarr-row"
+          data-kind="{{ kind }}"
+          {% if item.tvdb_id %}data-tvdb="{{ item.tvdb_id }}"{% endif %}
+          data-series="{{ match_title | e }}"
+          data-season="{% if item.season_number is defined and item.season_number is not none %}{{ item.season_number }}{% endif %}"
+          data-episode="{% if item.episode_number is defined and item.episode_number is not none %}{{ item.episode_number }}{% endif %}"
+          {% if plex_chain %}data-server-id="{{ server_id | e }}" data-rating-key="{{ rk | e }}"{% endif %}
+        >
+          <div class="sonarr-inline muted" aria-live="polite">Loading Sonarr…</div>
+          <div class="sonarr-actions">
+            <button type="button" class="sonarr-tip" aria-label="Sonarr file paths">ⓘ</button>
+            <button type="button" class="sonarr-btn sonarr-unmonitor">Unmonitor</button>
+            <button type="button" class="sonarr-btn sonarr-remove">Remove &amp; unmonitor</button>
+            <button type="button" class="sonarr-btn sonarr-delete">Delete</button>
+          </div>
+        </span>
+        {% else %}
+        <span class="note" title="No series title for Sonarr title matching and no TVDB id">—</span>
+        {% endif %}
+      </td>
+      {% endif %}
+    {%- endmacro %}
+      <h2>Library unwatched</h2>
+      <p class="meta">
+        Configured servers: {{ configured_servers }} |
+        History rows considered: {{ history_rows_considered }} |
+        Index window: {{ index_start_display }} to {{ index_end_display }} ({{ "%.1f"|format(index_span_days) }} days) |
+        Inventory batch size: {{ batch_shows }} shows/server/request |
+        Throttle: parallel {{ throttle_parallel }}, delay {{ "%.2f"|format(throttle_delay_seconds) }}s/request |
+        Updated: {{ updated_at.strftime("%Y-%m-%d %H:%M:%S UTC") }} |
+        Load state: {{ load_state }} |
+        <a href="/insights/library-unwatched?refresh=1&show_start={{ show_start }}&season_start={{ season_start }}&episode_start={{ episode_start }}&server_start={{ server_start }}&length={{ length }}&max_items={{ max_items }}">Refresh now</a>
+      </p>
+      {% if loading %}
+      <p class="note">Library insights are indexing in the background. This page will refresh automatically.</p>
+      <script>
+        setTimeout(function () { window.location.reload(); }, 3000);
+      </script>
+      {% endif %}
+      {% if retry_needed and not loading %}
+      <p class="note">Timed-out servers are being retried in the background. Reload this page in a few seconds for updated status.</p>
+      <script>
+        setTimeout(function () { window.location.reload(); }, 5000);
+      </script>
+      {% endif %}
+      <p class="note">
+        This report joins TV library inventory to episode watch history in the index window.
+      </p>
+      {% if sonarr_enabled %}
+      <p class="note">
+        Sonarr column loads <strong>monitored</strong> state and Sonarr <strong>file count</strong> (episode files on disk) per row. Use <strong>ⓘ</strong> for path details. Matching uses TVDB id when present, otherwise the series title against your Sonarr library.
+        <strong>Unmonitor</strong> is Sonarr-only.
+        On <strong>per-server</strong> tables, when Plex is configured in <a href="/settings">Settings</a> and the row has a <code>ratingKey</code>, <strong>Remove &amp; unmonitor</strong> and <strong>Delete</strong> run Sonarr first, then call Plex to remove the same show/season/episode from the library (often deleting media files, per Plex settings). Cumulative tables are Sonarr-only (no per-server rating key).
+      </p>
+      {% endif %}
+
+      <h2>Server Index Status</h2>
+      <section class="status-grid">
+        {% for server in report["per_server"] %}
+        {% set srv_status = server.status | default('unknown', true) %}
+        <article class="status-card">
+          <div><strong>{{ server.server_name }}</strong> ({{ server.server_id }})</div>
+          <div>
+            Status:
+            <span class="{% if srv_status == 'ok' %}status-ok{% else %}status-error{% endif %}">
+              {{ srv_status }}
+            </span>
+          </div>
+          <div>Index complete: {{ "yes" if server.index_complete else "in progress" }}</div>
+          <div>Shows: {{ server.inventory_counts.shows }}</div>
+          {% if server.error %}<div class="status-error">Error: {{ server.error }}</div>{% endif %}
+        </article>
+        {% endfor %}
+      </section>
+
+      <h2>Cumulative Unwatched</h2>
+      <p class="note">
+        Totals (all pages): shows {{ report["cumulative_unwatched"]["shows"]["total"] }},
+        seasons {{ report["cumulative_unwatched"]["seasons"]["total"] }},
+        episodes {{ report["cumulative_unwatched"]["episodes"]["total"] }}
+      </p>
+      <div class="cumulative-columns">
+        <div class="cumulative-col">
+          <h3>Shows <span class="note">({{ report["cumulative_unwatched"]["shows"]["total"] }} total)</span></h3>
+          {% if not loading %}
+          <p class="export-row muted"><span>Export cached list:</span> {{ lib_export("cumulative_shows") }}</p>
+          {% endif %}
+          {{ cumulative_pager_block(show_pagination) }}
+          <table>
+            <thead><tr><th>Show</th><th>Episodes in library</th>{% if sonarr_enabled %}<th>Sonarr</th>{% endif %}</tr></thead>
+            <tbody>
+              {% if report["cumulative_unwatched"]["shows"]["items"] %}
+                {% for item in report["cumulative_unwatched"]["shows"]["items"] %}
+                <tr>
+                  <td>{{ item.title }}</td>
+                  <td>{{ item.episode_count }}</td>
+                  {{ sonarr_actions("show", item) }}
+                </tr>
+                {% endfor %}
+              {% else %}
+                <tr><td colspan="{% if sonarr_enabled %}3{% else %}2{% endif %}">No fully unwatched shows in this index window.</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="cumulative-col">
+          <h3>Seasons <span class="note">({{ report["cumulative_unwatched"]["seasons"]["total"] }} total)</span></h3>
+          {% if not loading %}
+          <p class="export-row muted"><span>Export cached list:</span> {{ lib_export("cumulative_seasons") }}</p>
+          {% endif %}
+          {{ cumulative_pager_block(season_pagination) }}
+          <table>
+            <thead><tr><th>Season</th><th>Episodes in season</th>{% if sonarr_enabled %}<th>Sonarr</th>{% endif %}</tr></thead>
+            <tbody>
+              {% if report["cumulative_unwatched"]["seasons"]["items"] %}
+                {% for item in report["cumulative_unwatched"]["seasons"]["items"] %}
+                <tr>
+                  <td>{{ item.title }}</td>
+                  <td>{{ item.episode_count }}</td>
+                  {{ sonarr_actions("season", item) }}
+                </tr>
+                {% endfor %}
+              {% else %}
+                <tr><td colspan="{% if sonarr_enabled %}3{% else %}2{% endif %}">No fully unwatched seasons in this index window.</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="cumulative-col">
+          <h3>Episodes <span class="note">({{ report["cumulative_unwatched"]["episodes"]["total"] }} total)</span></h3>
+          {% if not loading %}
+          <p class="export-row muted"><span>Export cached list:</span> {{ lib_export("cumulative_episodes") }}</p>
+          {% endif %}
+          {{ cumulative_pager_block(episode_pagination) }}
+          <table>
+            <thead><tr><th>Episode</th><th>Series</th>{% if sonarr_enabled %}<th>Sonarr</th>{% endif %}</tr></thead>
+            <tbody>
+              {% if report["cumulative_unwatched"]["episodes"]["items"] %}
+                {% for item in report["cumulative_unwatched"]["episodes"]["items"] %}
+                <tr>
+                  <td>{{ item.title }}</td>
+                  <td>{{ item.series_title }}</td>
+                  {{ sonarr_actions("episode", item) }}
+                </tr>
+                {% endfor %}
+              {% else %}
+                <tr><td colspan="{% if sonarr_enabled %}3{% else %}2{% endif %}">No fully unwatched episodes in this index window.</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <details class="per-server-details">
+        <summary>Per-server Unwatched Inventory (click to expand)</summary>
+        <div class="per-server-details-body">
+          <p class="note">Per-server page start {{ server_start }}, size {{ length }}</p>
+          <section class="grid">
+            {% for server in report["per_server"] %}
+            {% set srv_status = server.status | default('unknown', true) %}
+            <article class="card">
+              <h3>{{ server.server_name }} ({{ server.server_id }})</h3>
+              {% if not loading %}
+              <p class="export-row muted">
+                <span>Shows:</span> {{ lib_export("server_shows", server.server_id) }}
+                <span class="note">|</span>
+                <span>Seasons:</span> {{ lib_export("server_seasons", server.server_id) }}
+                <span class="note">|</span>
+                <span>Episodes:</span> {{ lib_export("server_episodes", server.server_id) }}
+              </p>
+              {% endif %}
+              <p>
+                Status:
+                <span class="{% if srv_status == 'ok' %}status-ok{% else %}status-error{% endif %}">
+                  {{ srv_status }}
+                </span>
+                | Inventory: {{ server.inventory_counts.shows }} shows, {{ server.inventory_counts.seasons }} seasons, {{ server.inventory_counts.episodes }} episodes
+                | Index complete: {{ "yes" if server.index_complete else "in progress" }}
+              </p>
+              {% if server.section_progress %}
+              <p class="note">
+                Sections:
+                {% for p in server.section_progress %}
+                [{{ p.section_id }}: {{ "done" if p.completed else ("next=" ~ p.next_start ~ "/" ~ p.records_total) }}]{% if not loop.last %} {% endif %}
+                {% endfor %}
+              </p>
+              {% endif %}
+              {% if server.error %}<p class="status-error">Error: {{ server.error }}</p>{% endif %}
+
+              <h4>Unwatched Shows</h4>
+              <table>
+                <thead><tr><th>Show</th><th>Episodes</th>{% if sonarr_enabled %}<th>Sonarr</th>{% endif %}</tr></thead>
+                <tbody>
+                  {% if server["unwatched"]["shows"]["items"] %}
+                    {% for item in server["unwatched"]["shows"]["items"] %}
+                    <tr>
+                      <td>{{ item.title }}</td>
+                      <td>{{ item.episode_count }}</td>
+                      {{ sonarr_actions("show", item, server.server_id) }}
+                    </tr>
+                    {% endfor %}
+                  {% else %}
+                    <tr><td colspan="{% if sonarr_enabled %}3{% else %}2{% endif %}">None</td></tr>
+                  {% endif %}
+                </tbody>
+              </table>
+
+              <h4>Unwatched Seasons</h4>
+              <table>
+                <thead><tr><th>Season</th><th>Episodes</th>{% if sonarr_enabled %}<th>Sonarr</th>{% endif %}</tr></thead>
+                <tbody>
+                  {% if server["unwatched"]["seasons"]["items"] %}
+                    {% for item in server["unwatched"]["seasons"]["items"] %}
+                    <tr>
+                      <td>{{ item.title }}</td>
+                      <td>{{ item.episode_count }}</td>
+                      {{ sonarr_actions("season", item, server.server_id) }}
+                    </tr>
+                    {% endfor %}
+                  {% else %}
+                    <tr><td colspan="{% if sonarr_enabled %}3{% else %}2{% endif %}">None</td></tr>
+                  {% endif %}
+                </tbody>
+              </table>
+
+              <h4>Unwatched Episodes</h4>
+              <table>
+                <thead><tr><th>Episode</th><th>Series</th>{% if sonarr_enabled %}<th>Sonarr</th>{% endif %}</tr></thead>
+                <tbody>
+                  {% if server["unwatched"]["episodes"]["items"] %}
+                    {% for item in server["unwatched"]["episodes"]["items"] %}
+                    <tr>
+                      <td>{{ item.title }}</td>
+                      <td>{{ item.series_title }}</td>
+                      {{ sonarr_actions("episode", item, server.server_id) }}
+                    </tr>
+                    {% endfor %}
+                  {% else %}
+                    <tr><td colspan="{% if sonarr_enabled %}3{% else %}2{% endif %}">None</td></tr>
+                  {% endif %}
+                </tbody>
+              </table>
+            </article>
+            {% endfor %}
+          </section>
+          <p>
+            {% if server_prev_start is not none %}
+            <a href="/insights/library-unwatched?show_start={{ show_start }}&season_start={{ season_start }}&episode_start={{ episode_start }}&server_start={{ server_prev_start }}&length={{ length }}&max_items={{ max_items }}">Previous per-server</a>
+            {% endif %}
+            {% if server_next_start is not none %}
+            <a href="/insights/library-unwatched?show_start={{ show_start }}&season_start={{ season_start }}&episode_start={{ episode_start }}&server_start={{ server_next_start }}&length={{ length }}&max_items={{ max_items }}">Next per-server</a>
+            {% endif %}
+          </p>
+        </div>
+      </details>
+      <div id="sonarr-tooltip" role="tooltip"></div>
+    {% if sonarr_enabled %}
+    <script>
+      (function () {
+        var tip = document.getElementById("sonarr-tooltip");
+        var cache = Object.create(null);
+        var hideTimer = null;
+        var maxParallelInline = 4;
+
+        function rowDataset(row) {
+          var d = row.dataset;
+          var st = (d.series && String(d.series).trim()) || null;
+          var body = { kind: d.kind, tvdb_id: d.tvdb ? parseInt(d.tvdb, 10) : null, series_title: st };
+          if (d.season !== undefined && d.season !== "") body.season_number = parseInt(d.season, 10);
+          if (d.episode !== undefined && d.episode !== "") body.episode_number = parseInt(d.episode, 10);
+          return body;
+        }
+
+        function statusQuery(row) {
+          var d = row.dataset;
+          var q = new URLSearchParams({ kind: d.kind });
+          if (d.tvdb) q.set("tvdb_id", d.tvdb);
+          if (d.series) q.set("series_title", d.series);
+          if (d.season !== undefined && d.season !== "") q.set("season_number", d.season);
+          if (d.episode !== undefined && d.episode !== "") q.set("episode_number", d.episode);
+          return q.toString();
+        }
+
+        function escapeHtml(s) {
+          if (!s) return "";
+          var div = document.createElement("div");
+          div.textContent = s;
+          return div.innerHTML;
+        }
+
+        function formatInline(data) {
+          if (!data.sonarr_configured) {
+            return '<span class="note">' + escapeHtml(data.message || "Sonarr not configured.") + "</span>";
+          }
+          if (!data.series_found) {
+            return '<span class="note">' + escapeHtml(data.message || "Series not in Sonarr.") + "</span>";
+          }
+          var mon = data.monitored;
+          var monStr = mon === true ? "Monitored" : mon === false ? "Not monitored" : "Mixed / n/a";
+          var fc = typeof data.file_count === "number" ? data.file_count : 0;
+          var html = '<span class="sonarr-mon">' + escapeHtml(monStr) + "</span> · Files: <strong>" + fc + "</strong>";
+          if (data.message) {
+            html += ' <span class="note">(' + escapeHtml(data.message) + ")</span>";
+          }
+          return html;
+        }
+
+        function formatStatusTooltip(data) {
+          if (!data.sonarr_configured) {
+            return escapeHtml(data.message || "Sonarr not configured.");
+          }
+          if (!data.series_found && data.message) {
+            return escapeHtml(data.message);
+          }
+          var mon = data.monitored;
+          var monStr = mon === true ? "monitored" : mon === false ? "not monitored" : "mixed / n/a";
+          var fc = typeof data.file_count === "number" ? data.file_count : 0;
+          var lines =
+            "<strong>Sonarr:</strong> " + monStr + " · files: <strong>" + fc + "</strong>";
+          if (data.message) {
+            lines += "<br><span class=\"note\">" + escapeHtml(data.message) + "</span>";
+          }
+          if (data.paths && data.paths.length) {
+            lines += "<ul class=\"paths\">";
+            data.paths.forEach(function (p) {
+              lines += "<li>" + escapeHtml(p) + "</li>";
+            });
+            lines += "</ul>";
+          } else {
+            lines += "<div class=\"paths note\">No file path from Sonarr (missing on disk or not imported).</div>";
+          }
+          return lines;
+        }
+
+        function loadInline(row) {
+          var inlineEl = row.querySelector(".sonarr-inline");
+          if (!inlineEl) return Promise.resolve();
+          var key = statusQuery(row);
+          function apply(data) {
+            inlineEl.innerHTML = formatInline(data);
+            inlineEl.classList.remove("muted");
+          }
+          if (cache[key]) {
+            apply(cache[key]);
+            return Promise.resolve();
+          }
+          inlineEl.textContent = "Loading Sonarr…";
+          inlineEl.classList.add("muted");
+          return fetch("/insights/library-unwatched/sonarr/status?" + key)
+            .then(function (r) {
+              return r.json();
+            })
+            .then(function (data) {
+              cache[key] = data;
+              apply(data);
+            })
+            .catch(function () {
+              inlineEl.classList.remove("muted");
+              inlineEl.innerHTML = '<span class="status-error">Sonarr status failed</span>';
+            });
+        }
+
+        function showTip(html, x, y) {
+          tip.innerHTML = html;
+          tip.classList.add("visible");
+          var pad = 12;
+          tip.style.left = Math.min(window.innerWidth - tip.offsetWidth - pad, x + pad) + "px";
+          tip.style.top = Math.min(window.innerHeight - tip.offsetHeight - pad, y + pad) + "px";
+        }
+
+        function scheduleHide() {
+          clearTimeout(hideTimer);
+          hideTimer = setTimeout(function () {
+            tip.classList.remove("visible");
+          }, 200);
+        }
+
+        document.addEventListener("mousemove", function (e) {
+          if (!tip.classList.contains("visible")) return;
+          if (e.target.closest && e.target.closest("#sonarr-tooltip")) return;
+        });
+
+        var rows = document.querySelectorAll(".sonarr-row");
+        var queue = Array.prototype.slice.call(rows);
+        var qIdx = 0;
+        var inflight = 0;
+
+        function pumpInline() {
+          while (inflight < maxParallelInline && qIdx < queue.length) {
+            inflight++;
+            var row = queue[qIdx++];
+            loadInline(row).finally(function () {
+              inflight--;
+              pumpInline();
+            });
+          }
+        }
+        pumpInline();
+
+        document.querySelectorAll(".sonarr-tip").forEach(function (btn) {
+          btn.addEventListener("mouseenter", function (ev) {
+            clearTimeout(hideTimer);
+            var row = btn.closest(".sonarr-row");
+            if (!row) return;
+            var key = statusQuery(row);
+            if (cache[key]) {
+              showTip(formatStatusTooltip(cache[key]), ev.clientX, ev.clientY);
+              return;
+            }
+            showTip("Loading Sonarr…", ev.clientX, ev.clientY);
+            fetch("/insights/library-unwatched/sonarr/status?" + key)
+              .then(function (r) {
+                return r.json();
+              })
+              .then(function (data) {
+                cache[key] = data;
+                showTip(formatStatusTooltip(data), ev.clientX, ev.clientY);
+              })
+              .catch(function () {
+                showTip("Failed to load Sonarr status.", ev.clientX, ev.clientY);
+              });
+          });
+          btn.addEventListener("mousemove", function (ev) {
+            if (tip.classList.contains("visible")) {
+              var pad = 12;
+              tip.style.left = Math.min(window.innerWidth - tip.offsetWidth - pad, ev.clientX + pad) + "px";
+              tip.style.top = Math.min(window.innerHeight - tip.offsetHeight - pad, ev.clientY + pad) + "px";
+            }
+          });
+          btn.addEventListener("mouseleave", scheduleHide);
+        });
+
+        function postJson(url, body) {
+          return fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          }).then(function (r) {
+            return r.text().then(function (t) {
+              var j = {};
+              try {
+                j = t ? JSON.parse(t) : {};
+              } catch (_) {}
+              if (!r.ok) {
+                var d = j.detail;
+                var msg =
+                  typeof d === "string"
+                    ? d
+                    : Array.isArray(d)
+                      ? d
+                          .map(function (x) {
+                            return x.msg || JSON.stringify(x);
+                          })
+                          .join("; ")
+                      : j.message || t.slice(0, 300) || r.statusText;
+                throw new Error(msg);
+              }
+              return j;
+            });
+          });
+        }
+
+        function refreshRowAfterAction(row) {
+          delete cache[statusQuery(row)];
+          return loadInline(row);
+        }
+
+        function plexWillChain(row) {
+          return !!(row.dataset.serverId && row.dataset.ratingKey);
+        }
+
+        function plexLibraryDeleteIfMapped(row) {
+          var sid = row.dataset.serverId;
+          var rk = row.dataset.ratingKey;
+          var kind = row.dataset.kind;
+          if (!sid || !rk || !kind) return Promise.resolve(null);
+          return postJson("/insights/library-unwatched/plex/delete-library-item", {
+            kind: kind,
+            tautulli_server_id: sid,
+            rating_key: rk,
+          });
+        }
+
+        function alertSonarrThenMaybePlex(row, sonarrMsg) {
+          return plexLibraryDeleteIfMapped(row).then(
+            function (pj) {
+              if (pj === null) {
+                alert(sonarrMsg || "Done.");
+              } else {
+                alert((sonarrMsg || "Done.") + " " + (pj.message || "Plex updated."));
+              }
+              return refreshRowAfterAction(row);
+            },
+            function (err) {
+              alert(
+                (sonarrMsg || "Sonarr completed.") +
+                  " Plex error: " +
+                  (err.message || String(err))
+              );
+              return refreshRowAfterAction(row);
+            }
+          );
+        }
+
+        document.querySelectorAll(".sonarr-unmonitor").forEach(function (btn) {
+          btn.addEventListener("click", function (e) {
+            e.preventDefault();
+            var row = btn.closest(".sonarr-row");
+            if (!row) return;
+            postJson("/insights/library-unwatched/sonarr/unmonitor", rowDataset(row))
+              .then(function (j) {
+                alert(j.message || "Done.");
+                return refreshRowAfterAction(row);
+              })
+              .catch(function (err) {
+                alert(err.message || String(err));
+              });
+          });
+        });
+
+        document.querySelectorAll(".sonarr-remove").forEach(function (btn) {
+          btn.addEventListener("click", function (e) {
+            e.preventDefault();
+            var row = btn.closest(".sonarr-row");
+            if (!row) return;
+            var kind = row.dataset.kind;
+            var plexNote = plexWillChain(row)
+              ? " Then remove the same item from Plex (library/media per your Plex settings)."
+              : "";
+            var msg =
+              kind === "show"
+                ? "Unmonitor this series in Sonarr and delete ALL episode files on disk for it? This cannot be undone." + plexNote
+                : kind === "season"
+                  ? "Unmonitor this season and delete all episode files on disk for this season?" + plexNote
+                  : "Unmonitor this episode and delete its file on disk?" + plexNote;
+            if (!confirm(msg)) return;
+            postJson("/insights/library-unwatched/sonarr/remove-from-plex-and-unmonitor", rowDataset(row))
+              .then(function (j) {
+                return alertSonarrThenMaybePlex(row, j.message || "Sonarr done.");
+              })
+              .catch(function (err) {
+                alert(err.message || String(err));
+              });
+          });
+        });
+
+        document.querySelectorAll(".sonarr-delete").forEach(function (btn) {
+          btn.addEventListener("click", function (e) {
+            e.preventDefault();
+            var row = btn.closest(".sonarr-row");
+            if (!row) return;
+            var kind = row.dataset.kind;
+            var plexNote = plexWillChain(row)
+              ? " Then remove the same item from Plex (library/media per your Plex settings)."
+              : "";
+            var msg =
+              kind === "show"
+                ? "Remove this series from Sonarr entirely and delete all managed episode files? This cannot be undone." + plexNote
+                : kind === "season"
+                  ? "Delete all episode files for this season from disk? The series stays in Sonarr; monitored flags are not changed." + plexNote
+                  : "Delete this episode file from disk? The episode stays in Sonarr; monitored state is unchanged." + plexNote;
+            if (!confirm(msg)) return;
+            postJson("/insights/library-unwatched/sonarr/delete", rowDataset(row))
+              .then(function (j) {
+                return alertSonarrThenMaybePlex(row, j.message || "Sonarr done.");
+              })
+              .catch(function (err) {
+                alert(err.message || String(err));
+              });
+          });
+        });
+      })();
+    </script>
+    {% endif %}
+{% endblock %}

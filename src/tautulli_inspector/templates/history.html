@@ -1,0 +1,192 @@
+{% extends "layout.html" %}
+{% block page_styles %}
+      h2 { margin-top: 8px; color: var(--heading); }
+      .filters {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 10px;
+        margin-bottom: 18px;
+        align-items: end;
+      }
+      .filters label {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-size: 12px;
+        color: var(--th);
+      }
+      .filters input, .filters select {
+        background: var(--input-bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 8px;
+      }
+      .filters button {
+        background: var(--btn-bg);
+        color: var(--btn-fg);
+        border: none;
+        border-radius: 6px;
+        padding: 10px 12px;
+        cursor: pointer;
+      }
+      .card-sub {
+        font-size: 12px;
+        margin-top: 6px;
+        line-height: 1.4;
+      }
+      .pager {
+        margin-top: 12px;
+        display: flex;
+        gap: 12px;
+      }
+      .pager a {
+        color: var(--link);
+        text-decoration: none;
+      }
+{% endblock %}
+{% block content %}
+      <h2>History</h2>
+      <p class="meta">
+        Configured servers: {{ configured_servers }} |
+        Rows shown: {{ returned_rows }} of {{ total_rows }} |
+        Updated: {{ updated_at.strftime("%Y-%m-%d %H:%M:%S %Z") }} |
+        Cache: {{ cache_state }} |
+        <a href="/history?refresh=1&range_mode={{ filters.range_mode }}&start={{ start }}&length={{ length }}&user={{ filters.user }}&media_type={{ filters.media_type }}&start_date={{ filters.start_date }}&end_date={{ filters.end_date }}">Refresh now</a>
+      </p>
+      <p class="meta">{{ filters.scope_note }}</p>
+      {% if timed_out_servers %}
+      <p class="meta">
+        Timed-out servers: {{ timed_out_servers | length }} |
+        Next retry in <span id="history-retry-countdown">{{ retry_countdown_seconds if retry_countdown_seconds is not none else "-" }}</span>s
+        (interval {{ "%.0f"|format(retry_interval_seconds) }}s)
+      </p>
+      <script>
+        (function () {
+          var el = document.getElementById("history-retry-countdown");
+          if (!el) return;
+          var current = parseInt(el.textContent, 10);
+          if (isNaN(current)) return;
+          setInterval(function () {
+            if (current > 0) {
+              current -= 1;
+              el.textContent = String(current);
+            } else {
+              window.location.reload();
+            }
+          }, 1000);
+        })();
+      </script>
+      {% endif %}
+      {% if loading %}
+      <p class="muted">
+        History snapshot is loading in the background. This page will refresh automatically.
+        {% if history_slow_crawl %}
+        All-time mode uses small pages and long delays between requests to stay gentle on Tautulli; the first snapshot may take several minutes.
+        {% endif %}
+      </p>
+      <script>
+        setTimeout(function () { window.location.reload(); }, {{ history_poll_ms }});
+      </script>
+      {% endif %}
+
+      <form class="filters" method="get" action="/history">
+        <label>
+          Time range
+          <select name="range_mode">
+            <option value="week" {% if filters.range_mode == "week" %}selected{% endif %}>Last {{ history_week_days }} days (default, UTC)</option>
+            <option value="all" {% if filters.range_mode == "all" %}selected{% endif %}>All time (slow crawl)</option>
+          </select>
+        </label>
+        <label>
+          User
+          <input type="text" name="user" value="{{ filters.user }}" />
+        </label>
+        <label>
+          Media type
+          <select name="media_type">
+            <option value="" {% if not filters.media_type %}selected{% endif %}>Any</option>
+            <option value="movie" {% if filters.media_type == "movie" %}selected{% endif %}>Movie</option>
+            <option value="episode" {% if filters.media_type == "episode" %}selected{% endif %}>Episode</option>
+            <option value="track" {% if filters.media_type == "track" %}selected{% endif %}>Track</option>
+          </select>
+        </label>
+        <label>
+          Start date
+          <input type="date" name="start_date" value="{{ filters.start_date }}" />
+        </label>
+        <label>
+          End date
+          <input type="date" name="end_date" value="{{ filters.end_date }}" />
+        </label>
+        <label>
+          Page size
+          <input type="number" name="length" value="{{ length }}" min="1" max="250" />
+        </label>
+        <input type="hidden" name="start" value="0" />
+        <button type="submit">Apply filters</button>
+      </form>
+
+      <section class="status-grid">
+        {% for server in server_statuses %}
+        <article class="status-card">
+          <div><strong>{{ server.server_name }}</strong></div>
+          <div>ID: <span class="muted">{{ server.server_id }}</span></div>
+          <div>
+            Status:
+            <span class="{% if server.status == 'ok' %}status-ok{% elif server.status == 'pending' %}status-pending{% else %}status-error{% endif %}">
+              {{ server.status }}
+            </span>
+          </div>
+          <div>Fetched rows: {{ server.history_count }}</div>
+          <div class="muted card-sub">
+            Last successful history fetch for this server id:
+            <span title="UTC timestamp when this app last completed a successful get_history for this server_id">{{ server.last_ok_at_display }}</span>
+          </div>
+          {% if server.error %}
+          <div class="status-error">Error: {{ server.error }}</div>
+          {% endif %}
+        </article>
+        {% endfor %}
+      </section>
+
+      <table>
+        <thead>
+          <tr>
+            <th>When (UTC)</th>
+            <th>Server</th>
+            <th>User</th>
+            <th>Title</th>
+            <th>Type</th>
+            <th>Duration</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if rows %}
+            {% for row in rows %}
+            <tr>
+              <td>{{ row.canonical_utc_display }}</td>
+              <td>{{ row.server_name }}</td>
+              <td>{{ row.friendly_name or row.user or "-" }}</td>
+              <td>{{ row.full_title or row.title or "-" }}</td>
+              <td>{{ row.media_type or "-" }}</td>
+              <td>{{ row.duration | default("-", true) }}</td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="6" class="muted">No history rows for the selected filters.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+
+      <div class="pager">
+        {% if prev_start is not none %}
+        <a href="/history?range_mode={{ filters.range_mode }}&start={{ prev_start }}&length={{ length }}&user={{ filters.user }}&media_type={{ filters.media_type }}&start_date={{ filters.start_date }}&end_date={{ filters.end_date }}">Previous</a>
+        {% endif %}
+        {% if next_start is not none %}
+        <a href="/history?range_mode={{ filters.range_mode }}&start={{ next_start }}&length={{ length }}&user={{ filters.user }}&media_type={{ filters.media_type }}&start_date={{ filters.start_date }}&end_date={{ filters.end_date }}">Next</a>
+        {% endif %}
+      </div>
+{% endblock %}

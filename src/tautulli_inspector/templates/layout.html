@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% if page_title %}{{ site_title }} — {{ page_title }}{% else %}{{ site_title }}{% endif %}</title>
+    <style>
+      /* Shared layout: theme = CSS variables on body */
+      body.theme-slate {
+        color-scheme: dark;
+        --page-bg: #0f172a;
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --card-bg: #111827;
+        --border: #334155;
+        --row-border: #1f2937;
+        --link: #93c5fd;
+        --heading: #e2e8f0;
+        --th: #cbd5e1;
+        --input-bg: #111827;
+        --btn-bg: #1d4ed8;
+        --btn-fg: #fff;
+        --ok: #22c55e;
+        --err: #f87171;
+        --warn: #eab308;
+        --accent-fill1: #3b82f6;
+        --accent-fill2: #22c55e;
+      }
+      body.theme-ocean {
+        color-scheme: dark;
+        --page-bg: #0a1628;
+        --text: #e0f2fe;
+        --muted: #7dd3fc;
+        --card-bg: #0c2744;
+        --border: #1e4976;
+        --row-border: #163959;
+        --link: #7dd3fc;
+        --heading: #f0f9ff;
+        --th: #bae6fd;
+        --input-bg: #0c2744;
+        --btn-bg: #0284c7;
+        --btn-fg: #fff;
+        --ok: #4ade80;
+        --err: #fb7185;
+        --warn: #fbbf24;
+        --accent-fill1: #0ea5e9;
+        --accent-fill2: #06b6d4;
+      }
+      body.theme-ember {
+        color-scheme: dark;
+        --page-bg: #1c0a0a;
+        --text: #fef2f2;
+        --muted: #fca5a5;
+        --card-bg: #292020;
+        --border: #5c3d3d;
+        --row-border: #3f2a2a;
+        --link: #fdba74;
+        --heading: #fff7ed;
+        --th: #fed7aa;
+        --input-bg: #292020;
+        --btn-bg: #c2410c;
+        --btn-fg: #fff;
+        --ok: #86efac;
+        --err: #f87171;
+        --warn: #fcd34d;
+        --accent-fill1: #ea580c;
+        --accent-fill2: #f59e0b;
+      }
+      body.theme-forest {
+        color-scheme: dark;
+        --page-bg: #0c1a14;
+        --text: #ecfdf5;
+        --muted: #6ee7b7;
+        --card-bg: #132a22;
+        --border: #1f4d3d;
+        --row-border: #164032;
+        --link: #6ee7b7;
+        --heading: #d1fae5;
+        --th: #a7f3d0;
+        --input-bg: #132a22;
+        --btn-bg: #047857;
+        --btn-fg: #fff;
+        --ok: #4ade80;
+        --err: #fb7185;
+        --warn: #fde047;
+        --accent-fill1: #10b981;
+        --accent-fill2: #34d399;
+      }
+      body.theme-paper {
+        color-scheme: light;
+        --page-bg: #f8fafc;
+        --text: #0f172a;
+        --muted: #64748b;
+        --card-bg: #fff;
+        --border: #cbd5e1;
+        --row-border: #e2e8f0;
+        --link: #2563eb;
+        --heading: #0f172a;
+        --th: #334155;
+        --input-bg: #fff;
+        --btn-bg: #2563eb;
+        --btn-fg: #fff;
+        --ok: #15803d;
+        --err: #b91c1c;
+        --warn: #a16207;
+        --accent-fill1: #3b82f6;
+        --accent-fill2: #22c55e;
+      }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: var(--page-bg);
+        color: var(--text);
+      }
+      main {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+      .app-header {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+        margin-bottom: 4px;
+      }
+      .app-header .logo {
+        max-height: 48px;
+        max-width: 200px;
+        object-fit: contain;
+      }
+      .app-header h1 {
+        margin: 0;
+        font-size: 1.65rem;
+        color: var(--heading);
+      }
+      .nav {
+        margin-bottom: 12px;
+      }
+      .nav a {
+        color: var(--link);
+        text-decoration: none;
+        margin-right: 14px;
+      }
+      .nav a:hover {
+        text-decoration: underline;
+      }
+      .meta, .note, .muted {
+        color: var(--muted);
+      }
+      .meta {
+        margin-bottom: 16px;
+      }
+      h2 {
+        margin-top: 24px;
+        color: var(--heading);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: var(--card-bg);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      th, td {
+        text-align: left;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--row-border);
+        font-size: 14px;
+      }
+      th {
+        color: var(--th);
+        font-weight: 600;
+      }
+      .status-ok { color: var(--ok); }
+      .status-error { color: var(--err); }
+      .status-pending { color: var(--warn); }
+      .status-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+      .status-card {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px;
+        background: var(--card-bg);
+      }
+      .site-footer {
+        margin-top: 32px;
+        padding-top: 16px;
+        border-top: 1px solid var(--border);
+        font-size: 13px;
+        color: var(--muted);
+      }
+      main code {
+        font-size: 0.9em;
+        color: var(--muted);
+      }
+      {% block page_styles %}{% endblock %}
+    </style>
+    {% block extra_head %}{% endblock %}
+  </head>
+  <body class="theme-{{ theme }}">
+    <main>
+      <header class="app-header">
+        {% if logo_url %}
+        <img class="logo" src="{{ logo_url }}" alt="" width="200" height="48" />
+        {% endif %}
+        <h1>{{ site_title }}</h1>
+      </header>
+      <div class="nav">
+        <a href="/">Live Activity</a>
+        <a href="/history">History</a>
+        <a href="/insights/unwatched">Unwatched Insights</a>
+        <a href="/insights/library-unwatched">Library Unwatched</a>
+        <a href="/settings">Settings</a>
+      </div>
+      {% if nav_note %}
+      <p class="note">{{ nav_note }}</p>
+      {% endif %}
+      {% block content %}{% endblock %}
+      {% if footer_text %}
+      <footer class="site-footer">{{ footer_text }}</footer>
+      {% endif %}
+    </main>
+  </body>
+</html>

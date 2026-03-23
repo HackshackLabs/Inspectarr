@@ -385,13 +385,29 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
       {% if loading %}
       <p class="note">Indexing… page reloads shortly (large libraries can take several minutes).</p>
       <script>
-        setTimeout(function () { window.location.reload(); }, 5000);
+        setTimeout(function () {
+          try {
+            var u = new URL(window.location.href);
+            u.searchParams.delete("refresh");
+            window.location.replace(u.pathname + u.search + u.hash);
+          } catch (e) {
+            window.location.reload();
+          }
+        }, 5000);
       </script>
       {% endif %}
       {% if retry_needed and not loading %}
       <p class="note">Retrying timed-out servers; reload in a few seconds.</p>
       <script>
-        setTimeout(function () { window.location.reload(); }, 5000);
+        setTimeout(function () {
+          try {
+            var u = new URL(window.location.href);
+            u.searchParams.delete("refresh");
+            window.location.replace(u.pathname + u.search + u.hash);
+          } catch (e) {
+            window.location.reload();
+          }
+        }, 5000);
       </script>
       {% endif %}
       <details class="lib-meta-details">

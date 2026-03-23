@@ -732,10 +732,20 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
           return div.innerHTML;
         }
 
-        function mediaStatePrefix(data) {
+        function wasRemovedFromSonarrByUser(row, data) {
+          return (
+            row &&
+            row.dataset.sonarrRemovedByUser === "1" &&
+            data.sonarr_configured &&
+            !data.series_found
+          );
+        }
+
+        function mediaStatePrefix(data, row) {
           var ms = data.media_state || "ok";
           if (ms === "missing") {
-            return '<span class="sonarr-removed-label">Missing in Sonarr</span> · ';
+            var label = wasRemovedFromSonarrByUser(row, data) ? "Removed from Sonarr" : "Missing in Sonarr";
+            return '<span class="sonarr-removed-label">' + label + "</span> · ";
           }
           if (ms === "no_file") {
             return '<span class="sonarr-removed-label">No media on disk</span> · ';
@@ -764,11 +774,11 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
           });
         }
 
-        function formatInline(data) {
+        function formatInline(data, row) {
           if (!data.sonarr_configured) {
             return '<span class="note">' + escapeHtml(data.message || "Sonarr not configured.") + "</span>";
           }
-          var prefix = mediaStatePrefix(data);
+          var prefix = mediaStatePrefix(data, row);
           if (!data.series_found) {
             return prefix + '<span class="note">' + escapeHtml(data.message || "Series not in Sonarr.") + "</span>";
           }
@@ -783,9 +793,12 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
           return html;
         }
 
-        function formatStatusTooltip(data) {
+        function formatStatusTooltip(data, row) {
           if (!data.sonarr_configured) {
             return escapeHtml(data.message || "Sonarr not configured.");
+          }
+          if (!data.series_found && wasRemovedFromSonarrByUser(row, data)) {
+            return escapeHtml("Removed from Sonarr.");
           }
           if (!data.series_found && data.message) {
             return escapeHtml(data.message);
@@ -815,7 +828,10 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
           if (!inlineEl) return Promise.resolve();
           var key = statusQuery(row);
           function apply(data) {
-            inlineEl.innerHTML = formatInline(data);
+            if (data.series_found) {
+              delete row.dataset.sonarrRemovedByUser;
+            }
+            inlineEl.innerHTML = formatInline(data, row);
             inlineEl.classList.remove("muted");
             applyRowMediaState(row, data);
           }
@@ -884,7 +900,7 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
             var key = statusQuery(row);
             if (cache[key]) {
               applyRowMediaState(row, cache[key]);
-              showTip(formatStatusTooltip(cache[key]), ev.clientX, ev.clientY);
+              showTip(formatStatusTooltip(cache[key], row), ev.clientX, ev.clientY);
               return;
             }
             showTip("Loading Sonarr…", ev.clientX, ev.clientY);
@@ -895,7 +911,7 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
               .then(function (data) {
                 cache[key] = data;
                 applyRowMediaState(row, data);
-                showTip(formatStatusTooltip(data), ev.clientX, ev.clientY);
+                showTip(formatStatusTooltip(data, row), ev.clientX, ev.clientY);
               })
               .catch(function () {
                 showTip("Failed to load Sonarr status.", ev.clientX, ev.clientY);
@@ -1047,6 +1063,9 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
               if (!ok) return;
               postJson("/insights/library-unwatched/sonarr/delete", rowDataset(row))
                 .then(function (j) {
+                  if (kind === "show") {
+                    row.dataset.sonarrRemovedByUser = "1";
+                  }
                   return alertSonarrThenMaybePlex(row, j.message || "Sonarr done.");
                 })
                 .catch(function (err) {

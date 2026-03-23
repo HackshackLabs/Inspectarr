@@ -949,6 +949,22 @@ async def library_unwatched_insights(
     )
 
 
+@router.get("/insights/library-unwatched/build-status", tags=["dashboard"])
+async def library_unwatched_build_status() -> dict[str, bool]:
+    """Lightweight JSON for the indexing wait page: poll until the insights cache has a payload."""
+    settings = get_settings()
+    insights_cache = _get_insights_cache(settings)
+    cache_key_seed = _insights_library_unwatched_cache_key_seed(settings)
+    cache_key = insights_cache.make_key(cache_key_seed)
+    payload = insights_cache.get(cache_key=cache_key, ttl_seconds=settings.insights_cache_ttl_seconds)
+    task = _insights_refresh_tasks.get(cache_key)
+    refresh_in_progress = task is not None and not task.done()
+    return {
+        "ready": payload is not None,
+        "refresh_in_progress": refresh_in_progress,
+    }
+
+
 @router.get("/insights/library-unwatched/export", tags=["dashboard"])
 async def export_library_unwatched(
     group: LibraryUnwatchedExportGroup,

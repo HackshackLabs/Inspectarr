@@ -9,17 +9,50 @@
       }
       .banner.ok { background: color-mix(in srgb, var(--ok) 22%, transparent); color: var(--text); }
       .banner.err { background: color-mix(in srgb, var(--err) 22%, transparent); color: var(--text); }
-      fieldset {
+      details.settings-block {
         border: 1px solid var(--border);
         border-radius: 8px;
-        padding: 14px 16px;
         margin-bottom: 18px;
         background: var(--card-bg);
       }
-      legend {
-        padding: 0 8px;
+      details.settings-block > summary {
+        padding: 12px 16px;
         font-weight: 600;
         color: var(--th);
+        cursor: pointer;
+        list-style: none;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        user-select: none;
+      }
+      details.settings-block > summary::-webkit-details-marker {
+        display: none;
+      }
+      details.settings-block > summary::before {
+        content: "";
+        display: inline-block;
+        width: 0.5em;
+        height: 0.5em;
+        border-right: 2px solid var(--muted);
+        border-bottom: 2px solid var(--muted);
+        transform: rotate(-45deg);
+        transition: transform 0.15s ease;
+        flex-shrink: 0;
+        margin-top: -0.15em;
+      }
+      details.settings-block[open] > summary::before {
+        transform: rotate(45deg);
+        margin-top: 0.1em;
+      }
+      details.settings-block > summary:focus-visible {
+        outline: 2px solid var(--link);
+        outline-offset: 2px;
+        border-radius: var(--radius-sm, 6px);
+      }
+      details.settings-block .settings-block-body {
+        padding: 4px 16px 16px;
+        border-top: 1px solid var(--row-border);
       }
       .field-grid {
         display: grid;
@@ -139,8 +172,9 @@
         <div class="actions actions-top">
           <button type="submit">Save configuration</button>
         </div>
-        <fieldset>
-          <legend>Appearance</legend>
+        <details class="settings-block" open>
+          <summary>Appearance</summary>
+          <div class="settings-block-body">
           <div class="field-grid">
             <label class="field">Theme
               <select name="theme">
@@ -168,18 +202,22 @@
             <label for="remove_logo">Remove current logo</label>
           </div>
           {% endif %}
-        </fieldset>
+          </div>
+        </details>
 
-        <fieldset>
-          <legend>Tautulli servers</legend>
+        <details class="settings-block" open>
+          <summary>Tautulli servers</summary>
+          <div class="settings-block-body">
           <label class="field">JSON array (id, name, base_url, api_key)
             <textarea class="code" name="tautulli_servers_json" required>{{ tautulli_servers_json }}</textarea>
           </label>
           <p class="hint">Example: <code>[{"id":"s1","name":"Home","base_url":"http://127.0.0.1:8181","api_key":"..."}]</code></p>
-        </fieldset>
+          </div>
+        </details>
 
-        <fieldset>
-          <legend>Sonarr</legend>
+        <details class="settings-block" open>
+          <summary>Sonarr</summary>
+          <div class="settings-block-body">
           <div class="field-grid">
             <label class="field">Sonarr base URL
               <input type="text" name="sonarr_base_url" value="{{ form_values.sonarr_base_url | e }}" />
@@ -195,10 +233,12 @@
             <input type="checkbox" name="clear_sonarr_key" value="1" id="clear_sonarr_key" />
             <label for="clear_sonarr_key">Clear stored Sonarr API key (fall back to environment only)</label>
           </div>
-        </fieldset>
+          </div>
+        </details>
 
-        <fieldset>
-          <legend>Plex Media Server</legend>
+        <details class="settings-block" open>
+          <summary>Plex Media Server</summary>
+          <div class="settings-block-body">
           <div class="plex-summary">
             <strong>At a glance</strong><br />
             <span class="plex-token-meta">
@@ -270,10 +310,12 @@
               </div>
             </div>
           </div>
-        </fieldset>
+          </div>
+        </details>
 
-        <fieldset>
-          <legend>Application &amp; upstream</legend>
+        <details class="settings-block" open>
+          <summary>Application &amp; upstream</summary>
+          <div class="settings-block-body">
           <div class="field-grid">
             {% for name, label, typ in editor_fields %}
             <label class="field">{{ label }}
@@ -287,7 +329,8 @@
             </label>
             {% endfor %}
           </div>
-        </fieldset>
+          </div>
+        </details>
 
         <div class="actions">
           <button type="submit">Save configuration</button>

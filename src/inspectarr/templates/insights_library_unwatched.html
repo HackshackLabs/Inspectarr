@@ -94,6 +94,7 @@
       .lib-index-wait .meta { margin: 8px 0; }
       .lib-index-wait > p:first-child { margin-top: 0; }
       .lib-index-wait > p:last-child { margin-bottom: 0; }
+      .lib-index-wait .lib-idx-last-check { font-weight: 600; }
       .cumulative-col table { font-size: 13px; }
       .export-row {
         font-size: 12px;
@@ -390,27 +391,47 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
       <div class="card lib-index-wait" role="status" aria-live="polite">
         <p class="note"><strong>Indexing…</strong> The first load walks your TV libraries and history. Large libraries can take several minutes.</p>
         <p class="meta">
-          Elapsed <strong id="lib-idx-elapsed">0:00</strong>
-          · <span id="lib-idx-server-msg">Checking server…</span>
-          · next status check in <strong id="lib-idx-countdown">2</strong>s
+          Total elapsed <strong id="lib-idx-elapsed-total">0:00</strong>
+          · phase <span id="lib-idx-phase-label">Indexing</span>
+          · step elapsed <strong id="lib-idx-elapsed-phase">0:00</strong>
         </p>
-        <p class="note muted">This page opens the report automatically when it is ready. A full refresh also runs every 18s if needed.</p>
+        <p class="meta">
+          Last status check:
+          <span id="lib-idx-last-check" class="lib-idx-last-check muted">—</span>
+          · next check in <strong id="lib-idx-countdown">10</strong>s
+        </p>
+        <p class="note muted">This page opens the report automatically when it is ready. A full page reload also runs every 60s as a fallback.</p>
       </div>
       <script>
         (function () {
-          var POLL_SEC = 2;
-          var FALLBACK_RELOAD_SEC = 18;
+          var POLL_SEC = 10;
+          var FALLBACK_RELOAD_SEC = 60;
           var STATUS_URL = "/insights/library-unwatched/build-status";
-          var started = Date.now();
-          var elE = document.getElementById("lib-idx-elapsed");
+          var totalStarted = Date.now();
+          var phase = "indexing";
+          var phaseStarted = Date.now();
+          var elTotal = document.getElementById("lib-idx-elapsed-total");
+          var elPhase = document.getElementById("lib-idx-elapsed-phase");
+          var elPhaseLabel = document.getElementById("lib-idx-phase-label");
+          var elLast = document.getElementById("lib-idx-last-check");
           var elC = document.getElementById("lib-idx-countdown");
-          var elM = document.getElementById("lib-idx-server-msg");
           var countdown = POLL_SEC;
 
           function fmtElapsed(totalSec) {
             var m = Math.floor(totalSec / 60);
             var s = totalSec % 60;
             return m + ":" + (s < 10 ? "0" : "") + s;
+          }
+
+          function setLastCheck(ok, text) {
+            if (!elLast) return;
+            elLast.textContent = text;
+            elLast.classList.remove("muted", "status-ok", "status-error");
+            if (ok) {
+              elLast.classList.add("status-ok");
+            } else {
+              elLast.classList.add("status-error");
+            }
           }
 
           function hardReload() {
@@ -423,38 +444,51 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
             }
           }
 
+          function applyPhaseFromPayload(j) {
+            if (j && j.refresh_in_progress) {
+              if (phase !== "building") {
+                phase = "building";
+                phaseStarted = Date.now();
+                if (elPhaseLabel) elPhaseLabel.textContent = "Building report";
+              }
+            }
+          }
+
           async function pollStatus() {
+            countdown = POLL_SEC;
+            if (elC) elC.textContent = String(countdown);
             try {
               var r = await fetch(STATUS_URL, {
                 credentials: "same-origin",
                 headers: { Accept: "application/json" },
               });
-              if (r.ok) {
-                var j = await r.json();
-                if (j.ready) {
-                  hardReload();
-                  return;
-                }
-                if (elM) {
-                  elM.textContent = j.refresh_in_progress
-                    ? "Server is building the full report now."
-                    : "Waiting for the report job to start…";
-                }
-              } else if (elM) {
-                elM.textContent = "Could not read status (" + r.status + "); retrying…";
+              if (!r.ok) {
+                setLastCheck(false, "failed (HTTP " + r.status + ")");
+                return;
               }
+              var j = await r.json();
+              if (j.ready) {
+                setLastCheck(true, "OK — report ready");
+                hardReload();
+                return;
+              }
+              applyPhaseFromPayload(j);
+              var detail = j.refresh_in_progress ? "building report" : "waiting for job";
+              setLastCheck(true, "OK (" + detail + ")");
             } catch (e) {
-              if (elM) elM.textContent = "Could not reach server; retrying…";
+              setLastCheck(false, "failed (network or parse error)");
             }
           }
 
           setInterval(function () {
-            var sec = Math.floor((Date.now() - started) / 1000);
-            if (elE) elE.textContent = fmtElapsed(sec);
+            var now = Date.now();
+            var totalSec = Math.floor((now - totalStarted) / 1000);
+            var phaseSec = Math.floor((now - phaseStarted) / 1000);
+            if (elTotal) elTotal.textContent = fmtElapsed(totalSec);
+            if (elPhase) elPhase.textContent = fmtElapsed(phaseSec);
             countdown -= 1;
             if (elC) elC.textContent = String(Math.max(0, countdown));
             if (countdown <= 0) {
-              countdown = POLL_SEC;
               void pollStatus();
             }
           }, 1000);

@@ -13,6 +13,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 
+from tautulli_inspector.csrf import verify_csrf_double_submit
 from tautulli_inspector.dashboard_config import (
     SETTINGS_EDITOR_FIELDS,
     THEME_CHOICES,
@@ -25,14 +26,15 @@ from tautulli_inspector.dashboard_config import (
     save_raw_config,
     upload_dir,
 )
+from tautulli_inspector.limiter import limiter
 from tautulli_inspector.settings import (
     PlexServer,
-    Settings,
     TautulliServer,
     _settings_from_env,
     get_settings,
     plex_mapped_tautulli_server_ids,
 )
+from tautulli_inspector.url_safety import validate_upstream_base_url
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
@@ -116,7 +118,7 @@ async def settings_page(
     )
     ov = load_overrides_dict(env_base)
     plex_saved_ok = plex_saved in ("primary", "secondary")
-    ctx = build_template_globals("Settings")
+    ctx = build_template_globals("Settings", csrf_token=getattr(request.state, "csrf_token", "") or "")
     ctx.update(
         {
             "request": request,
@@ -143,6 +145,7 @@ async def settings_page(
 
 
 @router.post("/settings", tags=["configuration"])
+@limiter.limit("30/minute")
 async def settings_save(request: Request) -> RedirectResponse:
     env_base = _settings_from_env()
     prev = load_raw_config(env_base)
@@ -150,11 +153,17 @@ async def settings_save(request: Request) -> RedirectResponse:
 
     form = await request.form()
     scalar: dict[str, str] = {}
+    csrf_form: str | None = None
     for key, val in form.multi_items():
+        if key == "csrf_token" and isinstance(val, str):
+            csrf_form = val
+            continue
         if hasattr(val, "read"):
             continue
         if isinstance(val, str):
             scalar[key] = val
+    verify_csrf_double_submit(request, csrf_form)
+    block_private = env_base.block_private_upstream_urls
 
     theme = scalar.get("theme") or "slate"
     if theme not in {t[0] for t in THEME_CHOICES}:
@@ -176,9 +185,9 @@ async def settings_save(request: Request) -> RedirectResponse:
     logo = form.get("logo")
     if logo is not None and hasattr(logo, "filename") and getattr(logo, "filename", None):
         ext = Path(logo.filename).suffix.lower()
-        if ext not in (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"):
+        if ext not in (".png", ".jpg", ".jpeg", ".gif", ".webp"):
             return RedirectResponse(
-                url=f"/settings?error={_q('Logo must be png, jpg, gif, webp, or svg.')}",
+                url=f"/settings?error={_q('Logo must be png, jpg, gif, or webp.')}",
                 status_code=303,
             )
         ud = upload_dir(env_base)
@@ -224,6 +233,15 @@ async def settings_save(request: Request) -> RedirectResponse:
         if not isinstance(parsed, list):
             raise ValueError("not a list")
         servers = [TautulliServer.model_validate(row) for row in parsed]
+        if block_private:
+            for s in servers:
+                try:
+                    validate_upstream_base_url(s.base_url, block_private_hosts=True)
+                except ValueError as exc:
+                    return RedirectResponse(
+                        url=f"/settings?error={_q(f'Tautulli server URL: {exc}')}",
+                        status_code=303,
+                    )
         new_ov["tautulli_servers"] = [s.model_dump() for s in servers]
     except (json.JSONDecodeError, ValidationError, ValueError) as exc:
         return RedirectResponse(
@@ -265,7 +283,17 @@ async def settings_save(request: Request) -> RedirectResponse:
                 plex_parsed = json.loads(raw_plex)
                 if not isinstance(plex_parsed, list):
                     raise ValueError("not a list")
-                new_ov["plex_servers"] = [PlexServer.model_validate(row).model_dump() for row in plex_parsed]
+                plex_servers = [PlexServer.model_validate(row) for row in plex_parsed]
+                if block_private:
+                    for ps in plex_servers:
+                        try:
+                            validate_upstream_base_url(ps.base_url, block_private_hosts=True)
+                        except ValueError as exc:
+                            return RedirectResponse(
+                                url=f"/settings?error={_q(f'Plex server URL: {exc}')}",
+                                status_code=303,
+                            )
+                new_ov["plex_servers"] = [ps.model_dump() for ps in plex_servers]
         except (json.JSONDecodeError, ValidationError, ValueError) as exc:
             return RedirectResponse(
                 url=f"/settings?error={_q(f'Plex servers JSON: {exc}')}",
@@ -295,6 +323,18 @@ async def settings_save(request: Request) -> RedirectResponse:
         new_ov["plex_token_secondary"] = pk2
     elif not new_ov.get("plex_token_secondary") and prev_ov.get("plex_token_secondary"):
         new_ov["plex_token_secondary"] = prev_ov["plex_token_secondary"]
+
+    effective_sonarr = str(new_ov.get("sonarr_base_url") or "").strip()
+    if not effective_sonarr:
+        effective_sonarr = str(env_base.sonarr_base_url or "").strip()
+    if block_private and effective_sonarr:
+        try:
+            validate_upstream_base_url(effective_sonarr, block_private_hosts=True)
+        except ValueError as exc:
+            return RedirectResponse(
+                url=f"/settings?error={_q(f'Sonarr URL: {exc}')}",
+                status_code=303,
+            )
 
     out = {
         "presentation": presentation,

@@ -110,3 +110,25 @@ class BasicAuthMiddlewareTests(unittest.TestCase):
         r = client.get("/healthz")
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json().get("status"), "ok")
+
+    @mock.patch.dict(
+        os.environ,
+        {
+            "BASIC_AUTH_ENABLED": "true",
+            "BASIC_AUTH_USERNAME": "testuser",
+            "BASIC_AUTH_PASSWORD": "testpass",
+            "TAUTULLI_SERVERS_JSON": "[]",
+            "HEALTHZ_TOKEN": "supersecret",
+        },
+        clear=False,
+    )
+    def test_healthz_token_required_when_configured(self) -> None:
+        _clear_settings_cache()
+        from tautulli_inspector.main import create_app
+
+        client = TestClient(create_app())
+        self.assertEqual(client.get("/healthz").status_code, 401)
+        self.assertEqual(client.get("/healthz", params={"token": "wrong"}).status_code, 401)
+        ok = client.get("/healthz", params={"token": "supersecret"})
+        self.assertEqual(ok.status_code, 200)
+        self.assertEqual(ok.json().get("status"), "ok")

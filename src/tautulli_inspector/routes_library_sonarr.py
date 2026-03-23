@@ -1,11 +1,13 @@
 """Sonarr proxy routes for Library Unwatched actions."""
 
+import logging
 from typing import Literal
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
+from tautulli_inspector.limiter import limiter
 from tautulli_inspector.settings import get_settings, sonarr_is_configured
 from tautulli_inspector.sonarr_client import (
     SonarrKind,
@@ -15,6 +17,8 @@ from tautulli_inspector.sonarr_client import (
     sonarr_status_payload,
     sonarr_unmonitor,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -34,7 +38,9 @@ def _validate_kind(kind: str) -> SonarrKind:
 
 
 @router.get("/insights/library-unwatched/sonarr/status", tags=["dashboard"])
+@limiter.limit("120/minute")
 async def library_sonarr_status(
+    request: Request,
     kind: str = Query(..., description="show | season | episode"),
     tvdb_id: int | None = Query(None),
     series_title: str | None = Query(None, max_length=500),
@@ -78,18 +84,25 @@ async def library_sonarr_status(
                 episode_number=episode_number,
             )
     except httpx.HTTPStatusError as exc:
+        logger.warning(
+            "Sonarr status HTTP %s: %s",
+            exc.response.status_code,
+            (exc.response.text or "")[:800],
+        )
         raise HTTPException(
             status_code=502,
-            detail=f"Sonarr HTTP {exc.response.status_code}: {exc.response.text[:500]}",
+            detail="Sonarr returned an error for this status request.",
         ) from exc
     except httpx.RequestError as exc:
-        raise HTTPException(status_code=502, detail=f"Sonarr request failed: {exc}") from exc
+        logger.warning("Sonarr status request failed: %s", exc)
+        raise HTTPException(status_code=502, detail="Could not reach Sonarr.") from exc
 
     return {"sonarr_configured": True, **annotate_library_unwatched_row_state(k, payload)}
 
 
 @router.post("/insights/library-unwatched/sonarr/unmonitor", tags=["dashboard"])
-async def library_sonarr_unmonitor(body: SonarrRowBody) -> dict:
+@limiter.limit("60/minute")
+async def library_sonarr_unmonitor(request: Request, body: SonarrRowBody) -> dict:
     settings = get_settings()
     if not sonarr_is_configured(settings):
         raise HTTPException(status_code=503, detail="Sonarr is not configured (SONARR_BASE_URL / SONARR_API_KEY).")
@@ -108,12 +121,18 @@ async def library_sonarr_unmonitor(body: SonarrRowBody) -> dict:
                 episode_number=body.episode_number,
             )
     except httpx.HTTPStatusError as exc:
+        logger.warning(
+            "Sonarr unmonitor HTTP %s: %s",
+            exc.response.status_code,
+            (exc.response.text or "")[:800],
+        )
         raise HTTPException(
             status_code=502,
-            detail=f"Sonarr HTTP {exc.response.status_code}: {exc.response.text[:500]}",
+            detail="Sonarr returned an error for this action.",
         ) from exc
     except httpx.RequestError as exc:
-        raise HTTPException(status_code=502, detail=f"Sonarr request failed: {exc}") from exc
+        logger.warning("Sonarr unmonitor request failed: %s", exc)
+        raise HTTPException(status_code=502, detail="Could not reach Sonarr.") from exc
 
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("message") or "Sonarr action failed.")
@@ -121,7 +140,8 @@ async def library_sonarr_unmonitor(body: SonarrRowBody) -> dict:
 
 
 @router.post("/insights/library-unwatched/sonarr/delete", tags=["dashboard"])
-async def library_sonarr_delete(body: SonarrRowBody) -> dict:
+@limiter.limit("60/minute")
+async def library_sonarr_delete(request: Request, body: SonarrRowBody) -> dict:
     """
     Delete series, season files, or a single episode file in Sonarr.
 
@@ -147,12 +167,18 @@ async def library_sonarr_delete(body: SonarrRowBody) -> dict:
                 episode_number=body.episode_number,
             )
     except httpx.HTTPStatusError as exc:
+        logger.warning(
+            "Sonarr delete HTTP %s: %s",
+            exc.response.status_code,
+            (exc.response.text or "")[:800],
+        )
         raise HTTPException(
             status_code=502,
-            detail=f"Sonarr HTTP {exc.response.status_code}: {exc.response.text[:500]}",
+            detail="Sonarr returned an error for this action.",
         ) from exc
     except httpx.RequestError as exc:
-        raise HTTPException(status_code=502, detail=f"Sonarr request failed: {exc}") from exc
+        logger.warning("Sonarr delete request failed: %s", exc)
+        raise HTTPException(status_code=502, detail="Could not reach Sonarr.") from exc
 
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("message") or "Sonarr action failed.")
@@ -160,7 +186,8 @@ async def library_sonarr_delete(body: SonarrRowBody) -> dict:
 
 
 @router.post("/insights/library-unwatched/sonarr/remove-from-plex-and-unmonitor", tags=["dashboard"])
-async def library_sonarr_remove_and_unmonitor(body: SonarrRowBody) -> dict:
+@limiter.limit("60/minute")
+async def library_sonarr_remove_and_unmonitor(request: Request, body: SonarrRowBody) -> dict:
     """
     Unmonitor in Sonarr, then delete managed episode file(s) on disk.
 
@@ -185,12 +212,18 @@ async def library_sonarr_remove_and_unmonitor(body: SonarrRowBody) -> dict:
                 episode_number=body.episode_number,
             )
     except httpx.HTTPStatusError as exc:
+        logger.warning(
+            "Sonarr remove-from-plex HTTP %s: %s",
+            exc.response.status_code,
+            (exc.response.text or "")[:800],
+        )
         raise HTTPException(
             status_code=502,
-            detail=f"Sonarr HTTP {exc.response.status_code}: {exc.response.text[:500]}",
+            detail="Sonarr returned an error for this action.",
         ) from exc
     except httpx.RequestError as exc:
-        raise HTTPException(status_code=502, detail=f"Sonarr request failed: {exc}") from exc
+        logger.warning("Sonarr remove-from-plex request failed: %s", exc)
+        raise HTTPException(status_code=502, detail="Could not reach Sonarr.") from exc
 
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("message") or "Sonarr action failed.")

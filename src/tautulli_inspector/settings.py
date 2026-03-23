@@ -1,10 +1,12 @@
 """Application settings and server configuration."""
 
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from tautulli_inspector.url_safety import validate_upstream_base_url
 
 
 class PlexServer(BaseModel):
@@ -94,6 +96,16 @@ class Settings(BaseSettings):
         min_length=1,
         max_length=256,
     )
+    healthz_token: str = Field(
+        default="",
+        alias="HEALTHZ_TOKEN",
+        description="If non-empty, GET /healthz requires matching ?token= value (constant-time compare).",
+    )
+    block_private_upstream_urls: bool = Field(
+        default=False,
+        alias="BLOCK_PRIVATE_UPSTREAM_URLS",
+        description="Reject loopback/private/link-local literal IPs and localhost hostnames on upstream base URLs.",
+    )
 
     model_config = SettingsConfigDict(
         env_file=(".env", ".env.local"),
@@ -101,6 +113,19 @@ class Settings(BaseSettings):
         extra="ignore",
         populate_by_name=True,
     )
+
+    @model_validator(mode="after")
+    def _validate_upstream_urls(self) -> Self:
+        if not self.block_private_upstream_urls:
+            return self
+        for s in self.tautulli_servers:
+            validate_upstream_base_url(s.base_url, block_private_hosts=True)
+        for p in self.plex_servers:
+            validate_upstream_base_url(p.base_url, block_private_hosts=True)
+        son = str(self.sonarr_base_url or "").strip()
+        if son:
+            validate_upstream_base_url(son, block_private_hosts=True)
+        return self
 
 
 @lru_cache

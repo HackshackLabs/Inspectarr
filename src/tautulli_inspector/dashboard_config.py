@@ -117,13 +117,14 @@ def apply_dashboard_overrides(base: Settings) -> Settings:
             plex_list = filtered["plex_servers"]
             if isinstance(plex_list, list):
                 filtered["plex_servers"] = [PlexServer.model_validate(s) for s in plex_list]
-        return base.model_copy(update=filtered)
+        merged = base.model_copy(update=filtered)
+        return Settings.model_validate(merged.model_dump())
     except (ValidationError, TypeError, ValueError) as exc:
         logger.warning("Invalid dashboard overrides ignored: %s", exc)
         return base
 
 
-def build_template_globals(page_title: str | None = None) -> dict[str, Any]:
+def build_template_globals(page_title: str | None = None, csrf_token: str | None = None) -> dict[str, Any]:
     """Context keys shared by all HTML pages (call from routes)."""
     import tautulli_inspector.settings as settings_mod
 
@@ -138,6 +139,7 @@ def build_template_globals(page_title: str | None = None) -> dict[str, Any]:
         "footer_text": pres.footer_text,
         "nav_note": pres.custom_nav_note,
         "nav_current": "",
+        "csrf_token": csrf_token or "",
     }
 
 

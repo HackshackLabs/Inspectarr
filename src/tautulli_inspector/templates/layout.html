@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content="{{ csrf_token }}" />
     <title>{% if page_title %}{{ site_title }} — {{ page_title }}{% else %}{{ site_title }}{% endif %}</title>
     <style>
       /* Shared non-color design tokens (spacing, type scale, radii) */

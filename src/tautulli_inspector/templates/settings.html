@@ -135,6 +135,7 @@
       {% endif %}
 
       <form method="post" action="/settings" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
         <div class="actions actions-top">
           <button type="submit">Save configuration</button>
         </div>
@@ -159,7 +160,7 @@
             <input type="text" name="custom_nav_note" value="{{ presentation.custom_nav_note | e }}" maxlength="300" />
           </label>
           <label class="field" style="margin-top:12px">Logo image
-            <input type="file" name="logo" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" />
+            <input type="file" name="logo" accept="image/png,image/jpeg,image/gif,image/webp" />
           </label>
           {% if presentation.logo_file %}
           <div class="checkbox-line">
@@ -295,17 +296,21 @@
     </div>
     <script>
       (function () {
+        function csrfHeader() {
+          var m = document.querySelector('meta[name="csrf-token"]');
+          var t = m && m.getAttribute("content") ? m.getAttribute("content") : "";
+          return t ? { "X-CSRF-Token": t } : {};
+        }
         function pollPin(profile, pinId, statusEl) {
           var tries = 0;
           var maxTries = 120;
           function tick() {
             tries++;
-            fetch(
-              "/settings/plex-auth/check?pin_id=" +
-                encodeURIComponent(String(pinId)) +
-                "&profile=" +
-                encodeURIComponent(profile)
-            )
+            fetch("/settings/plex-auth/check", {
+              method: "POST",
+              headers: Object.assign({ "Content-Type": "application/json" }, csrfHeader()),
+              body: JSON.stringify({ pin_id: pinId, profile: profile }),
+            })
               .then(function (r) {
                 return r.json();
               })
@@ -336,7 +341,7 @@
             statusEl.textContent = "Creating Plex link…";
             fetch("/settings/plex-auth/start", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: Object.assign({ "Content-Type": "application/json" }, csrfHeader()),
               body: JSON.stringify({ profile: profile }),
             })
               .then(function (r) {

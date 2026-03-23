@@ -927,10 +927,20 @@ href="/insights/library-unwatched?show_start={{ t[0] }}&amp;season_start={{ t[1]
           btn.addEventListener("mouseleave", scheduleHide);
         });
 
+        function csrfHeaderJson() {
+          var m = document.querySelector('meta[name="csrf-token"]');
+          var t = m && m.getAttribute("content") ? m.getAttribute("content") : "";
+          var h = { "Content-Type": "application/json" };
+          if (t) {
+            h["X-CSRF-Token"] = t;
+          }
+          return h;
+        }
+
         function postJson(url, body) {
           return fetch(url, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: csrfHeaderJson(),
             body: JSON.stringify(body),
           }).then(function (r) {
             return r.text().then(function (t) {

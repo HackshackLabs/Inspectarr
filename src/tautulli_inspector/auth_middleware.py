@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
+import hmac
 import secrets
 
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
@@ -52,6 +54,16 @@ class BasicAuthMiddleware(BaseHTTPMiddleware):
 
         path = request.scope.get("path") or ""
         if path == "/healthz":
+            expected = (settings.healthz_token or "").strip()
+            if expected:
+                got = (request.query_params.get("token") or "").strip()
+                he = hashlib.sha256(expected.encode("utf-8")).digest()
+                hg = hashlib.sha256(got.encode("utf-8")).digest()
+                if not hmac.compare_digest(he, hg):
+                    return JSONResponse(
+                        status_code=401,
+                        content={"detail": "Invalid or missing health check token"},
+                    )
             return await call_next(request)
 
         auth = request.headers.get("Authorization")

@@ -44,7 +44,7 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 
 def _template_ctx(request: Request, page_title: str | None = None, **extra: Any) -> dict[str, Any]:
-    ctx = build_template_globals(page_title)
+    ctx = build_template_globals(page_title, csrf_token=getattr(request.state, "csrf_token", "") or "")
     ctx["request"] = request
     nav_current = str(extra.pop("nav_current", "") or "")
     ctx["nav_current"] = nav_current

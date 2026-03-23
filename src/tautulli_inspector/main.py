@@ -2,20 +2,28 @@
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from tautulli_inspector.auth_middleware import BasicAuthMiddleware
 from tautulli_inspector.dashboard_config import upload_dir
+from tautulli_inspector.limiter import limiter
 from tautulli_inspector.routes_configuration import router as configuration_router
 from tautulli_inspector.routes_dashboard import router as dashboard_router
 from tautulli_inspector.routes_library_plex import router as library_plex_router
 from tautulli_inspector.routes_library_sonarr import router as library_sonarr_router
 from tautulli_inspector.routes_plex_auth import router as plex_auth_router
+from tautulli_inspector.security_middleware import CsrfMiddleware, SecurityHeadersMiddleware
 from tautulli_inspector.settings import _settings_from_env, get_settings
 
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     app = FastAPI(title="Tautulli Inspector", version="0.1.0")
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(CsrfMiddleware)
     app.add_middleware(BasicAuthMiddleware)
 
     @app.get("/healthz", tags=["system"])

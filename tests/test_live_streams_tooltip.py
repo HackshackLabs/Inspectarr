@@ -2,7 +2,7 @@
 
 import unittest
 
-from tautulli_inspector.live_streams import group_live_streams_by_server
+from inspectarr.live_streams import group_live_streams_by_server
 
 
 class LiveStreamsByServerTests(unittest.TestCase):

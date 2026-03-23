@@ -2,7 +2,7 @@
 
 This note records how **Plex Media Server (PMS)** can remove library items via its HTTP API, how that differs from this app’s **Sonarr** path, and what to watch for when operating it.
 
-## Implemented in tautulli-inspector
+## Implemented in inspectarr
 
 - **`/settings`**: Plex server JSON (`plex_servers`), optional pasted tokens, **Sign in with Plex (primary / secondary)** using Plex.tv PIN + `GET /settings/plex-auth/check` (tokens and auto `plex_client_identifier` persist in dashboard JSON).
 - **`POST /insights/library-unwatched/plex/delete-library-item`**: invoked from the browser after successful Sonarr **Remove & unmonitor** or **Delete** on per-server rows when `ratingKey` + Plex mapping exist; also callable alone for automation. Uses `DELETE /library/metadata/{ratingKey}` on the PMS for `tautulli_server_id` and `token_profile` **primary** or **secondary**.
@@ -61,7 +61,7 @@ Example write-up: [Plexopedia: Delete a Movie](https://www.plexopedia.com/plex-m
 
 The official API lists separate delete operations for **metadata** vs **media**. Implementations should use the OpenAPI definitions to choose the correct endpoint and query/body parameters for “remove from library only” vs “remove underlying files,” if both are exposed on your build.
 
-## How this relates to tautulli-inspector
+## How this relates to inspectarr
 
 - **`POST /insights/library-unwatched/sonarr/remove-from-plex-and-unmonitor`** does **not** call Plex. It unmonitors in Sonarr and deletes files via Sonarr; Plex updates after refresh. See `docs/SONARR.md`.
 - **`POST /insights/library-unwatched/sonarr/delete`** removes the series from Sonarr (show) or deletes episode file(s) without unmonitoring (season/episode); also Sonarr-only, no Plex API.

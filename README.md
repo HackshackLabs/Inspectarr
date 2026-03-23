@@ -14,7 +14,7 @@ Small "single pane of glass" dashboard that aggregates activity and history from
 
 MVP application skeleton is in place with:
 
-- FastAPI app entrypoint under `src/tautulli_inspector/main.py`
+- FastAPI app entrypoint under `src/inspectarr/main.py`
 - Environment-driven settings loader
 - Tautulli fan-out client for `get_activity` and `get_history`
 - Merged live dashboard page at `/`
@@ -142,8 +142,8 @@ Example:
    - `pip install -r requirements.txt`
 3. Copy `.env.example` to `.env` (or use `.env.local`) and set values.
 4. Run the app:
-   - `uvicorn tautulli_inspector.main:app --reload`
-   - or `tautulli-inspector`
+   - `uvicorn inspectarr.main:app --reload`
+   - or `inspectarr`
 
 By default, the dashboard is available at `http://127.0.0.1:8000/`.
 
@@ -177,11 +177,11 @@ Pages:
 
 Build:
 
-- `docker build -t tautulli-inspector:latest .`
+- `docker build -t inspectarr:latest .`
 
 Run:
 
-- `docker run --rm -p 8000:8000 --env-file .env.local tautulli-inspector:latest`
+- `docker run --rm -p 8000:8000 --env-file .env.local inspectarr:latest`
 
 ## Security notes
 
@@ -198,7 +198,7 @@ Run:
 
 - `UIDESIGN.md` — UI design principles for contributors and agents
 - `docs/UI_IMPROVEMENTS.md` — Site review vs those principles; prioritized UI backlog
-- **UI implementation:** shared tokens, focus styles, skip link, and nav live in `src/tautulli_inspector/templates/layout.html` (`nav_current` is set per route in `routes_dashboard.py` and `routes_configuration.py`)
+- **UI implementation:** shared tokens, focus styles, skip link, and nav live in `src/inspectarr/templates/layout.html` (`nav_current` is set per route in `routes_dashboard.py` and `routes_configuration.py`)
 - `docs/ARCHITECTURE.md`
 - `docs/CONFIGURATION.md`
 - `docs/SONARR.md`

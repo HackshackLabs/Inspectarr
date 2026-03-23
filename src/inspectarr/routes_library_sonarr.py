@@ -7,9 +7,9 @@ import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-from tautulli_inspector.limiter import limiter
-from tautulli_inspector.settings import get_settings, sonarr_is_configured
-from tautulli_inspector.sonarr_client import (
+from inspectarr.limiter import limiter
+from inspectarr.settings import get_settings, sonarr_is_configured
+from inspectarr.sonarr_client import (
     SonarrKind,
     annotate_library_unwatched_row_state,
     sonarr_delete,

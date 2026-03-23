@@ -6,11 +6,11 @@ from unittest import mock
 
 from pydantic import ValidationError
 
-from tautulli_inspector.url_safety import validate_upstream_base_url
+from inspectarr.url_safety import validate_upstream_base_url
 
 
 def _clear_settings_cache() -> None:
-    from tautulli_inspector.settings import _settings_from_env
+    from inspectarr.settings import _settings_from_env
 
     _settings_from_env.cache_clear()
 
@@ -53,7 +53,7 @@ class UrlSafetyTests(unittest.TestCase):
     )
     def test_settings_validation_rejects_private_upstream_when_enabled(self) -> None:
         _clear_settings_cache()
-        from tautulli_inspector.settings import Settings
+        from inspectarr.settings import Settings
 
         with self.assertRaises(ValidationError):
             Settings()

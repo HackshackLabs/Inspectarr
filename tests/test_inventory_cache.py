@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tautulli_inspector.inventory_cache import InventoryCache
+from inspectarr.inventory_cache import InventoryCache
 
 
 class InventoryCacheTests(unittest.TestCase):

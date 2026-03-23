@@ -8,7 +8,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-from tautulli_inspector.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
+from inspectarr.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
 
 _SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
 

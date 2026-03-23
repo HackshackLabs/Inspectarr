@@ -2,7 +2,7 @@
 
 ## Overview
 
-`tautulli-inspector` provides a lightweight FastAPI dashboard that aggregates read-only data from multiple Tautulli instances into a single operator view.
+`inspectarr` provides a lightweight FastAPI dashboard that aggregates read-only data from multiple Tautulli instances into a single operator view.
 
 Primary MVP goals:
 
@@ -27,7 +27,7 @@ The app uses a fan-out and merge model:
 ## Proposed module layout
 
 ```text
-tautulli-inspector/
+inspectarr/
   README.md
   TODO.md
   .env.example
@@ -35,7 +35,7 @@ tautulli-inspector/
     ARCHITECTURE.md
     TAUTULLI_API.md
     DECISIONS.md
-  src/tautulli_inspector/
+  src/inspectarr/
     main.py
     settings.py
     tautulli_client.py
@@ -51,7 +51,7 @@ flowchart LR
   subgraph browser [Browser]
     UI[Dashboard]
   end
-  subgraph app [tautulli_inspector]
+  subgraph app [inspectarr]
     API[FastAPI routes]
     Agg[aggregate]
     Client[tautulli_client]

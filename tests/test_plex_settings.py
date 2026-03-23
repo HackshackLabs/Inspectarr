@@ -2,7 +2,7 @@
 
 import unittest
 
-from tautulli_inspector.settings import (
+from inspectarr.settings import (
     PlexServer,
     Settings,
     plex_mapped_tautulli_server_ids,

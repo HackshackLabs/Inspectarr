@@ -2,15 +2,15 @@
 
 import unittest
 
-from tautulli_inspector.aggregate import (
+from inspectarr.aggregate import (
     build_library_unwatched_tv_report,
     build_unwatched_media_report,
     merge_activity,
     merge_history,
     tvdb_id_from_guid,
 )
-from tautulli_inspector.sonarr_client import resolve_series
-from tautulli_inspector.models import ActivityFetchResult, HistoryFetchResult, InventoryFetchResult
+from inspectarr.sonarr_client import resolve_series
+from inspectarr.models import ActivityFetchResult, HistoryFetchResult, InventoryFetchResult
 
 
 class MergeActivityTests(unittest.TestCase):

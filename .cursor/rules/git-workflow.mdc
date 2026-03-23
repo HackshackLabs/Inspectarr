@@ -3,7 +3,7 @@ description: Git branching and merge policy for this repository
 alwaysApply: true
 ---
 
-# Git workflow (tautulli-inspector)
+# Git workflow (inspectarr)
 
 - **Always create a new branch** for changes, fixes, and features. Do work on that branch, not directly on `main`.
 - **Stage and verify** in the user’s environment (path, run app/tests) so everything functions before asking for merge.

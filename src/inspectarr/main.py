@@ -5,16 +5,16 @@ from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from tautulli_inspector.auth_middleware import BasicAuthMiddleware
-from tautulli_inspector.dashboard_config import upload_dir
-from tautulli_inspector.limiter import limiter
-from tautulli_inspector.routes_configuration import router as configuration_router
-from tautulli_inspector.routes_dashboard import router as dashboard_router
-from tautulli_inspector.routes_library_plex import router as library_plex_router
-from tautulli_inspector.routes_library_sonarr import router as library_sonarr_router
-from tautulli_inspector.routes_plex_auth import router as plex_auth_router
-from tautulli_inspector.security_middleware import CsrfMiddleware, SecurityHeadersMiddleware
-from tautulli_inspector.settings import _settings_from_env, get_settings
+from inspectarr.auth_middleware import BasicAuthMiddleware
+from inspectarr.dashboard_config import upload_dir
+from inspectarr.limiter import limiter
+from inspectarr.routes_configuration import router as configuration_router
+from inspectarr.routes_dashboard import router as dashboard_router
+from inspectarr.routes_library_plex import router as library_plex_router
+from inspectarr.routes_library_sonarr import router as library_sonarr_router
+from inspectarr.routes_plex_auth import router as plex_auth_router
+from inspectarr.security_middleware import CsrfMiddleware, SecurityHeadersMiddleware
+from inspectarr.settings import _settings_from_env, get_settings
 
 
 def create_app() -> FastAPI:
@@ -51,4 +51,4 @@ def run() -> None:
     import uvicorn
 
     settings = get_settings()
-    uvicorn.run("tautulli_inspector.main:app", host=settings.host, port=settings.port, reload=True)
+    uvicorn.run("inspectarr.main:app", host=settings.host, port=settings.port, reload=True)

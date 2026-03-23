@@ -3,7 +3,7 @@
 import unittest
 from datetime import datetime, timedelta, timezone
 
-from tautulli_inspector.history_scope import (
+from inspectarr.history_scope import (
     crawl_trim_cutoff_epoch,
     resolve_upstream_history_dates,
     utc_date_days_ago,

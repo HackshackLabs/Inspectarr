@@ -2,11 +2,11 @@
 
 import unittest
 
-from tautulli_inspector.routes_dashboard import (
+from inspectarr.routes_dashboard import (
     _library_unwatched_server_card_rows,
     _normalize_library_unwatched_report,
 )
-from tautulli_inspector.settings import TautulliServer
+from inspectarr.settings import TautulliServer
 
 
 class LibraryUnwatchedNormalizeTests(unittest.TestCase):

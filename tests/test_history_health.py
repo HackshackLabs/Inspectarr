@@ -2,7 +2,7 @@
 
 import unittest
 
-from tautulli_inspector.history_health import enrich_history_server_statuses, format_last_ok_display
+from inspectarr.history_health import enrich_history_server_statuses, format_last_ok_display
 
 
 class HistoryHealthTests(unittest.TestCase):

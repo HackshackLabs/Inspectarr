@@ -1,6 +1,6 @@
 """Unit tests for Library Unwatched Sonarr row state annotation."""
 
-from tautulli_inspector.sonarr_client import (
+from inspectarr.sonarr_client import (
     annotate_library_unwatched_row_state,
     _episode_file_id,
     _episode_has_file_on_disk,

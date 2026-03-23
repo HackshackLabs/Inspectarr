@@ -1,6 +1,6 @@
 # Tautulli API Usage
 
-This document describes the upstream API calls used by `tautulli-inspector`.
+This document describes the upstream API calls used by `inspectarr`.
 
 Official reference:
 

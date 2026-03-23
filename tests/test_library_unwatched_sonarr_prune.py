@@ -4,7 +4,7 @@ import asyncio
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from tautulli_inspector.sonarr_client import prune_library_unwatched_report_show_seasons_without_sonarr_files
+from inspectarr.sonarr_client import prune_library_unwatched_report_show_seasons_without_sonarr_files
 
 
 class LibraryUnwatchedSonarrPruneTests(unittest.TestCase):
@@ -29,12 +29,12 @@ class LibraryUnwatchedSonarrPruneTests(unittest.TestCase):
             mock_client = MagicMock()
             with (
                 patch(
-                    "tautulli_inspector.sonarr_client.fetch_series_list_cached",
+                    "inspectarr.sonarr_client.fetch_series_list_cached",
                     new_callable=AsyncMock,
                     return_value=series,
                 ),
                 patch(
-                    "tautulli_inspector.sonarr_client._all_series_episodes",
+                    "inspectarr.sonarr_client._all_series_episodes",
                     new_callable=AsyncMock,
                     return_value=[
                         {"seasonNumber": 1, "episodeNumber": 1, "hasFile": False},
@@ -69,12 +69,12 @@ class LibraryUnwatchedSonarrPruneTests(unittest.TestCase):
             mock_client = MagicMock()
             with (
                 patch(
-                    "tautulli_inspector.sonarr_client.fetch_series_list_cached",
+                    "inspectarr.sonarr_client.fetch_series_list_cached",
                     new_callable=AsyncMock,
                     return_value=series,
                 ),
                 patch(
-                    "tautulli_inspector.sonarr_client._all_series_episodes",
+                    "inspectarr.sonarr_client._all_series_episodes",
                     new_callable=AsyncMock,
                     return_value=[
                         {"seasonNumber": 1, "episodeNumber": 1, "hasFile": True},
@@ -110,12 +110,12 @@ class LibraryUnwatchedSonarrPruneTests(unittest.TestCase):
             mock_client = MagicMock()
             with (
                 patch(
-                    "tautulli_inspector.sonarr_client.fetch_series_list_cached",
+                    "inspectarr.sonarr_client.fetch_series_list_cached",
                     new_callable=AsyncMock,
                     return_value=series,
                 ),
                 patch(
-                    "tautulli_inspector.sonarr_client._all_series_episodes",
+                    "inspectarr.sonarr_client._all_series_episodes",
                     new_callable=AsyncMock,
                     return_value=[
                         {"seasonNumber": 1, "episodeNumber": 1, "hasFile": True},
@@ -155,12 +155,12 @@ class LibraryUnwatchedSonarrPruneTests(unittest.TestCase):
             mock_client = MagicMock()
             with (
                 patch(
-                    "tautulli_inspector.sonarr_client.fetch_series_list_cached",
+                    "inspectarr.sonarr_client.fetch_series_list_cached",
                     new_callable=AsyncMock,
                     return_value=series,
                 ),
                 patch(
-                    "tautulli_inspector.sonarr_client._all_series_episodes",
+                    "inspectarr.sonarr_client._all_series_episodes",
                     new_callable=AsyncMock,
                     return_value=[],
                 ),

@@ -36,7 +36,7 @@ Beyond environment variables (`.env` / `.env.local`), the app can load a **JSON 
 ```
 
 - **`presentation`**: UI-only (themes, title, logo filename, footer, optional nav note).
-- **`overrides`**: Any subset of `Settings` model fields in `tautulli_inspector.settings` (snake_case), merged on top of environment values on each `get_settings()` call.
+- **`overrides`**: Any subset of `Settings` model fields in `inspectarr.settings` (snake_case), merged on top of environment values on each `get_settings()` call.
 
 If a key is **absent** from `overrides`, the value comes from the environment (or pydantic default).
 

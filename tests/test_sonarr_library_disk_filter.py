@@ -3,8 +3,8 @@
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from tautulli_inspector.models import InventoryFetchResult
-from tautulli_inspector.sonarr_client import (
+from inspectarr.models import InventoryFetchResult
+from inspectarr.sonarr_client import (
     _sonarr_season_episode_pairs_with_files,
     filter_inventory_episodes_by_sonarr_disk,
     filter_library_inventory_results_by_sonarr_disk,
@@ -48,7 +48,7 @@ def test_filter_drops_episode_without_sonarr_file() -> None:
         cache: dict[int, set[tuple[int, int]]] = {}
         sem = asyncio.Semaphore(10)
         with patch(
-            "tautulli_inspector.sonarr_client._all_series_episodes",
+            "inspectarr.sonarr_client._all_series_episodes",
             new=AsyncMock(return_value=sonarr_eps),
         ):
             out = await filter_inventory_episodes_by_sonarr_disk(
@@ -80,7 +80,7 @@ def test_filter_keeps_when_series_not_in_sonarr() -> None:
         ]
         client = MagicMock()
         with patch(
-            "tautulli_inspector.sonarr_client._all_series_episodes",
+            "inspectarr.sonarr_client._all_series_episodes",
             new=AsyncMock(return_value=[]),
         ):
             out = await filter_inventory_episodes_by_sonarr_disk(
@@ -106,7 +106,7 @@ def test_filter_library_inventory_results_skips_unknown_server() -> None:
             episodes=[{"rating_key": "1"}],
         )
         with patch(
-            "tautulli_inspector.sonarr_client.fetch_series_list_cached",
+            "inspectarr.sonarr_client.fetch_series_list_cached",
             new=AsyncMock(return_value=[]),
         ):
             out = await filter_library_inventory_results_by_sonarr_disk(

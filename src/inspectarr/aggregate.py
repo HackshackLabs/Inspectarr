@@ -3,7 +3,7 @@
 import re
 from datetime import datetime, timezone
 
-from tautulli_inspector.models import ActivityFetchResult, HistoryFetchResult, InventoryFetchResult
+from inspectarr.models import ActivityFetchResult, HistoryFetchResult, InventoryFetchResult
 
 
 def merge_activity(results: list[ActivityFetchResult]) -> dict:

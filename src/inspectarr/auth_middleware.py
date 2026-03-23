@@ -12,7 +12,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-from tautulli_inspector.settings import _settings_from_env
+from inspectarr.settings import _settings_from_env
 
 _UNAUTH = JSONResponse(
     status_code=401,

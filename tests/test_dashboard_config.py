@@ -6,8 +6,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tautulli_inspector.dashboard_config import save_raw_config
-from tautulli_inspector.settings import TautulliServer, _settings_from_env, get_settings
+from inspectarr.dashboard_config import save_raw_config
+from inspectarr.settings import TautulliServer, _settings_from_env, get_settings
 
 
 class DashboardConfigMergeTests(unittest.TestCase):

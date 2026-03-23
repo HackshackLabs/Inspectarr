@@ -13,9 +13,9 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 
-from tautulli_inspector.activity_cache import ActivitySnapshotCache
-from tautulli_inspector.dashboard_config import build_template_globals
-from tautulli_inspector.aggregate import (
+from inspectarr.activity_cache import ActivitySnapshotCache
+from inspectarr.dashboard_config import build_template_globals
+from inspectarr.aggregate import (
     build_library_unwatched_tv_report,
     build_unwatched_media_report,
     epoch_to_utc_display,
@@ -23,25 +23,25 @@ from tautulli_inspector.aggregate import (
     merge_history,
     merge_history_rows_all,
 )
-from tautulli_inspector.history_cache import HistoryPageCache
-from tautulli_inspector.history_health import enrich_history_server_statuses
-from tautulli_inspector.live_streams import group_live_streams_by_server
-from tautulli_inspector.history_scope import crawl_trim_cutoff_epoch, resolve_upstream_history_dates
-from tautulli_inspector.inventory_cache import InventoryCache
-from tautulli_inspector.models import InventoryFetchResult
-from tautulli_inspector.report_export import build_export_body, build_export_filename, media_type_for_format
-from tautulli_inspector.settings import (
+from inspectarr.history_cache import HistoryPageCache
+from inspectarr.history_health import enrich_history_server_statuses
+from inspectarr.live_streams import group_live_streams_by_server
+from inspectarr.history_scope import crawl_trim_cutoff_epoch, resolve_upstream_history_dates
+from inspectarr.inventory_cache import InventoryCache
+from inspectarr.models import InventoryFetchResult
+from inspectarr.report_export import build_export_body, build_export_filename, media_type_for_format
+from inspectarr.settings import (
     Settings,
     get_settings,
     plex_mapped_tautulli_server_ids,
     plex_per_server_actions_available,
     sonarr_is_configured,
 )
-from tautulli_inspector.sonarr_client import (
+from inspectarr.sonarr_client import (
     filter_library_inventory_results_by_sonarr_disk,
     prune_library_unwatched_report_show_seasons_without_sonarr_files,
 )
-from tautulli_inspector.tautulli_client import TautulliClient
+from inspectarr.tautulli_client import TautulliClient
 
 logger = logging.getLogger(__name__)
 

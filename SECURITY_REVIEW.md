@@ -1,6 +1,6 @@
 # Security review: Insecpectarr
 
-**Scope:** Application code under `src/tautulli_inspector/`, configuration patterns, and deployment assumptions.  
+**Scope:** Application code under `src/inspectarr/`, configuration patterns, and deployment assumptions.  
 **Method:** Aligns with the methodology in [`SECURITYENGINEER.md`](./SECURITYENGINEER.md): trust boundaries, OWASP-style risks, and concrete remediation (not exploit steps).
 
 ---

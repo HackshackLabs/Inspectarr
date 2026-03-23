@@ -9,9 +9,9 @@ import httpx
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from tautulli_inspector.limiter import limiter
-from tautulli_inspector.plex_client import plex_delete_library_metadata
-from tautulli_inspector.settings import get_settings, resolve_plex_for_tautulli
+from inspectarr.limiter import limiter
+from inspectarr.plex_client import plex_delete_library_metadata
+from inspectarr.settings import get_settings, resolve_plex_for_tautulli
 
 logger = logging.getLogger(__name__)
 

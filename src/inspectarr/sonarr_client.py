@@ -11,7 +11,7 @@ from typing import Any, Literal
 
 import httpx
 
-from tautulli_inspector.models import InventoryFetchResult
+from inspectarr.models import InventoryFetchResult
 
 logger = logging.getLogger(__name__)
 
@@ -777,7 +777,7 @@ async def _all_series_episodes(
 
 def _inventory_episode_tvdb_id(ep: dict[str, Any]) -> int | None:
     """TVDB series id from Tautulli/Plex inventory episode metadata."""
-    from tautulli_inspector.aggregate import tvdb_id_from_guid
+    from inspectarr.aggregate import tvdb_id_from_guid
 
     g = tvdb_id_from_guid(ep.get("guid"))
     if g is not None:

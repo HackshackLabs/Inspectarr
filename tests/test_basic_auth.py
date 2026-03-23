@@ -10,7 +10,7 @@ from starlette.testclient import TestClient
 
 
 def _clear_settings_cache() -> None:
-    from tautulli_inspector.settings import _settings_from_env
+    from inspectarr.settings import _settings_from_env
 
     _settings_from_env.cache_clear()
 
@@ -31,7 +31,7 @@ class BasicAuthMiddlewareTests(unittest.TestCase):
     )
     def test_protected_route_401_without_credentials(self) -> None:
         _clear_settings_cache()
-        from tautulli_inspector.main import create_app
+        from inspectarr.main import create_app
 
         client = TestClient(create_app())
         r = client.get("/")
@@ -50,7 +50,7 @@ class BasicAuthMiddlewareTests(unittest.TestCase):
     )
     def test_protected_route_200_with_valid_basic(self) -> None:
         _clear_settings_cache()
-        from tautulli_inspector.main import create_app
+        from inspectarr.main import create_app
 
         client = TestClient(create_app())
         r = client.get("/", auth=("testuser", "testpass"))
@@ -68,7 +68,7 @@ class BasicAuthMiddlewareTests(unittest.TestCase):
     )
     def test_wrong_password_401(self) -> None:
         _clear_settings_cache()
-        from tautulli_inspector.main import create_app
+        from inspectarr.main import create_app
 
         client = TestClient(create_app())
         r = client.get("/", auth=("testuser", "wrong"))
@@ -86,7 +86,7 @@ class BasicAuthMiddlewareTests(unittest.TestCase):
     )
     def test_disabled_allows_anonymous(self) -> None:
         _clear_settings_cache()
-        from tautulli_inspector.main import create_app
+        from inspectarr.main import create_app
 
         client = TestClient(create_app())
         r = client.get("/")
@@ -104,7 +104,7 @@ class BasicAuthMiddlewareTests(unittest.TestCase):
     )
     def test_healthz_bypasses_auth(self) -> None:
         _clear_settings_cache()
-        from tautulli_inspector.main import create_app
+        from inspectarr.main import create_app
 
         client = TestClient(create_app())
         r = client.get("/healthz")
@@ -124,7 +124,7 @@ class BasicAuthMiddlewareTests(unittest.TestCase):
     )
     def test_healthz_token_required_when_configured(self) -> None:
         _clear_settings_cache()
-        from tautulli_inspector.main import create_app
+        from inspectarr.main import create_app
 
         client = TestClient(create_app())
         self.assertEqual(client.get("/healthz").status_code, 401)

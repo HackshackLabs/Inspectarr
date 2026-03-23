@@ -10,7 +10,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationError
 
-from tautulli_inspector.settings import PlexServer, Settings, TautulliServer
+from inspectarr.settings import PlexServer, Settings, TautulliServer
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +126,7 @@ def apply_dashboard_overrides(base: Settings) -> Settings:
 
 def build_template_globals(page_title: str | None = None, csrf_token: str | None = None) -> dict[str, Any]:
     """Context keys shared by all HTML pages (call from routes)."""
-    import tautulli_inspector.settings as settings_mod
+    import inspectarr.settings as settings_mod
 
     env_base = settings_mod._settings_from_env()
     pres = load_presentation(env_base)

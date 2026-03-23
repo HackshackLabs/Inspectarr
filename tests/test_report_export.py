@@ -3,7 +3,7 @@
 import unittest
 import xml.etree.ElementTree as ET
 
-from tautulli_inspector.report_export import build_export_body, build_export_filename
+from inspectarr.report_export import build_export_body, build_export_filename
 
 
 class ReportExportTests(unittest.TestCase):

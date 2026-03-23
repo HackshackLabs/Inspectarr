@@ -9,10 +9,10 @@ import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-from tautulli_inspector.dashboard_config import ensure_plex_client_identifier, load_raw_config, save_raw_config
-from tautulli_inspector.limiter import limiter
-from tautulli_inspector.plex_client import plex_auth_app_url, plex_check_pin, plex_create_pin
-from tautulli_inspector.settings import _settings_from_env, get_settings, plex_token_for_profile
+from inspectarr.dashboard_config import ensure_plex_client_identifier, load_raw_config, save_raw_config
+from inspectarr.limiter import limiter
+from inspectarr.plex_client import plex_auth_app_url, plex_check_pin, plex_create_pin
+from inspectarr.settings import _settings_from_env, get_settings, plex_token_for_profile
 
 logger = logging.getLogger(__name__)
 

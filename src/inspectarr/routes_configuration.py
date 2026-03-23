@@ -13,8 +13,8 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 
-from tautulli_inspector.csrf import verify_csrf_double_submit
-from tautulli_inspector.dashboard_config import (
+from inspectarr.csrf import verify_csrf_double_submit
+from inspectarr.dashboard_config import (
     SETTINGS_EDITOR_FIELDS,
     THEME_CHOICES,
     PresentationConfig,
@@ -26,15 +26,15 @@ from tautulli_inspector.dashboard_config import (
     save_raw_config,
     upload_dir,
 )
-from tautulli_inspector.limiter import limiter
-from tautulli_inspector.settings import (
+from inspectarr.limiter import limiter
+from inspectarr.settings import (
     PlexServer,
     TautulliServer,
     _settings_from_env,
     get_settings,
     plex_mapped_tautulli_server_ids,
 )
-from tautulli_inspector.url_safety import validate_upstream_base_url
+from inspectarr.url_safety import validate_upstream_base_url
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))

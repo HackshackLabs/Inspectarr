@@ -10,7 +10,7 @@ from starlette.testclient import TestClient
 
 
 def _clear_settings_cache() -> None:
-    from tautulli_inspector.settings import _settings_from_env
+    from inspectarr.settings import _settings_from_env
 
     _settings_from_env.cache_clear()
 
@@ -31,7 +31,7 @@ class CsrfMiddlewareTests(unittest.TestCase):
     )
     def test_json_post_rejects_without_csrf_header(self) -> None:
         _clear_settings_cache()
-        from tautulli_inspector.main import create_app
+        from inspectarr.main import create_app
 
         auth = ("u", "p")
         client = TestClient(create_app())
@@ -58,7 +58,7 @@ class CsrfMiddlewareTests(unittest.TestCase):
     )
     def test_json_post_accepts_matching_csrf_header(self) -> None:
         _clear_settings_cache()
-        from tautulli_inspector.main import create_app
+        from inspectarr.main import create_app
 
         auth = ("u", "p")
         client = TestClient(create_app())

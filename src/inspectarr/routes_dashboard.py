@@ -1362,6 +1362,12 @@ def _library_unwatched_server_card_rows(
             _attach_activity(card)
             cards.append(card)
     _normalize_library_unwatched_report({"per_server": cards})
+    cards.sort(
+        key=lambda c: (
+            str(c.get("server_name") or "").lower(),
+            str(c.get("server_id") or "").lower(),
+        )
+    )
     return cards
 
 

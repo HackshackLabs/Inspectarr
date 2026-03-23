@@ -124,6 +124,16 @@ class LibraryUnwatchedServerCardsTests(unittest.TestCase):
         self.assertEqual("timeout", cards[0]["activity_status"])
         self.assertEqual("Timed out", cards[0]["activity_error"])
 
+    def test_server_cards_sorted_by_display_name(self) -> None:
+        class _Cfg:
+            tautulli_servers = [
+                TautulliServer(id="z", name="Zed", base_url="http://z", api_key="k"),
+                TautulliServer(id="a", name="Alpha", base_url="http://a", api_key="k"),
+            ]
+
+        cards = _library_unwatched_server_card_rows(_Cfg(), {"per_server": []}, loading=True)
+        self.assertEqual(["Alpha", "Zed"], [c["server_name"] for c in cards])
+
 
 if __name__ == "__main__":
     unittest.main()

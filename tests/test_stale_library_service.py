@@ -5,6 +5,7 @@ import unittest
 from inspectarr.stale_library_service import (
     build_watch_index_from_history,
     _lookup_key_variants,
+    _normalize_title_for_stale_match,
     _series_lookup_key,
 )
 
@@ -70,6 +71,33 @@ class StaleLibraryWatchIndexTests(unittest.TestCase):
         sonarr_keys = _lookup_key_variants(73903, "Initial D")
         self.assertTrue(any(k in sw for k in sonarr_keys))
         self.assertTrue(any((k, 1) in ssw for k in sonarr_keys))
+
+    def test_title_variants_intersect_for_punctuation_mismatch(self) -> None:
+        """Sonarr ``American Dad!`` vs Plex-style ``American Dad`` (no TVDB on one side)."""
+        h = _lookup_key_variants(None, "American Dad")
+        s = _lookup_key_variants(None, "American Dad!")
+        self.assertTrue(h & s, msg=f"h={h!r} s={s!r}")
+
+    def test_year_suffix_removed_for_match(self) -> None:
+        h = _lookup_key_variants(None, "Black Sails (2014)")
+        s = _lookup_key_variants(None, "Black Sails")
+        self.assertTrue(h & s)
+
+    def test_normalize_title_folds_punctuation(self) -> None:
+        self.assertEqual(_normalize_title_for_stale_match("American Dad!"), "american dad")
+        self.assertEqual(_normalize_title_for_stale_match("Black Sails (2014)"), "black sails")
+
+    def test_watch_index_uses_show_name_fallback(self) -> None:
+        rows = [
+            {
+                "media_type": "episode",
+                "canonical_utc_epoch": 1_700_000_000,
+                "show_name": "Fallback Show",
+                "parent_media_index": 1,
+            }
+        ]
+        sw, ssw = build_watch_index_from_history(rows, 0)
+        self.assertIn("t:fallback show", sw)
 
 
 if __name__ == "__main__":

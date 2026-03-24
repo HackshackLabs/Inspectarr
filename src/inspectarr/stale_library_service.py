@@ -5,7 +5,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import time
+import unicodedata
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Literal
@@ -297,6 +299,29 @@ def _series_lookup_key(tvdb_id: int | None, title: str) -> str:
     return f"t:{t}" if t else "t:__unknown__"
 
 
+def _normalize_title_for_stale_match(fragment: str) -> str:
+    """Fold titles so Sonarr and Plex/Tautulli variants match (punctuation, quotes, year suffix).
+
+    Examples: ``American Dad!`` vs ``American Dad``; ``Black Sails (2014)`` vs ``Black Sails``.
+    Keeps ``:`` so ``Initial D: First Stage`` still splits for the colon-base variant elsewhere.
+    """
+    t = unicodedata.normalize("NFKC", (fragment or "").strip().lower())
+    if not t:
+        return ""
+    t = re.sub(r"\s*\([12][0-9]{3}\)\s*$", "", t).strip()
+    for u in ("\u2019", "\u2018", "\u201c", "\u201d", "'", '"'):
+        t = t.replace(u, "")
+    out: list[str] = []
+    for c in t:
+        if c.isalnum() or c.isspace() or c == ":":
+            out.append(c)
+        elif c in "!?.,":
+            continue
+        else:
+            out.append(" ")
+    return " ".join("".join(out).split())
+
+
 def _lookup_key_variants(tvdb_id: int | None, title: str) -> set[str]:
     """Keys used to align Sonarr rows with Tautulli history.
 
@@ -304,17 +329,25 @@ def _lookup_key_variants(tvdb_id: int | None, title: str) -> set[str]:
     Sonarr uses the short series title. We always record the primary key (TVDB when available)
     plus normalized full title and, when the title contains ``:``, the segment before the first
     colon so ``Initial D`` matches history for ``Initial D: First Stage``.
+
+    We also add a punctuation-folded title key so metadata that differs only by ``!``, commas,
+    or smart quotes (e.g. ``American Dad!`` in Sonarr vs ``American Dad`` in Plex) still matches.
     """
     keys: set[str] = set()
     keys.add(_series_lookup_key(tvdb_id, title))
     t = (title or "").strip().lower()
     if not t:
         return keys
-    keys.add(f"t:{t}")
+    fragments: list[str] = [t]
     if ":" in t:
         base = t.split(":", 1)[0].strip()
         if base and base != t:
-            keys.add(f"t:{base}")
+            fragments.append(base)
+    for frag in fragments:
+        keys.add(f"t:{frag}")
+        norm = _normalize_title_for_stale_match(frag)
+        if norm and norm != frag:
+            keys.add(f"t:{norm}")
     return keys
 
 
@@ -332,7 +365,12 @@ def build_watch_index_from_history(rows: list[dict], cutoff_epoch: int) -> tuple
         if ep < cutoff_epoch:
             continue
         tvdb = tvdb_id_from_guid(row.get("grandparent_guid")) or tvdb_id_from_guid(row.get("guid"))
-        title = str(row.get("grandparent_title") or "")
+        title = str(
+            row.get("grandparent_title")
+            or row.get("show_name")
+            or row.get("series_title")
+            or ""
+        ).strip()
         row_keys = _lookup_key_variants(tvdb, title)
         for sk in row_keys:
             series_watched.add(sk)

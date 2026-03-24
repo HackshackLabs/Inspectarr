@@ -32,6 +32,31 @@
       #stale-refresh-now.stale-refresh-working {
         opacity: 0.85;
       }
+      .stale-export {
+        font-size: var(--font-size-small);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 8px 12px;
+        margin-top: 10px;
+        background: var(--card-bg);
+        max-width: 100%;
+      }
+      .stale-export summary {
+        cursor: pointer;
+        color: var(--heading);
+        font-weight: 600;
+      }
+      .stale-export .stale-export-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 14px;
+        margin-top: 10px;
+        align-items: center;
+      }
+      .stale-export .stale-export-links a {
+        color: var(--link);
+        text-decoration: underline;
+      }
       .stale-pager {
         display: flex;
         flex-wrap: wrap;
@@ -214,6 +239,7 @@
         window.STALE_PLEX_CHAIN = {% if plex_chain_enabled %}true{% else %}false{% endif %};
         (function () {
           var DATA_URL = "/insights/stale-library/api/data";
+          var EXPORT_URL = "/insights/stale-library/api/export";
           var REFRESH_URL = "/insights/stale-library/api/refresh";
           var UPSTREAM_URL = "/insights/stale-library/api/upstream";
           var upstreamPollMs = 2500;
@@ -238,6 +264,30 @@
               b.classList.toggle("stale-refresh-working", !!busy);
               b.setAttribute("aria-busy", busy ? "true" : "false");
             }
+          }
+
+          function updateStaleExportLinks() {
+            var wrap = document.getElementById("stale-export-links");
+            if (!wrap) return;
+            var fmts = [
+              { ext: "json", label: "JSON" },
+              { ext: "csv", label: "CSV" },
+              { ext: "txt", label: "TXT" },
+              { ext: "xml", label: "XML" },
+            ];
+            wrap.textContent = "";
+            fmts.forEach(function (x) {
+              var a = document.createElement("a");
+              a.href =
+                EXPORT_URL +
+                "?format=" +
+                encodeURIComponent(x.ext) +
+                "&sort=" +
+                encodeURIComponent(sort);
+              a.textContent = x.label;
+              a.setAttribute("download", "");
+              wrap.appendChild(a);
+            });
           }
 
           function captureOpenStaleSeriesIds(grid) {
@@ -962,6 +1012,7 @@
               renderGrid(j);
               renderPager(j.pagination, "stale-pager-top");
               renderPager(j.pagination, "stale-pager-bottom");
+              updateStaleExportLinks();
             } catch (e) {
               if (e && e.name === "AbortError") {
                 return;
@@ -987,6 +1038,7 @@
             sortEl.onchange = function () {
               sort = this.value;
               page = 1;
+              updateStaleExportLinks();
               loadData(false);
             };
           }
@@ -1031,6 +1083,7 @@
 
           renderStaleStatusLoading("Starting request…");
           setFetchLine("Connecting to Cold Storage API…");
+          updateStaleExportLinks();
           loadData(false);
         })();
       </script>

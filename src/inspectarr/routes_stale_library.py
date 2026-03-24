@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
@@ -28,6 +28,7 @@ from inspectarr.stale_library_service import (
     invalidate_stale_library_cache,
     kick_stale_library_rebuild,
 )
+from inspectarr.stale_library_export import ExportFormat, build_stale_export
 from inspectarr.stale_library_upstream import stale_library_upstream_snapshot
 
 logger = logging.getLogger(__name__)
@@ -80,6 +81,36 @@ async def stale_library_page(request: Request) -> HTMLResponse:
 async def stale_library_api_upstream(request: Request) -> dict[str, Any]:
     """Live Sonarr vs Tautulli progress while a Cold Storage snapshot is building."""
     return stale_library_upstream_snapshot()
+
+
+@router.get("/insights/stale-library/api/export", tags=["dashboard"])
+@limiter.limit("60/minute")
+async def stale_library_api_export(
+    request: Request,
+    fmt: ExportFormat = Query(
+        alias="format",
+        description="Download format: json, csv, txt, or xml (full stale list from snapshot, not paginated).",
+    ),
+    sort: Literal["asc", "desc"] = Query(default="asc"),
+    force_refresh: bool = Query(default=False),
+) -> Response:
+    """Download the complete stale-library series list from the cached snapshot."""
+    settings = get_settings()
+    cancel_library_unwatched_insights_refresh(settings)
+    payload = await get_stale_library_cached(settings, force=force_refresh)
+    if not payload.get("ok"):
+        raise HTTPException(
+            status_code=400,
+            detail=str(payload.get("error") or "Snapshot is not ready; fix configuration or refresh."),
+        )
+    body, mime, name = build_stale_export(fmt, payload, sort)
+    return Response(
+        content=body,
+        media_type=mime,
+        headers={
+            "Content-Disposition": f'attachment; filename="{name}"',
+        },
+    )
 
 
 @router.get("/insights/stale-library/api/data", tags=["dashboard"])

@@ -14,6 +14,16 @@ from inspectarr.settings import TautulliServer
 
 logger = logging.getLogger(__name__)
 
+# Hard ceiling for each Tautulli ``get_history`` request (``length`` param), regardless of settings/UI.
+TAUTULLI_GET_HISTORY_MAX_ROWS_PER_REQUEST = 200_000
+
+TautulliTraceHook = Callable[[TautulliServer, str, int | None, bool], None]
+HistoryRowsHook = Callable[[TautulliServer, int], None]
+
+
+def _clamp_get_history_length(length: int) -> int:
+    return min(max(int(length), 1), TAUTULLI_GET_HISTORY_MAX_ROWS_PER_REQUEST)
+
 
 def _history_rows_until_cutoff(batch: list[dict], stop_before_epoch: int | None) -> tuple[list[dict], bool]:
     """Keep rows while timestamps stay at or after cutoff (UTC epoch start-of-day)."""
@@ -38,12 +48,25 @@ class TautulliClient:
         per_request_delay_seconds: float = 0.0,
         inventory_inter_request_delay_seconds: float = 0.0,
         inventory_metadata_max_parallel: int = 12,
+        trace_hook: TautulliTraceHook | None = None,
+        history_rows_hook: HistoryRowsHook | None = None,
     ) -> None:
         self.timeout_seconds = timeout_seconds
         self.max_parallel_servers = max(max_parallel_servers, 1)
         self.per_request_delay_seconds = max(per_request_delay_seconds, 0.0)
         self.inventory_inter_request_delay_seconds = max(inventory_inter_request_delay_seconds, 0.0)
         self.inventory_metadata_max_parallel = max(1, int(inventory_metadata_max_parallel))
+        self._trace_hook = trace_hook
+        self._history_rows_hook = history_rows_hook
+
+    def _trace_exchange(self, server: TautulliServer, cmd: str, http_status: int | None, ok: bool) -> None:
+        hook = self._trace_hook
+        if not hook:
+            return
+        try:
+            hook(server, cmd, http_status, ok)
+        except Exception:
+            logger.debug("Tautulli trace_hook failed", exc_info=True)
 
     async def fetch_all_activity(self, servers: list[TautulliServer]) -> list[ActivityFetchResult]:
         """Fetch activity from each configured server in parallel."""
@@ -77,6 +100,7 @@ class TautulliClient:
         before: str | None = None,
     ) -> list[HistoryFetchResult]:
         """Fetch one history page from each configured server in parallel."""
+        safe_len = _clamp_get_history_length(length)
         async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
             semaphore = asyncio.Semaphore(self.max_parallel_servers)
             tasks = [
@@ -85,7 +109,7 @@ class TautulliClient:
                     semaphore=semaphore,
                     server=server,
                     start=start,
-                    length=length,
+                    length=safe_len,
                     user=user,
                     media_type=media_type,
                     after=after,
@@ -122,6 +146,7 @@ class TautulliClient:
         Each HTTP request honors semaphore concurrency and per-request delay. Extra
         inter_page_delay_seconds sleeps between pages on a single server (gentle crawl).
         """
+        crawl_page = _clamp_get_history_length(page_size)
         async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
             semaphore = asyncio.Semaphore(self.max_parallel_servers)
             tasks = [
@@ -133,7 +158,7 @@ class TautulliClient:
                     media_type=media_type,
                     after=after,
                     before=before,
-                    page_size=max(page_size, 1),
+                    page_size=crawl_page,
                     inter_page_delay_seconds=max(inter_page_delay_seconds, 0.0),
                     max_rows_per_server=max(max_rows_per_server, 1),
                     stop_before_epoch=stop_before_epoch,
@@ -308,6 +333,7 @@ class TautulliClient:
         started_at = perf_counter()
         try:
             response = await client.get(server.api_endpoint, params=params)
+            self._trace_exchange(server, "get_activity", response.status_code, response.is_success)
             response.raise_for_status()
             payload = response.json()
         except httpx.TimeoutException:
@@ -322,6 +348,7 @@ class TautulliClient:
                     "elapsed_ms": elapsed_ms,
                 },
             )
+            self._trace_exchange(server, "get_activity", None, False)
             return ActivityFetchResult(
                 server_id=server.id,
                 server_name=server.name,
@@ -341,6 +368,12 @@ class TautulliClient:
                     "request_url": _redact_url(str(exc.request.url)),
                 },
             )
+            self._trace_exchange(
+                server,
+                "get_activity",
+                exc.response.status_code if exc.response is not None else None,
+                False,
+            )
             return ActivityFetchResult(
                 server_id=server.id,
                 server_name=server.name,
@@ -349,6 +382,7 @@ class TautulliClient:
             )
         except (httpx.RequestError, ValueError) as exc:
             elapsed_ms = _elapsed_ms(started_at)
+            self._trace_exchange(server, "get_activity", None, False)
             sanitized = _sanitize_error_message(str(exc))
             logger.warning(
                 "Upstream request/parsing error for get_activity",
@@ -381,6 +415,7 @@ class TautulliClient:
                     "message": message,
                 },
             )
+            self._trace_exchange(server, "get_activity", response.status_code, False)
             return ActivityFetchResult(
                 server_id=server.id,
                 server_name=server.name,
@@ -439,7 +474,7 @@ class TautulliClient:
         if before:
             base_params["before"] = before
 
-        requested_length = max(length, 1)
+        requested_length = _clamp_get_history_length(length)
         attempt_lengths: list[int] = [requested_length]
         if requested_length > 60:
             attempt_lengths.append(max(60, requested_length // 2))
@@ -449,11 +484,14 @@ class TautulliClient:
         payload: dict | None = None
         timeout_attempted = False
         started_at = perf_counter()
+        last_history_http_status: int | None = None
         for attempt_length in _dedupe_preserve_order(attempt_lengths):
             params = dict(base_params)
             params["length"] = attempt_length
             try:
                 response = await client.get(server.api_endpoint, params=params)
+                last_history_http_status = response.status_code
+                self._trace_exchange(server, "get_history", response.status_code, response.is_success)
                 response.raise_for_status()
                 payload = response.json()
                 logger.info(
@@ -469,6 +507,7 @@ class TautulliClient:
                 break
             except httpx.TimeoutException:
                 timeout_attempted = True
+                self._trace_exchange(server, "get_history", None, False)
                 logger.warning(
                     "Upstream timeout for get_history attempt",
                     extra={
@@ -493,6 +532,12 @@ class TautulliClient:
                         "request_url": _redact_url(str(exc.request.url)),
                     },
                 )
+                self._trace_exchange(
+                    server,
+                    "get_history",
+                    exc.response.status_code if exc.response is not None else None,
+                    False,
+                )
                 return HistoryFetchResult(
                     server_id=server.id,
                     server_name=server.name,
@@ -501,6 +546,7 @@ class TautulliClient:
                 )
             except (httpx.RequestError, ValueError) as exc:
                 sanitized = _sanitize_error_message(str(exc))
+                self._trace_exchange(server, "get_history", None, False)
                 logger.warning(
                     "Upstream request/parsing error for get_history",
                     extra={
@@ -530,6 +576,7 @@ class TautulliClient:
                     "elapsed_ms": _elapsed_ms(started_at),
                 },
             )
+            self._trace_exchange(server, "get_history", None, False)
             return HistoryFetchResult(
                 server_id=server.id,
                 server_name=server.name,
@@ -549,6 +596,12 @@ class TautulliClient:
                     "elapsed_ms": _elapsed_ms(started_at),
                     "message": message,
                 },
+            )
+            self._trace_exchange(
+                server,
+                "get_history",
+                last_history_http_status,
+                False,
             )
             return HistoryFetchResult(
                 server_id=server.id,
@@ -572,6 +625,12 @@ class TautulliClient:
                 "row_count": len(rows),
             },
         )
+        hr_hook = self._history_rows_hook
+        if hr_hook:
+            try:
+                hr_hook(server, len(rows))
+            except Exception:
+                logger.debug("history_rows_hook failed", exc_info=True)
         return HistoryFetchResult(
             server_id=server.id,
             server_name=server.name,
@@ -928,11 +987,13 @@ class TautulliClient:
         query_params: dict[str, str | int] = {"apikey": server.api_key, "cmd": cmd}
         query_params.update(params)
         response = await client.get(server.api_endpoint, params=query_params)
+        self._trace_exchange(server, cmd, response.status_code, response.is_success)
         response.raise_for_status()
         payload = response.json()
         response_meta = payload.get("response", {})
         if response_meta.get("result") != "success":
             message = response_meta.get("message", "Unknown Tautulli API error")
+            self._trace_exchange(server, cmd, response.status_code, False)
             raise ValueError(f"{cmd} failed: {message}")
         if self.inventory_inter_request_delay_seconds > 0:
             await asyncio.sleep(self.inventory_inter_request_delay_seconds)

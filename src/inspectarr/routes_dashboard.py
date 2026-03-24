@@ -130,6 +130,23 @@ def _library_unwatched_clear_build_step(cache_key: str) -> None:
     _library_unwatched_build_step.pop(cache_key, None)
 
 
+def cancel_library_unwatched_insights_refresh(settings: Settings) -> dict[str, Any]:
+    """Cancel any in-flight Unshelved Mysteries (library-unwatched) snapshot build.
+
+    Does not delete an already-cached snapshot; it only stops the background task
+    (Tautulli history crawl, activity fetch, and TV inventory indexing) if one is running.
+    """
+    insights_cache = _get_insights_cache(settings)
+    cache_key_seed = _insights_library_unwatched_cache_key_seed(settings)
+    cache_key = insights_cache.make_key(cache_key_seed)
+    task = _insights_refresh_tasks.pop(cache_key, None)
+    was_running = bool(task and not task.done())
+    if task and not task.done():
+        task.cancel()
+    _library_unwatched_build_step.pop(cache_key, None)
+    return {"stopped": was_running, "had_registered_task": task is not None}
+
+
 def _library_unwatched_inventory_progress_fingerprint(
     inventory_cache: InventoryCache,
     servers: list[TautulliServer],
@@ -354,7 +371,7 @@ async def dashboard(request: Request) -> HTMLResponse:
 async def history(
     request: Request,
     start: int = Query(default=0, ge=0),
-    length: int = Query(default=50, ge=1, le=250),
+    length: int = Query(default=50, ge=1, le=200_000),
     user: str | None = Query(default=None),
     media_type: str | None = Query(default=None),
     start_date: str | None = Query(default=None, description="YYYY-MM-DD"),
@@ -1102,6 +1119,13 @@ async def library_unwatched_build_status() -> dict[str, bool | str | int]:
         "build_step": build_step,
         "build_step_updated_epoch": build_step_updated_epoch,
     }
+
+
+@router.post("/insights/library-unwatched/stop", tags=["dashboard"])
+async def library_unwatched_stop(_request: Request) -> dict[str, Any]:
+    """Stop any background Unshelved Mysteries build (history + activity + inventory)."""
+    settings = get_settings()
+    return cancel_library_unwatched_insights_refresh(settings)
 
 
 @router.get("/insights/library-unwatched/export", tags=["dashboard"])

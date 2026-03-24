@@ -1,0 +1,1031 @@
+{% extends "layout.html" %}
+{% block page_styles %}
+      main { max-width: 1400px; }
+      .stale-controls-band {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        padding: 10px 0 12px;
+        margin-bottom: 8px;
+        background: var(--page-bg);
+        border-bottom: 1px solid var(--border);
+      }
+      .stale-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 0;
+      }
+      .stale-toolbar label { font-size: var(--font-size-small); color: var(--muted); }
+      .stale-toolbar select, .stale-toolbar button {
+        min-height: var(--touch-target-min);
+        padding: 8px 12px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        background: var(--input-bg);
+        color: var(--text);
+        pointer-events: auto;
+        position: relative;
+        z-index: 51;
+      }
+      #stale-refresh-now.stale-refresh-working {
+        opacity: 0.85;
+      }
+      .stale-pager {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        margin: 12px 0;
+        font-size: var(--font-size-small);
+      }
+      .stale-pager a, .stale-pager button {
+        color: var(--link);
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        text-decoration: underline;
+        padding: 4px 8px;
+        font-size: inherit;
+      }
+      .stale-pager button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        text-decoration: none;
+      }
+      .stale-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 14px;
+        align-items: start;
+      }
+      .stale-card {
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        background: var(--card-bg);
+        overflow: hidden;
+        position: relative;
+      }
+      .stale-card.removed-overlay::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: rgb(220 38 38 / 0.22);
+        pointer-events: none;
+        border-radius: inherit;
+      }
+      .stale-card.removed-overlay {
+        outline: 2px solid var(--err);
+      }
+      .stale-card > summary {
+        cursor: pointer;
+        padding: 12px 14px;
+        font-weight: 600;
+        list-style: none;
+        color: var(--heading);
+      }
+      .stale-card > summary::-webkit-details-marker { display: none; }
+      .stale-card > summary::before {
+        content: "▶";
+        display: inline-block;
+        margin-right: 8px;
+        font-size: 0.65em;
+        color: var(--muted);
+      }
+      .stale-card[open] > summary::before { transform: rotate(90deg); }
+      .stale-card-body { padding: 0 14px 14px; font-size: var(--font-size-small); }
+      .stale-meta { color: var(--muted); margin: 6px 0; }
+      .stale-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 8px;
+      }
+      .stale-actions button {
+        font-size: 11px;
+        padding: 6px 10px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        background: var(--btn-bg);
+        color: var(--btn-fg);
+        cursor: pointer;
+      }
+      .stale-actions button.secondary {
+        background: transparent;
+        color: var(--link);
+        border-color: var(--border);
+      }
+      .stale-season {
+        border-top: 1px solid var(--row-border);
+        padding-top: 10px;
+        margin-top: 10px;
+        position: relative;
+      }
+      .stale-season.removed-overlay::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: rgb(220 38 38 / 0.2);
+        pointer-events: none;
+        border-radius: var(--radius-sm);
+      }
+      .stale-status { font-size: 12px; margin-top: 8px; }
+      .stale-status.err { color: var(--err); }
+      .stale-status.ok { color: var(--ok); }
+      .stale-badge {
+        display: inline-block;
+        margin-left: 6px;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: 600;
+        vertical-align: middle;
+      }
+      .stale-badge.never { background: color-mix(in srgb, var(--warn) 35%, var(--card-bg)); color: var(--text); }
+      .stale-badge.stale2 { background: color-mix(in srgb, var(--muted) 25%, var(--card-bg)); color: var(--muted); }
+      .stale-fetch-line {
+        min-height: 1.35em;
+        margin: 0 0 12px;
+        font-size: var(--font-size-small);
+      }
+      .stale-status-card-loading {
+        border-color: color-mix(in srgb, var(--warn) 45%, var(--border));
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--warn) 25%, transparent);
+      }
+      .stale-status-pulse {
+        animation: stale-status-pulse 1.15s ease-in-out infinite;
+      }
+      @keyframes stale-status-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.55; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .stale-status-pulse { animation: none; }
+      }
+{% endblock %}
+{% block content %}
+      <h2>Cold Storage</h2>
+      <p class="meta">
+        While you use Cold Storage, any in-progress <strong>Unshelved Mysteries</strong> background job is cancelled so upstream work is not doubled up.
+        <strong>Sonarr</strong> lists every managed series and which episodes have files on disk.
+        <strong>Tautulli</strong> supplies watch history: an <strong>all-time crawl</strong> (capped per server by <code>HISTORY_FULL_MAX_ROWS_PER_SERVER</code>) drives <em>never watched</em> (strictly no Tautulli plays in that dataset), and the last <strong>{{ lookback_days }}</strong> days define <em>no plays in the 2-year window</em>.
+        Rows shown have files but <strong>no plays in the 2-year window</strong>. Badges distinguish <strong>never</strong> vs <strong>played before but not in 2y</strong>.
+        {% if plex_chain_enabled %}
+        <strong>Remove series</strong> (series-level button) deletes the show in Sonarr (<code>DELETE /api/v3/series</code> with files) and then removes the <strong>show</strong> from each configured Plex server. <strong>Delete files</strong> on a season row unmonitors that season, deletes its episode files in Sonarr, and removes that <strong>season</strong> on Plex per server.
+        {% else %}
+        Configure Plex tokens, <code>plex_client_identifier</code>, and <code>PLEX_SERVERS_JSON</code> to chain Plex deletes after Sonarr file removal.
+        {% endif %}
+      </p>
+      {% if not sonarr_enabled %}
+      <p class="note">Configure <code>SONARR_BASE_URL</code> and <code>SONARR_API_KEY</code> to enable this view.</p>
+      {% endif %}
+
+      <div class="stale-controls-band">
+        <p class="note stale-fetch-line" id="stale-fetch-line" aria-live="polite">Initializing…</p>
+        <div class="stale-toolbar">
+          <button type="button" id="stale-refresh-now">Refresh snapshot now</button>
+          <label>Sort <select id="stale-sort" aria-label="Sort order">
+            <option value="asc">A → Z</option>
+            <option value="desc">Z → A</option>
+          </select></label>
+          <label>Per page <select id="stale-per" aria-label="Cards per page">
+            <option value="6">6</option>
+            <option value="12" selected>12</option>
+            <option value="24">24</option>
+            <option value="36">36</option>
+          </select></label>
+          <span class="muted" id="stale-updated">—</span>
+        </div>
+        <div class="stale-pager" id="stale-pager-top"></div>
+      </div>
+
+      <h2>Snapshot status</h2>
+      <section class="status-grid" id="stale-status-cards" aria-label="Cold Storage data sources and snapshot"></section>
+
+      <h2>Upstream activity</h2>
+      <p class="note stale-fetch-line" id="stale-upstream-summary" aria-live="polite">—</p>
+      <section class="status-grid" id="stale-upstream-cards" aria-label="Live Tautulli and Sonarr requests"></section>
+      <div id="stale-banner" class="note" style="display:none;"></div>
+      <div class="stale-grid" id="stale-grid"></div>
+      <div class="stale-pager" id="stale-pager-bottom"></div>
+
+      <script>
+        window.STALE_PLEX_CHAIN = {% if plex_chain_enabled %}true{% else %}false{% endif %};
+        (function () {
+          var DATA_URL = "/insights/stale-library/api/data";
+          var REFRESH_URL = "/insights/stale-library/api/refresh";
+          var UPSTREAM_URL = "/insights/stale-library/api/upstream";
+          var upstreamPollMs = 2500;
+          var LS_KEY = "inspectarr:staleLibrary:removed";
+          var page = 1;
+          var sort = "asc";
+          var perPage = 12;
+          var pollMs = 50000;
+          var staleFirstLoad = true;
+          var staleFetchInFlight = false;
+          var staleDataFetchCtrl = null;
+          var pendingRebuildHint = false;
+
+          function setFetchLine(text) {
+            var el = document.getElementById("stale-fetch-line");
+            if (el) el.textContent = text || "";
+          }
+
+          function setRefreshBusy(busy) {
+            var b = document.getElementById("stale-refresh-now");
+            if (b) {
+              b.classList.toggle("stale-refresh-working", !!busy);
+              b.setAttribute("aria-busy", busy ? "true" : "false");
+            }
+          }
+
+          function captureOpenStaleSeriesIds(grid) {
+            var out = new Set();
+            if (!grid) return out;
+            grid.querySelectorAll("details.stale-card[open]").forEach(function (d) {
+              var id = d.getAttribute("data-series-id");
+              if (id != null && id !== "") out.add(String(id));
+            });
+            return out;
+          }
+
+          function restoreOpenStaleSeries(grid, openIds) {
+            if (!grid || !openIds || !openIds.size) return;
+            grid.querySelectorAll("details.stale-card").forEach(function (d) {
+              var id = d.getAttribute("data-series-id");
+              if (id != null && openIds.has(String(id))) d.open = true;
+            });
+          }
+
+          var STALE_OPEN_SS_KEY = "stale-open-series-ids";
+
+          function persistStaleOpenSeriesFromGrid() {
+            var grid = document.getElementById("stale-grid");
+            if (!grid) return;
+            try {
+              sessionStorage.setItem(
+                STALE_OPEN_SS_KEY,
+                JSON.stringify(Array.from(captureOpenStaleSeriesIds(grid)))
+              );
+            } catch (e) {}
+          }
+
+          function mergeSavedOpenStaleSeriesIds(reopen) {
+            try {
+              var raw = sessionStorage.getItem(STALE_OPEN_SS_KEY);
+              if (!raw) return;
+              var saved = JSON.parse(raw);
+              if (!Array.isArray(saved)) return;
+              saved.forEach(function (id) {
+                if (id != null && id !== "") reopen.add(String(id));
+              });
+            } catch (e) {}
+          }
+
+          if (!window.__staleOpenSeriesToggleBound) {
+            window.__staleOpenSeriesToggleBound = true;
+            document.addEventListener(
+              "toggle",
+              function (ev) {
+                var t = ev.target;
+                if (!t || !t.matches || !t.matches("details.stale-card")) return;
+                var grid = document.getElementById("stale-grid");
+                if (!grid || !grid.contains(t)) return;
+                persistStaleOpenSeriesFromGrid();
+              },
+              true
+            );
+          }
+
+          function renderStaleStatusLoading(hint) {
+            var el = document.getElementById("stale-status-cards");
+            if (!el) return;
+            var h = hint || "Waiting for the server…";
+            el.innerHTML =
+              '<article class="status-card stale-status-card-loading">' +
+              '<div><strong>Snapshot</strong></div>' +
+              '<div>Status: <span class="status-pending stale-status-pulse">loading</span></div>' +
+              '<div class="muted">' +
+              esc(h) +
+              "</div>" +
+              "</article>" +
+              '<article class="status-card">' +
+              "<div><strong>Tautulli</strong></div>" +
+              "<div>Episode history</div>" +
+              '<div class="muted">All-time capped crawl per server; 2y + never derived from merged rows.</div>' +
+              "</article>" +
+              '<article class="status-card">' +
+              "<div><strong>Sonarr</strong></div>" +
+              "<div>Library &amp; files</div>" +
+              '<div class="muted">Each series is checked for on-disk episodes.</div>' +
+              "</article>" +
+              '<article class="status-card">' +
+              "<div><strong>Stale matches</strong></div>" +
+              "<div>—</div>" +
+              '<div class="muted">Series with at least one season that has files but no plays in the window.</div>' +
+              "</article>" +
+              '<article class="status-card">' +
+              "<div><strong>This page</strong></div>" +
+              "<div>—</div>" +
+              '<div class="muted">Sort, pagination, and grid fill after the snapshot returns.</div>' +
+              "</article>";
+          }
+
+          function renderStaleStatusFromPayload(j, pagination) {
+            var el = document.getElementById("stale-status-cards");
+            if (!el) return;
+            var ok = !!(j && j.ok);
+            var err = (j && j.error) || "";
+            var lb = j && j.lookback_days != null ? j.lookback_days : "—";
+            var hist = j && j.history_rows_used != null ? j.history_rows_used : "—";
+            var tSrv = j && j.tautulli_server_count != null ? j.tautulli_server_count : "—";
+            var sonScanned = j && j.sonarr_series_scanned != null ? j.sonarr_series_scanned : "—";
+            var hmode = (j && j.history_crawl_mode) || "";
+            var hcap = j && j.history_full_max_rows_per_server != null ? j.history_full_max_rows_per_server : "";
+            var upd =
+              j && j.updated_at_epoch
+                ? new Date(j.updated_at_epoch * 1000).toISOString().replace("T", " ").slice(0, 19) + " UTC"
+                : "—";
+            var p = pagination || (j && j.pagination) || {};
+            var total = p.total != null ? p.total : "—";
+            var curPage = p.page != null ? p.page : 1;
+            var perP = p.per_page != null ? p.per_page : "—";
+            var tp = p.total_pages != null ? p.total_pages : 1;
+            var warnList = (j && j.errors) || [];
+            var warnN = Array.isArray(warnList) ? warnList.length : 0;
+            var snapCls = ok ? "status-ok" : err ? "status-error" : "status-pending";
+            var snapLabel = ok ? "ready" : err ? "blocked" : "unknown";
+            var warnHtml =
+              warnN > 0
+                ? '<div class="status-error">' + esc(warnList.slice(0, 2).join(" · ")) + (warnN > 2 ? " …" : "") + "</div>"
+                : '<div class="muted">None</div>';
+
+            el.innerHTML =
+              '<article class="status-card">' +
+              "<div><strong>Snapshot</strong></div>" +
+              '<div>Status: <span class="' +
+              snapCls +
+              '">' +
+              esc(snapLabel) +
+              "</span></div>" +
+              (ok ? "" : '<div class="status-error">' + esc(err || "See configuration.") + "</div>") +
+              "</article>" +
+              '<article class="status-card">' +
+              "<div><strong>Last built</strong></div>" +
+              "<div>" +
+              esc(upd) +
+              "</div>" +
+              '<div class="muted">Lookback: ' +
+              esc(lb) +
+              " days</div>" +
+              "</article>" +
+              '<article class="status-card">' +
+              "<div><strong>Tautulli</strong></div>" +
+              "<div>" +
+              esc(tSrv) +
+              " server(s)</div>" +
+              "<div>History rows merged: <strong>" +
+              esc(hist) +
+              "</strong></div>" +
+              (hmode
+                ? '<div class="muted">Crawl: ' + esc(hmode) + (hcap !== "" ? " · cap/server " + esc(hcap) : "") + "</div>"
+                : "") +
+              '<div class="muted">2y cutoff + never-watched use the same merged rows.</div>' +
+              "</article>" +
+              '<article class="status-card">' +
+              "<div><strong>Sonarr</strong></div>" +
+              "<div>Series scanned: <strong>" +
+              esc(sonScanned) +
+              "</strong></div>" +
+              '<div class="muted">Episodes with files drive season counts.</div>' +
+              "</article>" +
+              '<article class="status-card">' +
+              "<div><strong>Stale series</strong></div>" +
+              "<div>Total matching: <strong>" +
+              esc(total) +
+              "</strong></div>" +
+              "<div>Showing page " +
+              esc(curPage) +
+              " of " +
+              esc(tp) +
+              " (" +
+              esc(perP) +
+              " per page)</div>" +
+              "</article>" +
+              '<article class="status-card">' +
+              "<div><strong>Warnings</strong></div>" +
+              warnHtml +
+              '<div class="muted" style="margin-top:8px">Auto-refresh: every ' +
+              Math.round(pollMs / 1000) +
+              "s</div>" +
+              "</article>";
+          }
+
+          function renderStaleStatusFetchError(e) {
+            var el = document.getElementById("stale-status-cards");
+            if (!el) return;
+            var msg = e && e.message ? e.message : String(e);
+            el.innerHTML =
+              '<article class="status-card">' +
+              "<div><strong>Snapshot</strong></div>" +
+              '<div>Status: <span class="status-error">request failed</span></div>' +
+              '<div class="status-error">' +
+              esc(msg) +
+              "</div>" +
+              "</article>" +
+              '<article class="status-card">' +
+              "<div><strong>What to try</strong></div>" +
+              '<div class="muted">Check the browser network tab, server logs, and that you are still logged in. Use “Refresh snapshot now” after fixing the issue.</div>' +
+              "</article>";
+          }
+
+          function csrfHeaders() {
+            var m = document.querySelector('meta[name="csrf-token"]');
+            var t = m ? m.getAttribute("content") : "";
+            var h = { "Content-Type": "application/json", Accept: "application/json" };
+            if (t) h["X-CSRF-Token"] = t;
+            return h;
+          }
+
+          function loadRemovedSet() {
+            try {
+              var raw = localStorage.getItem(LS_KEY);
+              if (!raw) return new Set();
+              var a = JSON.parse(raw);
+              if (!Array.isArray(a)) return new Set();
+              return new Set(a);
+            } catch (e) {
+              return new Set();
+            }
+          }
+
+          function saveRemovedSet(s) {
+            try {
+              localStorage.setItem(LS_KEY, JSON.stringify(Array.from(s)));
+            } catch (e) {}
+          }
+
+          function removedKey(tvdb, season) {
+            var t = tvdb != null ? String(tvdb) : "x";
+            if (season == null || season === "") return "s:" + t + ":show";
+            return "s:" + t + ":season:" + String(season);
+          }
+
+          function esc(s) {
+            return String(s == null ? "" : s)
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/"/g, "&quot;");
+          }
+
+          function formatEpochUtc(e) {
+            var n = parseInt(e, 10);
+            if (!n || n < 1) return "—";
+            return new Date(n * 1000).toISOString().replace("T", " ").slice(0, 19) + " UTC";
+          }
+
+          function renderUpstreamPanel(u) {
+            var sumEl = document.getElementById("stale-upstream-summary");
+            var grid = document.getElementById("stale-upstream-cards");
+            if (!sumEl || !grid) return;
+            if (!u || !u.busy) {
+              sumEl.textContent =
+                "Idle — no Cold Storage snapshot is building. Start or wait for a refresh to see live Tautulli servers and Sonarr calls.";
+              grid.innerHTML =
+                '<article class="status-card"><div><strong>Upstream</strong></div><div class="muted">Nothing in flight.</div></article>';
+              return;
+            }
+            var src = u.upstream === "tautulli" ? "Tautulli" : u.upstream === "sonarr" ? "Sonarr" : "Starting";
+            sumEl.textContent =
+              "Active: " + src + " — " + (u.phase || "…") + " · trace updated " + formatEpochUtc(u.updated_epoch);
+            var html = "";
+            var servers = u.tautulli_servers || [];
+            if (servers.length) {
+              servers.forEach(function (s) {
+                var okCls =
+                  s.last_ok === true ? "status-ok" : s.last_ok === false ? "status-error" : "muted";
+                var okTxt =
+                  s.last_ok === true ? "ok" : s.last_ok === false ? "error" : "—";
+                var lastPage =
+                  s.last_history_page_rows === null || s.last_history_page_rows === undefined
+                    ? "—"
+                    : esc(s.last_history_page_rows);
+                html +=
+                  '<article class="status-card">' +
+                  "<div><strong>" +
+                  esc(s.server_name || s.server_id) +
+                  "</strong></div>" +
+                  '<div class="muted">ID: ' +
+                  esc(s.server_id) +
+                  "</div>" +
+                  "<div>Rows in last <code>get_history</code> response: <strong>" +
+                  lastPage +
+                  "</strong></div>" +
+                  "<div>Rows accumulated this build (all pages): <strong>" +
+                  esc(s.history_rows_accumulated != null ? s.history_rows_accumulated : 0) +
+                  "</strong></div>" +
+                  "<div>Last cmd: <code>" +
+                  esc(s.last_cmd || "—") +
+                  "</code></div>" +
+                  "<div>HTTP: " +
+                  (s.last_http_status != null ? esc(s.last_http_status) : "—") +
+                  ' · <span class="' +
+                  okCls +
+                  '">' +
+                  okTxt +
+                  "</span></div>" +
+                  "<div>Last response: <strong>" +
+                  formatEpochUtc(s.last_response_epoch) +
+                  "</strong></div>" +
+                  "</article>";
+              });
+            } else if (u.upstream === "tautulli") {
+              html +=
+                '<article class="status-card"><div><strong>Tautulli</strong></div><div class="muted">Waiting for first server response…</div></article>';
+            }
+            var sn = u.sonarr || {};
+            var last = sn.last;
+            html +=
+              '<article class="status-card">' +
+              "<div><strong>Sonarr</strong></div>" +
+              "<div>Series list size: <strong>" +
+              esc(sn.series_list_count != null ? sn.series_list_count : 0) +
+              "</strong></div>" +
+              "<div>Episode API calls completed: <strong>" +
+              esc(sn.episode_fetches_completed != null ? sn.episode_fetches_completed : 0) +
+              "</strong></div>";
+            if (last && last.label) {
+              var sok = last.ok ? "status-ok" : "status-error";
+              html +=
+                "<div>Last: <code>" +
+                esc(last.label) +
+                "</code></div>" +
+                "<div>HTTP: " +
+                esc(last.http_status) +
+                ' · <span class="' +
+                sok +
+                '">' +
+                (last.ok ? "ok" : "error") +
+                "</span></div>" +
+                "<div>Last response: <strong>" +
+                formatEpochUtc(last.last_response_epoch) +
+                "</strong></div>";
+            } else {
+              html += '<div class="muted">No Sonarr response recorded yet this build.</div>';
+            }
+            html += "</article>";
+            grid.innerHTML = html;
+          }
+
+          async function pollUpstream() {
+            try {
+              var r = await fetch(UPSTREAM_URL, { credentials: "same-origin", headers: { Accept: "application/json" } });
+              if (!r.ok) return;
+              var u = await r.json();
+              renderUpstreamPanel(u);
+            } catch (e) {}
+          }
+
+          async function postJson(url, body) {
+            var r = await fetch(url, {
+              method: "POST",
+              credentials: "same-origin",
+              headers: csrfHeaders(),
+              body: JSON.stringify(body),
+            });
+            var j = null;
+            try {
+              j = await r.json();
+            } catch (e) {}
+            if (!r.ok) {
+              var msg = (j && j.detail) ? (typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail)) : "HTTP " + r.status;
+              throw new Error(msg);
+            }
+            return j;
+          }
+
+          function renderPager(p, elId) {
+            var el = document.getElementById(elId);
+            if (!el || !p) return;
+            var tp = p.total_pages || 1;
+            var cur = p.page || 1;
+            var total = p.total || 0;
+            el.innerHTML =
+              '<button type="button" data-go="first"' +
+              (cur <= 1 ? " disabled" : "") +
+              '>First</button>' +
+              '<button type="button" data-go="prev"' +
+              (cur <= 1 ? " disabled" : "") +
+              '>Previous</button>' +
+              '<span>Page <strong>' +
+              cur +
+              "</strong> of <strong>" +
+              tp +
+              "</strong> (" +
+              total +
+              " series)</span>" +
+              '<button type="button" data-go="next"' +
+              (cur >= tp ? " disabled" : "") +
+              '>Next</button>' +
+              '<button type="button" data-go="last"' +
+              (cur >= tp ? " disabled" : "") +
+              '>Last</button>';
+            el.querySelectorAll("button[data-go]").forEach(function (btn) {
+              btn.onclick = function () {
+                var g = btn.getAttribute("data-go");
+                if (g === "first") page = 1;
+                else if (g === "prev") page = Math.max(1, cur - 1);
+                else if (g === "next") page = Math.min(tp, cur + 1);
+                else if (g === "last") page = tp;
+                loadData(false);
+              };
+            });
+          }
+
+          function renderGrid(payload) {
+            var grid = document.getElementById("stale-grid");
+            var banner = document.getElementById("stale-banner");
+            var updated = document.getElementById("stale-updated");
+            if (!grid) return;
+            var reopen = captureOpenStaleSeriesIds(grid);
+            mergeSavedOpenStaleSeriesIds(reopen);
+            if (payload && payload.errors && payload.errors.length) {
+              banner.style.display = "block";
+              banner.textContent = "Warnings: " + payload.errors.join(" · ");
+            } else {
+              banner.style.display = "none";
+            }
+            if (updated && payload && payload.updated_at_epoch) {
+              var d = new Date(payload.updated_at_epoch * 1000);
+              updated.textContent = "Snapshot: " + d.toISOString().replace("T", " ").slice(0, 19) + " UTC";
+            }
+            if (!payload || !payload.ok) {
+              grid.innerHTML =
+                '<p class="note">' + esc((payload && payload.error) || "No data.") + "</p>";
+              return;
+            }
+            var series = payload.series || [];
+            var removed = loadRemovedSet();
+            if (!series.length) {
+              grid.innerHTML = '<p class="meta">No stale series/seasons match the rules right now.</p>';
+              return;
+            }
+            var html = "";
+            series.forEach(function (s) {
+              var tvdb = s.tvdb_id;
+              var title = s.title || "Unknown";
+              var sid = s.sonarr_series_id;
+              var sls = s.series_level_stale;
+              var snev = !!s.series_never_watched_tautulli;
+              var sm = s.series_monitored;
+              var rkShow = removedKey(tvdb, null);
+              var cardClass = "stale-card";
+              if (removed.has(rkShow)) cardClass += " removed-overlay";
+              html +=
+                "<details class=\"" +
+                cardClass +
+                "\" data-tvdb=\"" +
+                esc(tvdb) +
+                '" data-series-id="' +
+                esc(sid) +
+                '">' +
+                "<summary>" +
+                esc(title) +
+                (snev ? '<span class="stale-badge never">Series never (Tautulli)</span>' : "") +
+                (!snev && sls ? '<span class="stale-badge stale2">No series play 2y</span>' : "") +
+                "</summary>" +
+                '<div class="stale-card-body">';
+              html +=
+                '<p class="stale-meta">Sonarr id ' +
+                esc(sid) +
+                (tvdb != null ? " · TVDB " + esc(tvdb) : "") +
+                " · " +
+                (s.total_files || 0) +
+                " file(s) on disk</p>";
+              if (sls) {
+                html +=
+                  '<p class="stale-meta">No Tautulli plays in the ' +
+                  (payload.lookback_days || "730") +
+                  "-day window at series level" +
+                  (snev ? " · never watched in merged history" : "") +
+                  ".</p>";
+                html += '<div class="stale-actions">';
+                if (sm) {
+                  html +=
+                    '<button type="button" class="act-unmon" data-kind="show" data-tvdb="' +
+                    esc(tvdb) +
+                    '" data-title="' +
+                    esc(title) +
+                    '">Unmonitor series</button>';
+                  html +=
+                    '<button type="button" class="act-del" data-kind="show" data-tvdb="' +
+                    esc(tvdb) +
+                    '" data-title="' +
+                    esc(title) +
+                    '">Remove series</button>';
+                } else {
+                  html +=
+                    '<button type="button" class="act-mon" data-kind="show" data-tvdb="' +
+                    esc(tvdb) +
+                    '" data-title="' +
+                    esc(title) +
+                    '">Monitor series</button>';
+                  html +=
+                    '<button type="button" class="act-del" data-kind="show" data-tvdb="' +
+                    esc(tvdb) +
+                    '" data-title="' +
+                    esc(title) +
+                    '">Remove series</button>';
+                }
+                html += "</div>";
+              }
+              (s.seasons || []).forEach(function (se) {
+                var sn = se.season_number;
+                var rks = removedKey(tvdb, sn);
+                var subClass = "stale-season";
+                if (removed.has(rks)) subClass += " removed-overlay";
+                html += '<div class="' + subClass + '" data-season="' + esc(sn) + '">';
+                var bdg = "";
+                if (se.never_watched_tautulli) bdg += '<span class="stale-badge never">Never</span>';
+                else if (se.watched_ever_tautulli && !se.watched_in_2y)
+                  bdg += '<span class="stale-badge stale2">Not in 2y</span>';
+                html +=
+                  "<strong>Season " +
+                  esc(sn) +
+                  "</strong> · " +
+                  esc(se.file_count) +
+                  " file(s)" +
+                  (se.monitored ? "" : " · unmonitored") +
+                  bdg;
+                html += '<div class="stale-actions">';
+                if (se.monitored) {
+                  html +=
+                    '<button type="button" class="act-unmon" data-kind="season" data-tvdb="' +
+                    esc(tvdb) +
+                    '" data-title="' +
+                    esc(title) +
+                    '" data-season="' +
+                    esc(sn) +
+                    '">Unmonitor season</button>';
+                  html +=
+                    '<button type="button" class="act-del" data-kind="season" data-tvdb="' +
+                    esc(tvdb) +
+                    '" data-title="' +
+                    esc(title) +
+                    '" data-season="' +
+                    esc(sn) +
+                    '">Delete files</button>';
+                } else {
+                  html +=
+                    '<button type="button" class="act-mon" data-kind="season" data-tvdb="' +
+                    esc(tvdb) +
+                    '" data-title="' +
+                    esc(title) +
+                    '" data-season="' +
+                    esc(sn) +
+                    '">Monitor season</button>';
+                  html +=
+                    '<button type="button" class="act-del" data-kind="season" data-tvdb="' +
+                    esc(tvdb) +
+                    '" data-title="' +
+                    esc(title) +
+                    '" data-season="' +
+                    esc(sn) +
+                    '">Delete files</button>';
+                }
+                html += "</div>";
+                html += '<div class="stale-status" aria-live="polite"></div>';
+                html += "</div>";
+              });
+              html += '<div class="stale-status series-status" aria-live="polite"></div>';
+              html += "</div></details>";
+            });
+            grid.innerHTML = html;
+            restoreOpenStaleSeries(grid, reopen);
+            persistStaleOpenSeriesFromGrid();
+
+            grid.querySelectorAll("button.act-unmon").forEach(function (btn) {
+              btn.onclick = function () {
+                doAction(btn, "unmonitor");
+              };
+            });
+            grid.querySelectorAll("button.act-del").forEach(function (btn) {
+              btn.onclick = function () {
+                doAction(btn, "delete");
+              };
+            });
+            grid.querySelectorAll("button.act-mon").forEach(function (btn) {
+              btn.onclick = function () {
+                doAction(btn, "monitor");
+              };
+            });
+          }
+
+          async function doAction(btn, mode) {
+            var kind = btn.getAttribute("data-kind");
+            var tvdbRaw = btn.getAttribute("data-tvdb");
+            var tvdb = tvdbRaw && tvdbRaw !== "null" && tvdbRaw !== "" ? parseInt(tvdbRaw, 10) : null;
+            if (isNaN(tvdb)) tvdb = null;
+            var title = btn.getAttribute("data-title") || "";
+            var season = btn.getAttribute("data-season");
+            var seasonNum = season != null && season !== "" ? parseInt(season, 10) : null;
+            var statusEl = null;
+            if (btn.getAttribute("data-season") != null && btn.getAttribute("data-season") !== "") {
+              var se = btn.closest(".stale-season");
+              statusEl = se ? se.querySelector(".stale-status") : null;
+            } else {
+              var bod = btn.closest(".stale-card-body");
+              statusEl = bod ? bod.querySelector(".series-status") : null;
+            }
+            if (statusEl) {
+              statusEl.className = "stale-status";
+              statusEl.textContent = "…";
+            }
+            var body = {
+              kind: kind,
+              tvdb_id: tvdb,
+              series_title: title || null,
+              season_number: seasonNum,
+              chain_plex_delete: typeof window.STALE_PLEX_CHAIN === "boolean" ? window.STALE_PLEX_CHAIN : true,
+            };
+            try {
+              var url =
+                mode === "delete"
+                  ? "/insights/stale-library/sonarr/unmonitor-delete"
+                  : mode === "monitor"
+                    ? "/insights/stale-library/sonarr/monitor"
+                    : "/insights/stale-library/sonarr/unmonitor";
+              var res = await postJson(url, body);
+              if (statusEl) {
+                statusEl.className = "stale-status ok";
+                var line = res.message || "OK";
+                if (mode === "delete" && res.plex_delete_results && res.plex_delete_results.length) {
+                  var pr = res.plex_delete_results
+                    .map(function (p) {
+                      return (
+                        p.plex_id +
+                        ": " +
+                        (p.ok ? (p.delete_state === "not_found" ? "already gone" : "plex deleted") : p.detail || "fail")
+                      );
+                    })
+                    .join(" · ");
+                  line += " | Plex: " + pr;
+                }
+                statusEl.textContent = line;
+              }
+              if (mode === "delete") {
+                var rem = loadRemovedSet();
+                if (kind === "season") rem.add(removedKey(tvdb, seasonNum));
+                else rem.add(removedKey(tvdb, null));
+                saveRemovedSet(rem);
+              }
+              await loadData(false, { replace: true });
+            } catch (e) {
+              if (statusEl) {
+                statusEl.className = "stale-status err";
+                statusEl.textContent = String(e.message || e);
+              }
+            }
+          }
+
+          async function loadData(force, opts) {
+            opts = opts || {};
+            if (opts.replace) {
+              if (staleDataFetchCtrl) {
+                try {
+                  staleDataFetchCtrl.abort();
+                } catch (e) {}
+              }
+              staleDataFetchCtrl = null;
+              staleFetchInFlight = false;
+            } else if (staleFetchInFlight) {
+              return;
+            }
+            staleFetchInFlight = true;
+            var myCtrl = new AbortController();
+            staleDataFetchCtrl = myCtrl;
+            var silent = !!(opts && opts.silent);
+            var grid = document.getElementById("stale-grid");
+            var hint;
+            if (pendingRebuildHint) {
+              pendingRebuildHint = false;
+              hint =
+                "Rebuild in progress — merging Tautulli history and scanning Sonarr (several minutes possible).";
+            } else if (staleFirstLoad) {
+              hint =
+                "First response can take several minutes while the server merges Tautulli history and scans Sonarr.";
+            } else if (force) {
+              hint = "Recomputing snapshot (cache bypass)…";
+            } else {
+              hint = "Fetching page data…";
+            }
+            if (!silent) {
+              renderStaleStatusLoading(hint);
+              setFetchLine(hint);
+              if (grid) {
+                grid.innerHTML = '<p class="note stale-grid-wait">Loading card grid…</p>';
+              }
+            }
+            var u =
+              DATA_URL +
+              "?page=" +
+              encodeURIComponent(page) +
+              "&per_page=" +
+              encodeURIComponent(perPage) +
+              "&sort=" +
+              encodeURIComponent(sort) +
+              (force ? "&force_refresh=true" : "");
+            try {
+              var r = await fetch(u, {
+                credentials: "same-origin",
+                headers: { Accept: "application/json" },
+                signal: myCtrl.signal,
+              });
+              if (!r.ok) {
+                throw new Error("HTTP " + r.status);
+              }
+              var j = await r.json();
+              staleFirstLoad = false;
+              if (!silent) {
+                renderStaleStatusFromPayload(j, j.pagination);
+                setFetchLine(
+                  "Last updated " + new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC (browser clock)."
+                );
+              }
+              renderGrid(j);
+              renderPager(j.pagination, "stale-pager-top");
+              renderPager(j.pagination, "stale-pager-bottom");
+            } catch (e) {
+              if (e && e.name === "AbortError") {
+                return;
+              }
+              if (!silent) {
+                renderStaleStatusFetchError(e);
+                setFetchLine("Request failed — see Snapshot status card.");
+                if (grid) {
+                  grid.innerHTML =
+                    '<p class="status-error">Could not load data. Check the status cards above and try again.</p>';
+                }
+              }
+            } finally {
+              if (staleDataFetchCtrl === myCtrl) {
+                staleDataFetchCtrl = null;
+                staleFetchInFlight = false;
+              }
+            }
+          }
+
+          var sortEl = document.getElementById("stale-sort");
+          if (sortEl) {
+            sortEl.onchange = function () {
+              sort = this.value;
+              page = 1;
+              loadData(false);
+            };
+          }
+          var perEl = document.getElementById("stale-per");
+          if (perEl) {
+            perEl.onchange = function () {
+              perPage = parseInt(this.value, 10) || 12;
+              page = 1;
+              loadData(false);
+            };
+          }
+          var refreshBtn = document.getElementById("stale-refresh-now");
+          if (refreshBtn) {
+            refreshBtn.addEventListener("click", async function () {
+              setFetchLine("Requesting snapshot rebuild…");
+              renderStaleStatusLoading(
+                "Asking the server to invalidate cache and start a new crawl — the next step loads data (can take several minutes)."
+              );
+              setRefreshBusy(true);
+              try {
+                await postJson(REFRESH_URL, {});
+              } catch (e) {
+                setFetchLine("Refresh request failed: " + (e && e.message ? e.message : String(e)));
+                renderStaleStatusFetchError(e);
+                setRefreshBusy(false);
+                return;
+              }
+              setRefreshBusy(false);
+              setFetchLine("Rebuild started — loading snapshot…");
+              page = 1;
+              pendingRebuildHint = true;
+              await loadData(false, { replace: true });
+            });
+          }
+
+          setInterval(function () {
+            if (!staleFetchInFlight) loadData(false, { silent: true });
+          }, pollMs);
+
+          setInterval(pollUpstream, upstreamPollMs);
+          pollUpstream();
+
+          renderStaleStatusLoading("Starting request…");
+          setFetchLine("Connecting to Cold Storage API…");
+          loadData(false);
+        })();
+      </script>
+{% endblock %}

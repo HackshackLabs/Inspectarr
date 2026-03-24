@@ -53,14 +53,14 @@ class Settings(BaseSettings):
     history_additional_per_request_delay_seconds: float = Field(
         default=0.75, ge=0.0, alias="HISTORY_ADDITIONAL_PER_REQUEST_DELAY_SECONDS"
     )
-    history_week_page_size: int = Field(default=50, ge=1, le=500, alias="HISTORY_WEEK_PAGE_SIZE")
+    history_week_page_size: int = Field(default=50_000, ge=1, le=200_000, alias="HISTORY_WEEK_PAGE_SIZE")
     history_week_inter_page_delay_seconds: float = Field(
         default=0.6, ge=0.0, alias="HISTORY_WEEK_INTER_PAGE_DELAY_SECONDS"
     )
     history_week_max_rows_per_server: int = Field(
         default=20_000, ge=100, le=2_000_000, alias="HISTORY_WEEK_MAX_ROWS_PER_SERVER"
     )
-    history_full_page_size: int = Field(default=25, ge=1, le=500, alias="HISTORY_FULL_PAGE_SIZE")
+    history_full_page_size: int = Field(default=50_000, ge=1, le=200_000, alias="HISTORY_FULL_PAGE_SIZE")
     history_full_inter_page_delay_seconds: float = Field(
         default=3.0, ge=0.0, alias="HISTORY_FULL_INTER_PAGE_DELAY_SECONDS"
     )
@@ -114,6 +114,17 @@ class Settings(BaseSettings):
     inventory_cache_db_path: str = Field(default="./data/inventory_cache.sqlite", alias="INVENTORY_CACHE_DB_PATH")
     insights_cache_db_path: str = Field(default="./data/insights_cache.sqlite", alias="INSIGHTS_CACHE_DB_PATH")
     insights_cache_ttl_seconds: float = Field(default=10800.0, alias="INSIGHTS_CACHE_TTL_SECONDS")
+    stale_library_cache_path: str = Field(
+        default="./data/stale_library_cache.json",
+        alias="STALE_LIBRARY_CACHE_PATH",
+        description="Cold Storage snapshot JSON; empty string disables persisting to disk.",
+    )
+    stale_library_cache_ttl_seconds: float = Field(
+        default=21600.0,
+        ge=5.0,
+        alias="STALE_LIBRARY_CACHE_TTL_SECONDS",
+        description="Wall-clock seconds before a snapshot is stale and rebuilt (default 6 hours).",
+    )
     activity_cache_ttl_seconds: float = Field(default=10.0, alias="ACTIVITY_CACHE_TTL_SECONDS")
     activity_cache_stale_seconds: float = Field(default=30.0, alias="ACTIVITY_CACHE_STALE_SECONDS")
     tautulli_servers: list[TautulliServer] = Field(default_factory=list, alias="TAUTULLI_SERVERS_JSON")

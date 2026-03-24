@@ -12,6 +12,7 @@ from inspectarr.routes_configuration import router as configuration_router
 from inspectarr.routes_dashboard import router as dashboard_router
 from inspectarr.routes_library_plex import router as library_plex_router
 from inspectarr.routes_library_sonarr import router as library_sonarr_router
+from inspectarr.routes_stale_library import router as stale_library_router
 from inspectarr.routes_plex_auth import router as plex_auth_router
 from inspectarr.security_middleware import CsrfMiddleware, SecurityHeadersMiddleware
 from inspectarr.settings import _settings_from_env, get_settings
@@ -36,6 +37,7 @@ def create_app() -> FastAPI:
 
     app.include_router(dashboard_router)
     app.include_router(library_sonarr_router)
+    app.include_router(stale_library_router)
     app.include_router(library_plex_router)
     app.include_router(plex_auth_router)
     app.include_router(configuration_router)

@@ -7,13 +7,16 @@ import hashlib
 import logging
 import time
 from threading import Lock
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 
 import httpx
 
 from inspectarr.models import InventoryFetchResult
 
 logger = logging.getLogger(__name__)
+
+SonarrExchangeHook = Callable[[str, int, bool], None] | None
+SonarrKind = Literal["show", "season", "episode"]
 
 _series_list_cache_lock = Lock()
 _series_list_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
@@ -36,6 +39,8 @@ async def fetch_series_list_cached(
     client: httpx.AsyncClient,
     base_url: str,
     api_key: str,
+    *,
+    on_exchange: SonarrExchangeHook = None,
 ) -> list[dict[str, Any]]:
     """Cached series list to avoid one full download per table row."""
     key = _series_cache_key(base_url, api_key)
@@ -44,21 +49,30 @@ async def fetch_series_list_cached(
         ent = _series_list_cache.get(key)
         if ent and (now - ent[0]) < _SERIES_LIST_CACHE_TTL_SECONDS:
             return ent[1]
-    data = await fetch_series_list(client, base_url, api_key)
+    data = await fetch_series_list(client, base_url, api_key, on_exchange=on_exchange)
     with _series_list_cache_lock:
         _series_list_cache[key] = (now, data)
     return data
-
-SonarrKind = Literal["show", "season", "episode"]
 
 
 def _base(base_url: str) -> str:
     return str(base_url or "").strip().rstrip("/")
 
 
-async def fetch_series_list(client: httpx.AsyncClient, base_url: str, api_key: str) -> list[dict[str, Any]]:
+async def fetch_series_list(
+    client: httpx.AsyncClient,
+    base_url: str,
+    api_key: str,
+    *,
+    on_exchange: SonarrExchangeHook = None,
+) -> list[dict[str, Any]]:
     url = f"{_base(base_url)}/api/v3/series"
     response = await client.get(url, headers={"X-Api-Key": api_key})
+    if on_exchange:
+        try:
+            on_exchange("GET /api/v3/series", response.status_code, response.is_success)
+        except Exception:
+            logger.debug("Sonarr on_exchange failed", exc_info=True)
     response.raise_for_status()
     data = response.json()
     return data if isinstance(data, list) else []
@@ -628,6 +642,75 @@ async def sonarr_unmonitor(
     return {"ok": True, "message": "Episode unmonitored in Sonarr."}
 
 
+async def sonarr_monitor(
+    client: httpx.AsyncClient,
+    base_url: str,
+    api_key: str,
+    *,
+    kind: SonarrKind,
+    tvdb_id: int | None,
+    series_title: str | None,
+    season_number: int | None,
+    episode_number: int | None,
+) -> dict[str, Any]:
+    """Mirror of :func:`sonarr_unmonitor` with monitored flags set to True."""
+    series_list = await fetch_series_list_cached(client, base_url, api_key)
+    series = resolve_series(series_list, tvdb_id, series_title)
+    if not series:
+        return {"ok": False, "message": "Series not found in Sonarr."}
+
+    sid = int(series["id"])
+
+    if kind == "show":
+        series["monitored"] = True
+        await put_series(client, base_url, api_key, series)
+        invalidate_series_list_cache(base_url, api_key)
+        return {"ok": True, "message": "Series monitored in Sonarr."}
+
+    if season_number is None:
+        return {"ok": False, "message": "Season number required."}
+
+    episodes = await fetch_episodes_for_season(client, base_url, api_key, sid, int(season_number))
+    if kind == "season":
+        ids = _episode_ids_for_api(episodes)
+        if ids:
+            await set_episodes_monitored_batched(client, base_url, api_key, ids, True)
+        season_toggled = await put_season_monitored(
+            client, base_url, api_key, sid, int(season_number), monitored=True
+        )
+        if not season_toggled and not ids:
+            return {
+                "ok": False,
+                "message": f"No Sonarr season row or episodes for season {season_number} (refresh the series in Sonarr).",
+            }
+        invalidate_series_list_cache(base_url, api_key)
+        if season_toggled and ids:
+            msg = f"Season {season_number} monitored (Sonarr season toggle + {len(ids)} episode(s))."
+        elif season_toggled:
+            msg = f"Season {season_number} marked monitored in Sonarr."
+        else:
+            msg = f"Monitored {len(ids)} episode(s) in season {season_number}."
+        return {"ok": True, "message": msg}
+
+    if episode_number is None:
+        return {"ok": False, "message": "Episode number required."}
+
+    target_id: int | None = None
+    for ep in episodes:
+        try:
+            if int(ep.get("episodeNumber")) == int(episode_number):
+                target_id = int(ep["id"])
+                break
+        except (TypeError, ValueError):
+            continue
+    if target_id is None:
+        return {"ok": False, "message": "Episode not found in Sonarr."}
+
+    await set_episodes_monitored(client, base_url, api_key, [target_id], True)
+    invalidate_series_list_cache(base_url, api_key)
+    return {"ok": True, "message": "Episode monitored in Sonarr."}
+
+
 async def sonarr_remove_files_and_unmonitor(
     client: httpx.AsyncClient,
     base_url: str,
@@ -665,7 +748,10 @@ async def sonarr_remove_files_and_unmonitor(
                 except httpx.HTTPError as exc:
                     logger.warning("Sonarr delete episode file failed: %s", exc)
         invalidate_series_list_cache(base_url, api_key)
-        return {"ok": True, "message": f"Series unmonitored; deleted {deleted} episode file(s) from disk."}
+        return {
+            "ok": True,
+            "message": f"Deleted {deleted} episode file(s) from disk (series unmonitored in Sonarr).",
+        }
 
     if season_number is None:
         return {"ok": False, "message": "Season number required."}
@@ -712,7 +798,7 @@ async def sonarr_remove_files_and_unmonitor(
     if eid is not None:
         await delete_episode_file(client, base_url, api_key, eid)
         invalidate_series_list_cache(base_url, api_key)
-        return {"ok": True, "message": "Episode unmonitored and file removed from disk."}
+        return {"ok": True, "message": "Episode file removed from disk (episode unmonitored in Sonarr)."}
     invalidate_series_list_cache(base_url, api_key)
     return {"ok": True, "message": "Episode unmonitored (no episode file in Sonarr to delete)."}
 
@@ -806,6 +892,8 @@ async def _all_series_episodes(
     base_url: str,
     api_key: str,
     series_id: int,
+    *,
+    on_exchange: SonarrExchangeHook = None,
 ) -> list[dict[str, Any]]:
     url = f"{_base(base_url)}/api/v3/episode"
     response = await client.get(
@@ -813,6 +901,12 @@ async def _all_series_episodes(
         headers={"X-Api-Key": api_key},
         params={"seriesId": series_id},
     )
+    label = f"GET /api/v3/episode?seriesId={series_id}"
+    if on_exchange:
+        try:
+            on_exchange(label, response.status_code, response.is_success)
+        except Exception:
+            logger.debug("Sonarr on_exchange failed", exc_info=True)
     response.raise_for_status()
     data = response.json()
     return data if isinstance(data, list) else []

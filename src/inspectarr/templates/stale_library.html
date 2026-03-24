@@ -32,28 +32,25 @@
       #stale-refresh-now.stale-refresh-working {
         opacity: 0.85;
       }
-      .stale-export {
+      .stale-export-band {
         font-size: var(--font-size-small);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        padding: 8px 12px;
         margin-top: 10px;
-        background: var(--card-bg);
-        max-width: 100%;
+        padding-top: 10px;
+        border-top: 1px solid var(--border);
+        line-height: 1.5;
       }
-      .stale-export summary {
-        cursor: pointer;
+      .stale-export-band strong {
         color: var(--heading);
-        font-weight: 600;
       }
-      .stale-export .stale-export-links {
-        display: flex;
+      #stale-export-links.stale-export-links {
+        display: inline-flex;
         flex-wrap: wrap;
         gap: 10px 14px;
-        margin-top: 10px;
+        margin-left: 6px;
+        vertical-align: middle;
         align-items: center;
       }
-      .stale-export .stale-export-links a {
+      #stale-export-links.stale-export-links a {
         color: var(--link);
         text-decoration: underline;
       }
@@ -196,6 +193,7 @@
         <strong>Sonarr</strong> lists every managed series and which episodes have files on disk.
         <strong>Tautulli</strong> supplies watch history: an <strong>all-time crawl</strong> (capped per server by <code>HISTORY_FULL_MAX_ROWS_PER_SERVER</code>) drives <em>never watched</em> (strictly no Tautulli plays in that dataset), and the last <strong>{{ lookback_days }}</strong> days define <em>no plays in the 2-year window</em>.
         Rows shown have files but <strong>no plays in the 2-year window</strong>. Badges distinguish <strong>never</strong> vs <strong>played before but not in 2y</strong>.
+        <a href="#stale-export">Download the full stale list</a> (JSON, CSV, TXT, or XML — same order as sort below).
         {% if plex_chain_enabled %}
         <strong>Remove series</strong> (series-level button) deletes the show in Sonarr (<code>DELETE /api/v3/series</code> with files) and then removes the <strong>show</strong> from each configured Plex server. <strong>Delete files</strong> on a season row unmonitors that season, deletes its episode files in Sonarr, and removes that <strong>season</strong> on Plex per server.
         {% else %}
@@ -221,6 +219,11 @@
             <option value="36">36</option>
           </select></label>
           <span class="muted" id="stale-updated">—</span>
+        </div>
+        <div class="stale-export-band" id="stale-export" tabindex="-1">
+          <strong>Export full list</strong>
+          <span class="muted"> — every series in the snapshot (not just this page), using the sort order above: </span>
+          <span id="stale-export-links" class="stale-export-links" aria-label="Download full stale list"></span>
         </div>
         <div class="stale-pager" id="stale-pager-top"></div>
       </div>

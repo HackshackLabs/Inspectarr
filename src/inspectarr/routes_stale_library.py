@@ -39,6 +39,10 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 class StaleSonarrBody(BaseModel):
     kind: Literal["show", "season"]
     tvdb_id: int | None = None
+    sonarr_series_id: int | None = Field(
+        default=None,
+        description="Sonarr internal series id from the card; used to match cache rows when TVDB is missing.",
+    )
     series_title: str | None = Field(default=None, max_length=500)
     season_number: int | None = None
     chain_plex_delete: bool = Field(
@@ -187,7 +191,14 @@ async def stale_library_unmonitor_delete(request: Request, body: StaleSonarrBody
             series_title=str(body.series_title or ""),
             season_number=body.season_number,
         )
-    invalidate_stale_library_cache()
+    await apply_stale_library_cache_after_delete(
+        settings,
+        kind=body.kind,
+        tvdb_id=body.tvdb_id,
+        sonarr_series_id=body.sonarr_series_id,
+        series_title=body.series_title,
+        season_number=body.season_number,
+    )
     return {**result, "plex_delete_results": plex_results}
 
 
@@ -207,6 +218,7 @@ async def stale_library_unmonitor_only(request: Request, body: StaleSonarrBody) 
         settings,
         kind=body.kind,
         tvdb_id=body.tvdb_id,
+        sonarr_series_id=body.sonarr_series_id,
         series_title=body.series_title,
         season_number=body.season_number,
         monitored=False,
@@ -230,6 +242,7 @@ async def stale_library_monitor(request: Request, body: StaleSonarrBody) -> dict
         settings,
         kind=body.kind,
         tvdb_id=body.tvdb_id,
+        sonarr_series_id=body.sonarr_series_id,
         series_title=body.series_title,
         season_number=body.season_number,
         monitored=True,

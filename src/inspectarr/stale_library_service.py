@@ -129,12 +129,20 @@ def _find_stale_series_index(
     series: list[Any],
     *,
     tvdb_id: int | None,
+    sonarr_series_id: int | None = None,
     series_title: str | None,
 ) -> int | None:
     tnorm = str(series_title or "").strip().lower()
     for i, s in enumerate(series):
         if not isinstance(s, dict):
             continue
+        if sonarr_series_id is not None and sonarr_series_id > 0:
+            raw = s.get("sonarr_series_id")
+            try:
+                if raw is not None and int(raw) == int(sonarr_series_id):
+                    return i
+            except (TypeError, ValueError):
+                pass
         if tvdb_id is not None and tvdb_id > 0:
             raw = s.get("tvdb_id")
             try:
@@ -176,6 +184,7 @@ async def apply_stale_library_cache_after_delete(
     *,
     kind: Literal["show", "season"],
     tvdb_id: int | None,
+    sonarr_series_id: int | None = None,
     series_title: str | None,
     season_number: int | None,
 ) -> None:
@@ -185,7 +194,12 @@ async def apply_stale_library_cache_after_delete(
         series = payload.get("series")
         if not isinstance(series, list):
             return False
-        idx = _find_stale_series_index(series, tvdb_id=tvdb_id, series_title=series_title)
+        idx = _find_stale_series_index(
+            series,
+            tvdb_id=tvdb_id,
+            sonarr_series_id=sonarr_series_id,
+            series_title=series_title,
+        )
         if idx is None:
             return False
         if kind == "show":
@@ -230,6 +244,7 @@ async def apply_stale_library_cache_after_monitor_toggle(
     *,
     kind: Literal["show", "season"],
     tvdb_id: int | None,
+    sonarr_series_id: int | None = None,
     series_title: str | None,
     season_number: int | None,
     monitored: bool,
@@ -240,7 +255,12 @@ async def apply_stale_library_cache_after_monitor_toggle(
         series = payload.get("series")
         if not isinstance(series, list):
             return False
-        idx = _find_stale_series_index(series, tvdb_id=tvdb_id, series_title=series_title)
+        idx = _find_stale_series_index(
+            series,
+            tvdb_id=tvdb_id,
+            sonarr_series_id=sonarr_series_id,
+            series_title=series_title,
+        )
         if idx is None:
             return False
         card = series[idx]

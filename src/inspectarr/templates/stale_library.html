@@ -827,6 +827,11 @@
             var tvdbRaw = btn.getAttribute("data-tvdb");
             var tvdb = tvdbRaw && tvdbRaw !== "null" && tvdbRaw !== "" ? parseInt(tvdbRaw, 10) : null;
             if (isNaN(tvdb)) tvdb = null;
+            var cardEl = btn.closest("details.stale-card");
+            var sidRaw = cardEl ? cardEl.getAttribute("data-series-id") : null;
+            var sonarrSeriesId =
+              sidRaw && sidRaw !== "null" && sidRaw !== "" ? parseInt(sidRaw, 10) : null;
+            if (isNaN(sonarrSeriesId)) sonarrSeriesId = null;
             var title = btn.getAttribute("data-title") || "";
             var season = btn.getAttribute("data-season");
             var seasonNum = season != null && season !== "" ? parseInt(season, 10) : null;
@@ -845,6 +850,7 @@
             var body = {
               kind: kind,
               tvdb_id: tvdb,
+              sonarr_series_id: sonarrSeriesId,
               series_title: title || null,
               season_number: seasonNum,
               chain_plex_delete: typeof window.STALE_PLEX_CHAIN === "boolean" ? window.STALE_PLEX_CHAIN : true,
@@ -880,7 +886,7 @@
                 else rem.add(removedKey(tvdb, null));
                 saveRemovedSet(rem);
               }
-              await loadData(false, { replace: true });
+              await loadData(false, { replace: true, silent: true });
             } catch (e) {
               if (statusEl) {
                 statusEl.className = "stale-status err";

@@ -22,8 +22,10 @@ def _minimal_payload() -> dict:
         "lookback_days": 730,
         "history_cutoff_epoch": 0,
         "history_rows_used": 0,
+        "history_oldest_epoch": None,
         "tautulli_server_count": 0,
         "sonarr_series_scanned": 0,
+        "sonarr_series_with_files": 0,
         "errors": [],
     }
 

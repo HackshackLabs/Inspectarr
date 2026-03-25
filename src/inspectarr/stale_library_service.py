@@ -538,6 +538,23 @@ def _episode_has_file(ep: dict[str, Any]) -> bool:
     return bool(ep.get("hasFile"))
 
 
+def _history_oldest_epoch_from_hist_rows(hist_rows: list[dict[str, Any]]) -> int | None:
+    """Smallest positive ``canonical_utc_epoch`` in merged history (None if no dated rows)."""
+    oldest: int | None = None
+    for r in hist_rows:
+        if not isinstance(r, dict):
+            continue
+        try:
+            e = int(r.get("canonical_utc_epoch") or 0)
+        except (TypeError, ValueError):
+            continue
+        if e <= 0:
+            continue
+        if oldest is None or e < oldest:
+            oldest = e
+    return oldest
+
+
 def _stale_tautulli_trace_hook(server: TautulliServer, cmd: str, http_status: int | None, ok: bool) -> None:
     record_stale_library_tautulli(server.id, server.name, cmd, http_status, ok)
 
@@ -606,8 +623,10 @@ async def compute_stale_library_payload(
             "lookback_days": lookback_days,
             "history_cutoff_epoch": cutoff,
             "history_rows_used": 0,
+            "history_oldest_epoch": None,
             "tautulli_server_count": tc,
             "sonarr_series_scanned": 0,
+            "sonarr_series_with_files": 0,
             "overseerr_configured": overseerr_is_configured(settings),
             "overseerr_tvdb_keys": 0,
             "overseerr_tmdb_keys": 0,
@@ -624,8 +643,10 @@ async def compute_stale_library_payload(
             "lookback_days": lookback_days,
             "history_cutoff_epoch": cutoff,
             "history_rows_used": 0,
+            "history_oldest_epoch": None,
             "tautulli_server_count": tc,
             "sonarr_series_scanned": 0,
+            "sonarr_series_with_files": 0,
             "overseerr_configured": overseerr_is_configured(settings),
             "overseerr_tvdb_keys": 0,
             "overseerr_tmdb_keys": 0,
@@ -676,8 +697,10 @@ async def compute_stale_library_payload(
                 errors.append(f"Overseerr: {exc}")
 
         sem = asyncio.Semaphore(max(1, int(max_series_parallel)))
+        sonarr_series_with_files_ct = 0
 
         async def load_one_series(client: httpx.AsyncClient, ser: dict[str, Any]) -> dict[str, Any] | None:
+            nonlocal sonarr_series_with_files_ct
             async with sem:
                 try:
                     sid = int(ser["id"])
@@ -721,6 +744,8 @@ async def compute_stale_library_payload(
                             continue
                         per_season[sn] = per_season.get(sn, 0) + 1
                     total_files = sum(per_season.values())
+                    if total_files > 0:
+                        sonarr_series_with_files_ct += 1
                     if total_files <= 0:
                         return None
 
@@ -835,10 +860,12 @@ async def compute_stale_library_payload(
             "never_played_min_age_days": 180,
             "history_cutoff_epoch": cutoff,
             "history_rows_used": len(hist_rows),
+            "history_oldest_epoch": _history_oldest_epoch_from_hist_rows(hist_rows),
             "history_crawl_mode": "alltime_capped",
             "history_full_max_rows_per_server": settings.history_full_max_rows_per_server,
             "tautulli_server_count": tc,
             "sonarr_series_scanned": len(slist),
+            "sonarr_series_with_files": sonarr_series_with_files_ct,
             "overseerr_configured": overseerr_is_configured(settings),
             "overseerr_tvdb_keys": len(overseerr_by_tvdb),
             "overseerr_tmdb_keys": len(overseerr_by_tmdb),

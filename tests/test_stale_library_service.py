@@ -10,6 +10,7 @@ from inspectarr.stale_library_service import (
     pick_last_tautulli_play_for_series,
     series_added_epoch_utc,
     season_is_stale_cold_storage,
+    _history_oldest_epoch_from_hist_rows,
     _lookup_key_variants,
     _normalize_title_for_stale_match,
     _series_lookup_key,
@@ -193,6 +194,19 @@ class StaleLibraryWatchIndexTests(unittest.TestCase):
         ]
         sw, ssw = build_watch_index_from_history(rows, 0)
         self.assertIn("t:fallback show", sw)
+
+
+class StaleLibraryHistoryOldestEpochTests(unittest.TestCase):
+    def test_oldest_epoch_skips_non_positive(self) -> None:
+        rows = [
+            {"canonical_utc_epoch": 0},
+            {"canonical_utc_epoch": 1_800_000_000},
+            {"canonical_utc_epoch": 1_700_000_000},
+        ]
+        self.assertEqual(_history_oldest_epoch_from_hist_rows(rows), 1_700_000_000)
+
+    def test_oldest_epoch_empty(self) -> None:
+        self.assertIsNone(_history_oldest_epoch_from_hist_rows([]))
 
 
 if __name__ == "__main__":

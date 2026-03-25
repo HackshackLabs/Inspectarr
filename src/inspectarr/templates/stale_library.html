@@ -193,10 +193,37 @@
       @media (prefers-reduced-motion: reduce) {
         .stale-status-pulse { animation: none; }
       }
+      .cold-storage-intro {
+        margin: 0 0 16px;
+      }
+      .cold-storage-intro > summary {
+        cursor: pointer;
+        list-style: none;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--heading);
+        line-height: 1.3;
+      }
+      .cold-storage-intro > summary::-webkit-details-marker { display: none; }
+      .cold-storage-intro > summary::before {
+        content: "▶";
+        display: inline-block;
+        margin-right: 8px;
+        font-size: 0.55em;
+        color: var(--muted);
+        vertical-align: middle;
+      }
+      .cold-storage-intro[open] > summary::before {
+        transform: rotate(90deg);
+      }
+      .cold-storage-intro-body {
+        margin-top: 10px;
+      }
 {% endblock %}
 {% block content %}
-      <h2>Cold Storage</h2>
-      <p class="meta">
+      <details class="cold-storage-intro">
+        <summary>Cold Storage</summary>
+        <div class="meta cold-storage-intro-body">
         <strong>Sonarr</strong> lists every managed series and which episodes have files on disk.
         <strong>Tautulli</strong> supplies watch history: an <strong>all-time crawl</strong> (capped per server by <code>HISTORY_FULL_MAX_ROWS_PER_SERVER</code>) drives <em>never watched</em> (strictly no Tautulli plays in that dataset), and the last <strong>{{ lookback_days }}</strong> days define <em>no plays in the 2-year window</em>.
         Rows shown have files but <strong>no plays in the 2-year window</strong>. Badges distinguish <strong>never</strong> vs <strong>played before but not in 2y</strong>.
@@ -211,7 +238,8 @@
         {% else %}
         Configure Plex tokens, <code>plex_client_identifier</code>, and <code>PLEX_SERVERS_JSON</code> to chain Plex deletes after Sonarr file removal.
         {% endif %}
-      </p>
+        </div>
+      </details>
       {% if not sonarr_enabled %}
       <p class="note">Configure <code>SONARR_BASE_URL</code> and <code>SONARR_API_KEY</code> to enable this view.</p>
       {% endif %}
@@ -267,6 +295,19 @@
           var staleFetchInFlight = false;
           var staleDataFetchCtrl = null;
           var pendingRebuildHint = false;
+
+          function esc(s) {
+            return String(s == null ? "" : s)
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/"/g, "&quot;");
+          }
+
+          function formatEpochUtc(e) {
+            var n = parseInt(e, 10);
+            if (!n || n < 1) return "—";
+            return new Date(n * 1000).toISOString().replace("T", " ").slice(0, 19) + " UTC";
+          }
 
           function setFetchLine(text) {
             var el = document.getElementById("stale-fetch-line");
@@ -378,11 +419,13 @@
               '<article class="status-card">' +
               "<div><strong>Tautulli</strong></div>" +
               "<div>Episode history</div>" +
+              '<div class="muted">Oldest play in merged data: —</div>' +
               '<div class="muted">All-time capped crawl per server; 2y + never derived from merged rows.</div>' +
               "</article>" +
               '<article class="status-card">' +
               "<div><strong>Sonarr</strong></div>" +
               "<div>Library &amp; files</div>" +
+              '<div class="muted">Series with files: —</div>' +
               '<div class="muted">Each series is checked for on-disk episodes.</div>' +
               "</article>" +
               '<article class="status-card">' +
@@ -406,12 +449,12 @@
             var hist = j && j.history_rows_used != null ? j.history_rows_used : "—";
             var tSrv = j && j.tautulli_server_count != null ? j.tautulli_server_count : "—";
             var sonScanned = j && j.sonarr_series_scanned != null ? j.sonarr_series_scanned : "—";
+            var sonWithFiles =
+              j && j.sonarr_series_with_files != null ? j.sonarr_series_with_files : "—";
+            var histOldest = formatEpochUtc(j && j.history_oldest_epoch);
             var hmode = (j && j.history_crawl_mode) || "";
             var hcap = j && j.history_full_max_rows_per_server != null ? j.history_full_max_rows_per_server : "";
-            var upd =
-              j && j.updated_at_epoch
-                ? new Date(j.updated_at_epoch * 1000).toISOString().replace("T", " ").slice(0, 19) + " UTC"
-                : "—";
+            var upd = formatEpochUtc(j && j.updated_at_epoch);
             var p = pagination || (j && j.pagination) || {};
             var total = p.total != null ? p.total : "—";
             var curPage = p.page != null ? p.page : 1;
@@ -457,6 +500,9 @@
               "<div>History rows merged: <strong>" +
               esc(hist) +
               "</strong></div>" +
+              "<div>Oldest play in merged data: <strong>" +
+              esc(histOldest) +
+              "</strong></div>" +
               (hmode
                 ? '<div class="muted">Crawl: ' + esc(hmode) + (hcap !== "" ? " · cap/server " + esc(hcap) : "") + "</div>"
                 : "") +
@@ -464,10 +510,13 @@
               "</article>" +
               '<article class="status-card">' +
               "<div><strong>Sonarr</strong></div>" +
-              "<div>Series scanned: <strong>" +
+              "<div>Series total scanned: <strong>" +
               esc(sonScanned) +
               "</strong></div>" +
-              '<div class="muted">Episodes with files drive season counts.</div>' +
+              "<div>Series with files: <strong>" +
+              esc(sonWithFiles) +
+              "</strong></div>" +
+              '<div class="muted">Only series that have at least one stale season appear in the grid; scan count is the full Sonarr list.</div>' +
               "</article>" +
               (ovCf
                 ? '<article class="status-card">' +
@@ -555,19 +604,6 @@
             var t = tvdb != null ? String(tvdb) : "x";
             if (season == null || season === "") return "s:" + t + ":show";
             return "s:" + t + ":season:" + String(season);
-          }
-
-          function esc(s) {
-            return String(s == null ? "" : s)
-              .replace(/&/g, "&amp;")
-              .replace(/</g, "&lt;")
-              .replace(/"/g, "&quot;");
-          }
-
-          function formatEpochUtc(e) {
-            var n = parseInt(e, 10);
-            if (!n || n < 1) return "—";
-            return new Date(n * 1000).toISOString().replace("T", " ").slice(0, 19) + " UTC";
           }
 
           function seriesRunLabel(state) {

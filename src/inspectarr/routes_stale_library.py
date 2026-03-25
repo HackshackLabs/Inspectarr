@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from inspectarr.limiter import limiter
 from inspectarr.routes_dashboard import _template_ctx, cancel_library_unwatched_insights_refresh
+from inspectarr.overseerr_client import overseerr_is_configured
 from inspectarr.settings import get_settings, sonarr_is_configured
 from inspectarr.stale_library_plex import cold_storage_plex_delete_on_all_servers, plex_any_configured_for_cold_storage
 from inspectarr.sonarr_client import (
@@ -72,6 +73,7 @@ async def stale_library_page(request: Request) -> HTMLResponse:
             sonarr_enabled=sonarr_is_configured(settings),
             lookback_days=730,
             plex_chain_enabled=plex_any_configured_for_cold_storage(settings),
+            overseerr_enabled=overseerr_is_configured(settings),
         ),
     )
 

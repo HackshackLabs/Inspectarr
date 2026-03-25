@@ -356,6 +356,22 @@ async def delete_episode_file(
     response.raise_for_status()
 
 
+async def sonarr_rescan_series(
+    client: httpx.AsyncClient,
+    base_url: str,
+    api_key: str,
+    series_id: int,
+) -> None:
+    """POST ``RescanSeries`` so Sonarr (and typically Plex via connect) drops ghost entries after file deletes."""
+    url = f"{_base(base_url)}/api/v3/command"
+    response = await client.post(
+        url,
+        headers={"X-Api-Key": api_key},
+        json={"name": "RescanSeries", "seriesId": int(series_id)},
+    )
+    response.raise_for_status()
+
+
 async def delete_sonarr_series(
     client: httpx.AsyncClient,
     base_url: str,
@@ -748,6 +764,10 @@ async def sonarr_remove_files_and_unmonitor(
                 except httpx.HTTPError as exc:
                     logger.warning("Sonarr delete episode file failed: %s", exc)
         invalidate_series_list_cache(base_url, api_key)
+        try:
+            await sonarr_rescan_series(client, base_url, api_key, sid)
+        except httpx.HTTPError as exc:
+            logger.warning("Sonarr RescanSeries after cold-storage delete failed: %s", exc)
         return {
             "ok": True,
             "message": f"Deleted {deleted} episode file(s) from disk (series unmonitored in Sonarr).",
@@ -777,6 +797,10 @@ async def sonarr_remove_files_and_unmonitor(
                 except httpx.HTTPError as exc:
                     logger.warning("Sonarr delete episode file failed: %s", exc)
         invalidate_series_list_cache(base_url, api_key)
+        try:
+            await sonarr_rescan_series(client, base_url, api_key, sid)
+        except httpx.HTTPError as exc:
+            logger.warning("Sonarr RescanSeries after cold-storage delete failed: %s", exc)
         return {"ok": True, "message": f"Season unmonitored; deleted {deleted} episode file(s) from disk."}
 
     if episode_number is None:
@@ -798,6 +822,10 @@ async def sonarr_remove_files_and_unmonitor(
     if eid is not None:
         await delete_episode_file(client, base_url, api_key, eid)
         invalidate_series_list_cache(base_url, api_key)
+        try:
+            await sonarr_rescan_series(client, base_url, api_key, sid)
+        except httpx.HTTPError as exc:
+            logger.warning("Sonarr RescanSeries after cold-storage delete failed: %s", exc)
         return {"ok": True, "message": "Episode file removed from disk (episode unmonitored in Sonarr)."}
     invalidate_series_list_cache(base_url, api_key)
     return {"ok": True, "message": "Episode unmonitored (no episode file in Sonarr to delete)."}

@@ -66,3 +66,17 @@ Anyone who passes Basic auth can use **/settings** and change upstream API keys,
 ## Docker / persistence
 
 Mount a volume on the directory containing `dashboard_config.json` and `uploads/` so UI-driven changes survive container restarts.
+
+## Optional Overseerr (Cold Storage)
+
+When **Overseerr** is configured, **Cold Storage** expanded series cards can show TV request metadata (request time, requester, when Overseerr marked the title available). Matching uses **Sonarr’s TVDB id** first, then **TMDB id**, against Overseerr’s request list.
+
+Set via **environment** (see `.env.example`) or **`overrides`** in the dashboard JSON (same field names, snake_case):
+
+| Variable / override key | Purpose |
+| --- | --- |
+| `overseerr_base_url` / `OVERSEERR_BASE_URL` | Base URL of your Overseerr instance (no trailing slash). |
+| `overseerr_api_key` / `OVERSEERR_API_KEY` | API key from Overseerr **Settings → General**. |
+| `overseerr_request_timeout_seconds` / `OVERSEERR_REQUEST_TIMEOUT_SECONDS` | HTTP timeout for Overseerr calls (default 30). |
+
+If the base URL or API key is empty, Cold Storage skips Overseerr calls and cards omit that block.

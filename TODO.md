@@ -74,3 +74,18 @@ Prioritized work through **P3** and the shipped **P4** Plex delete path is compl
 ## Git workflow
 
 Follow `.cursor/rules/git-workflow.mdc`: use a **feature branch** for changes; verify before merge; **never commit** `data/dashboard_config.json` or other files with API keys, tokens, or personal endpoints; merge to `main` and delete the branch only **after** you have confirmed testing was successful. If further fixes happen, continue adding your changes and committing to the branch when your steps are complete.
+
+---
+
+## Cold Storage integration (completed on `main`)
+
+The following were merged via **PR #5** (`feature/stale-library-card-extras` and stacked commits): full stale-list **export** (JSON, CSV, TXT, XML), **cache eviction** keyed by **`sonarr_series_id`**, **title normalization** for Tautulli/Sonarr alignment, **Overseerr** card extras, **Sonarr** status/file-date hints, **last Tautulli play**, and **in-place pagination** on the Cold Storage UI.
+
+**CI:** `pip-audit` runs with **`--skip-editable`** and **`--ignore-vuln CVE-2026-4539`** until a fixed **Pygments** release ships on PyPI (transitive via `pip-audit` → `rich`).
+
+### Optional follow-ups
+
+- **Plex:** Compare `docs/PLEX_API_LIBRARY_REMOVAL.md` to your PMS OpenAPI build; add httpx-mocked Plex delete tests if you want stronger regression coverage.
+- **Cold Storage UX:** Tune auto-refresh interval or add a “pause refresh” control only if polling feels heavy in your environment.
+- **Docs:** Overseerr is documented in **`docs/CONFIGURATION.md`** and **`.env.example`**; link **`REBUILD.md`** from **`README.md`** only if you want that blueprint discoverable.
+- **Remote git:** Delete **`origin/feature/stale-library-card-extras`** when you no longer need the branch name on GitHub (`git push origin --delete feature/stale-library-card-extras`).

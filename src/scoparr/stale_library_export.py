@@ -9,12 +9,35 @@ from typing import Any, Literal
 from xml.etree import ElementTree as ET
 
 ExportFormat = Literal["json", "csv", "txt", "xml"]
+StaleLibrarySort = Literal["asc", "desc", "size_asc", "size_desc"]
 
 
-def _sorted_series(payload: dict[str, Any], sort: Literal["asc", "desc"]) -> list[dict[str, Any]]:
-    series: list[dict[str, Any]] = list(payload.get("series") or [])
+def _series_size_on_disk_for_sort(s: dict[str, Any]) -> int:
+    raw = s.get("size_on_disk_bytes")
+    if raw is None:
+        return 0
+    try:
+        return max(0, int(raw))
+    except (TypeError, ValueError):
+        return 0
+
+
+def sort_stale_library_series(series: list[dict[str, Any]], sort: StaleLibrarySort) -> None:
+    """Sort series in place: title A/Z or Z/A, or disk size ascending/descending (ties by title)."""
+    if sort in ("size_asc", "size_desc"):
+        reverse = sort == "size_desc"
+        series.sort(
+            key=lambda x: (_series_size_on_disk_for_sort(x), str(x.get("title") or "").lower()),
+            reverse=reverse,
+        )
+        return
     reverse = sort == "desc"
     series.sort(key=lambda x: str(x.get("title") or "").lower(), reverse=reverse)
+
+
+def _sorted_series(payload: dict[str, Any], sort: StaleLibrarySort) -> list[dict[str, Any]]:
+    series: list[dict[str, Any]] = list(payload.get("series") or [])
+    sort_stale_library_series(series, sort)
     return series
 
 
@@ -39,7 +62,7 @@ def _export_meta(payload: dict[str, Any]) -> dict[str, Any]:
     return {k: payload.get(k) for k in keys if k in payload}
 
 
-def render_stale_export_json(payload: dict[str, Any], sort: Literal["asc", "desc"]) -> bytes:
+def render_stale_export_json(payload: dict[str, Any], sort: StaleLibrarySort) -> bytes:
     series = _sorted_series(payload, sort)
     out: dict[str, Any] = {
         **_export_meta(payload),
@@ -49,7 +72,7 @@ def render_stale_export_json(payload: dict[str, Any], sort: Literal["asc", "desc
     return (json.dumps(out, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
 
 
-def render_stale_export_txt(payload: dict[str, Any], sort: Literal["asc", "desc"]) -> bytes:
+def render_stale_export_txt(payload: dict[str, Any], sort: StaleLibrarySort) -> bytes:
     lines: list[str] = []
     for s in _sorted_series(payload, sort):
         title = str(s.get("title") or "")
@@ -71,6 +94,8 @@ def render_stale_export_txt(payload: dict[str, Any], sort: Literal["asc", "desc"
         parts.append(f"Sonarr={sid}")
         parts.append(f"monitored={monitored}")
         parts.append(f"files={total}")
+        if s.get("size_on_disk_bytes") is not None:
+            parts.append(f"size_on_disk_bytes={s.get('size_on_disk_bytes')}")
         parts.append(f"never_watched_series={nev}")
         parts.append(f"stale_in_2y_at_series={sls}")
         if run is not None:
@@ -107,13 +132,15 @@ def render_stale_export_txt(payload: dict[str, Any], sort: Literal["asc", "desc"
                     sn = se.get("season_number")
                 fc = se.get("file_count")
                 sm = se.get("monitored")
-                snips.append(f"S{sn}:{fc}files mon={sm}")
+                sz = se.get("size_on_disk_bytes")
+                sz_bit = f" {sz}b" if sz is not None else ""
+                snips.append(f"S{sn}:{fc}files{sz_bit} mon={sm}")
             parts.append("seasons[" + "; ".join(snips) + "]")
         lines.append(" · ".join(str(p) for p in parts))
     return ("\n".join(lines) + ("\n" if lines else "")).encode("utf-8")
 
 
-def render_stale_export_csv(payload: dict[str, Any], sort: Literal["asc", "desc"]) -> bytes:
+def render_stale_export_csv(payload: dict[str, Any], sort: StaleLibrarySort) -> bytes:
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(
@@ -124,6 +151,7 @@ def render_stale_export_csv(payload: dict[str, Any], sort: Literal["asc", "desc"
             "sonarr_series_id",
             "series_monitored",
             "total_files",
+            "size_on_disk_bytes",
             "series_never_watched_tautulli",
             "series_level_stale",
             "series_run_state",
@@ -163,6 +191,7 @@ def render_stale_export_csv(payload: dict[str, Any], sort: Literal["asc", "desc"
                 s.get("sonarr_series_id"),
                 s.get("series_monitored"),
                 s.get("total_files"),
+                s.get("size_on_disk_bytes"),
                 s.get("series_never_watched_tautulli"),
                 s.get("series_level_stale"),
                 s.get("series_run_state"),
@@ -184,7 +213,7 @@ def render_stale_export_csv(payload: dict[str, Any], sort: Literal["asc", "desc"
     return buf.getvalue().encode("utf-8")
 
 
-def render_stale_export_xml(payload: dict[str, Any], sort: Literal["asc", "desc"]) -> bytes:
+def render_stale_export_xml(payload: dict[str, Any], sort: StaleLibrarySort) -> bytes:
     root = ET.Element("staleLibrary")
     series_sorted = _sorted_series(payload, sort)
     root.set("seriesCount", str(len(series_sorted)))
@@ -214,6 +243,7 @@ def render_stale_export_xml(payload: dict[str, Any], sort: Literal["asc", "desc"
             "sonarr_series_id",
             "series_monitored",
             "total_files",
+            "size_on_disk_bytes",
             "series_never_watched_tautulli",
             "series_level_stale",
             "series_watched_in_2y",
@@ -261,6 +291,7 @@ def render_stale_export_xml(payload: dict[str, Any], sort: Literal["asc", "desc"
             for sk in (
                 "season_number",
                 "file_count",
+                "size_on_disk_bytes",
                 "monitored",
                 "watched_in_2y",
                 "never_watched_tautulli",
@@ -284,7 +315,7 @@ def render_stale_export_xml(payload: dict[str, Any], sort: Literal["asc", "desc"
 def build_stale_export(
     export_format: ExportFormat,
     payload: dict[str, Any],
-    sort: Literal["asc", "desc"],
+    sort: StaleLibrarySort,
 ) -> tuple[bytes, str, str]:
     """Return (body, media_type, filename_suffix)."""
     ext = export_format

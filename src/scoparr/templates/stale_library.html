@@ -230,9 +230,9 @@
         {% if overseerr_enabled %}
         <strong>Overseerr</strong> is configured: each expanded card shows request date and requester when a TV request matches this series in Overseerr — first by <strong>Sonarr’s TVDB id</strong>, then by <strong>Sonarr’s TMDB id</strong> (Overseerr often only stores TMDB on the media record), plus when Overseerr marked the title available.
         {% endif %}
-        Expanded cards also show <strong>Sonarr</strong> series status (continuing vs ended) and the earliest/latest episode-file dates Sonarr reports for files on disk.
+        Each card shows <strong>Sonarr</strong> on-disk size (series and per stale season, from Sonarr’s <code>statistics.sizeOnDisk</code> when present). Expanded cards also show series status (continuing vs ended) and the earliest/latest episode-file dates Sonarr reports for files on disk.
         <strong>Last Tautulli play</strong> on a card is the most recent episode watch for that show in the <strong>same merged history crawl</strong> as the rest of this page (capped per server by <code>HISTORY_FULL_MAX_ROWS_PER_SERVER</code>) — user, UTC time, S/E numbers, episode title, and which Tautulli server reported the row.
-        <a href="#stale-export">Download the full stale list</a> (JSON, CSV, TXT, or XML — same order as sort below).
+        <a href="#stale-export">Download the full stale list</a> (JSON, CSV, TXT, or XML — same order as title or disk sort below).
         {% if plex_chain_enabled %}
         <strong>Remove series</strong> (series-level button) deletes the show in Sonarr (<code>DELETE /api/v3/series</code> with files) and then removes the <strong>show</strong> from each configured Plex server. <strong>Delete files</strong> on a season row unmonitors that season, deletes its episode files in Sonarr, and removes that <strong>season</strong> on Plex per server.
         {% else %}
@@ -249,8 +249,10 @@
         <div class="stale-toolbar">
           <button type="button" id="stale-refresh-now">Refresh snapshot now</button>
           <label>Sort <select id="stale-sort" aria-label="Sort order">
-            <option value="asc">A → Z</option>
-            <option value="desc">Z → A</option>
+            <option value="asc">Title A → Z</option>
+            <option value="desc">Title Z → A</option>
+            <option value="size_asc">Disk size · smallest first</option>
+            <option value="size_desc">Disk size · largest first</option>
           </select></label>
           <label>Per page <select id="stale-per" aria-label="Cards per page">
             <option value="6">6</option>
@@ -307,6 +309,25 @@
             var n = parseInt(e, 10);
             if (!n || n < 1) return "—";
             return new Date(n * 1000).toISOString().replace("T", " ").slice(0, 19) + " UTC";
+          }
+
+          function formatBytes(n) {
+            if (n == null || n === "") return "—";
+            var v = typeof n === "number" ? n : parseInt(n, 10);
+            if (!isFinite(v) || v < 0) return "—";
+            if (v === 0) return "0 B";
+            var u = ["B", "KB", "MB", "GB", "TB"];
+            var i = Math.min(Math.floor(Math.log(v) / Math.log(1024)), u.length - 1);
+            var x = v / Math.pow(1024, i);
+            var s =
+              i === 0
+                ? String(Math.round(x))
+                : x >= 100
+                  ? x.toFixed(0)
+                  : x >= 10
+                    ? x.toFixed(1)
+                    : x.toFixed(2);
+            return s + " " + u[i];
           }
 
           function setFetchLine(text) {
@@ -930,7 +951,11 @@
                 (s.tmdb_id != null ? " · TMDB " + esc(s.tmdb_id) : "") +
                 " · " +
                 (s.total_files || 0) +
-                " file(s) on disk</p>";
+                " file(s) on disk" +
+                (s.size_on_disk_bytes != null
+                  ? " · " + formatBytes(s.size_on_disk_bytes) + " on disk (Sonarr)"
+                  : "") +
+                "</p>";
               html += formatExpandedCardExtras(payload, s);
               if (sls) {
                 html +=
@@ -985,6 +1010,7 @@
                   "</strong> · " +
                   esc(se.file_count) +
                   " file(s)" +
+                  (se.size_on_disk_bytes != null ? " · " + formatBytes(se.size_on_disk_bytes) : "") +
                   (se.monitored ? "" : " · unmonitored") +
                   bdg;
                 html += '<div class="stale-actions">';

@@ -29,7 +29,7 @@ from scoparr.stale_library_service import (
     invalidate_stale_library_cache,
     kick_stale_library_rebuild,
 )
-from scoparr.stale_library_export import ExportFormat, build_stale_export
+from scoparr.stale_library_export import ExportFormat, StaleLibrarySort, build_stale_export, sort_stale_library_series
 from scoparr.stale_library_upstream import stale_library_upstream_snapshot
 
 logger = logging.getLogger(__name__)
@@ -92,7 +92,7 @@ async def stale_library_api_export(
         alias="format",
         description="Download format: json, csv, txt, or xml (full stale list from snapshot, not paginated).",
     ),
-    sort: Literal["asc", "desc"] = Query(default="asc"),
+    sort: StaleLibrarySort = Query(default="asc"),
     force_refresh: bool = Query(default=False),
 ) -> Response:
     """Download the complete stale-library series list from the cached snapshot."""
@@ -119,14 +119,13 @@ async def stale_library_api_data(
     request: Request,
     page: int = Query(default=1, ge=1),
     per_page: int = Query(default=12, ge=1, le=60),
-    sort: Literal["asc", "desc"] = Query(default="asc"),
+    sort: StaleLibrarySort = Query(default="asc"),
     force_refresh: bool = Query(default=False),
 ) -> dict[str, Any]:
     settings = get_settings()
     payload = await get_stale_library_cached(settings, force=force_refresh)
     series: list[dict[str, Any]] = list(payload.get("series") or [])
-    reverse = sort == "desc"
-    series.sort(key=lambda x: str(x.get("title") or "").lower(), reverse=reverse)
+    sort_stale_library_series(series, sort)
     total = len(series)
     start = (page - 1) * per_page
     chunk = series[start : start + per_page]

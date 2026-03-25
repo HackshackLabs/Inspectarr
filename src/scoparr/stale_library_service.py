@@ -242,6 +242,21 @@ async def apply_stale_library_cache_after_delete(
         else:
             card["seasons"] = new_seasons
             card["total_files"] = sum(int(x.get("file_count") or 0) for x in new_seasons if isinstance(x, dict))
+            sub_disk = 0
+            any_disk = False
+            for x in new_seasons:
+                if not isinstance(x, dict):
+                    continue
+                raw_sz = x.get("size_on_disk_bytes")
+                if raw_sz is None:
+                    continue
+                try:
+                    sub_disk += int(raw_sz)
+                    any_disk = True
+                except (TypeError, ValueError):
+                    continue
+            if any_disk:
+                card["size_on_disk_bytes"] = sub_disk
         return True
 
     await _mutate_stale_library_cache(settings, mutator)
@@ -369,6 +384,39 @@ def _episode_file_added_epoch(ep: dict[str, Any]) -> int | None:
         if t is not None:
             return t
     return parse_iso8601_utc_epoch(ep.get("dateAdded"))
+
+
+def _sonarr_statistics_size_on_disk(statistics: Any) -> int | None:
+    """Sonarr ``statistics.sizeOnDisk`` in bytes from a series or season object, or None if absent."""
+    if not isinstance(statistics, dict):
+        return None
+    raw = statistics.get("sizeOnDisk")
+    if raw is None:
+        return None
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return n if n >= 0 else None
+
+
+def _sonarr_season_size_on_disk_by_season_number(ser: dict[str, Any]) -> dict[int, int]:
+    """Map Sonarr season number → bytes from each entry in the series payload's ``seasons`` list."""
+    out: dict[int, int] = {}
+    seasons = ser.get("seasons")
+    if not isinstance(seasons, list):
+        return out
+    for item in seasons:
+        if not isinstance(item, dict):
+            continue
+        try:
+            sn = int(item.get("seasonNumber", -999999))
+        except (TypeError, ValueError):
+            continue
+        sz = _sonarr_statistics_size_on_disk(item.get("statistics"))
+        if sz is not None:
+            out[sn] = sz
+    return out
 
 
 def sonarr_series_run_state(raw_status: Any) -> tuple[str | None, str]:
@@ -721,6 +769,8 @@ async def compute_stale_library_payload(
                     title = str(ser.get("title") or "")
                     sk = _series_lookup_key(tvdb, title)
                     sonarr_keys = _lookup_key_variants(tvdb, title)
+                    season_disk_by_sn = _sonarr_season_size_on_disk_by_season_number(ser)
+                    series_disk = _sonarr_statistics_size_on_disk(ser.get("statistics"))
                     eps = await _all_series_episodes(
                         client,
                         settings.sonarr_base_url,
@@ -795,6 +845,7 @@ async def compute_stale_library_payload(
                             {
                                 "season_number": sn,
                                 "file_count": fc,
+                                "size_on_disk_bytes": season_disk_by_sn.get(sn),
                                 "monitored": season_monitored,
                                 "watched_in_2y": watched_2y,
                                 "watched_ever_tautulli": watched_ever,
@@ -815,6 +866,7 @@ async def compute_stale_library_payload(
                         "title": title,
                         "series_monitored": series_monitored,
                         "total_files": total_files,
+                        "size_on_disk_bytes": series_disk,
                         "lookup_key": sk,
                         "series_level_stale": stale_series,
                         "series_watched_in_2y": any(k in series_watched_2y for k in sonarr_keys),

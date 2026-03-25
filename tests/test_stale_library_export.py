@@ -8,7 +8,7 @@ import json
 import unittest
 import xml.etree.ElementTree as ET
 
-from scoparr.stale_library_export import build_stale_export
+from scoparr.stale_library_export import build_stale_export, sort_stale_library_series
 
 
 def _sample_payload() -> dict:
@@ -27,6 +27,7 @@ def _sample_payload() -> dict:
                 "sonarr_series_id": 22,
                 "series_monitored": True,
                 "total_files": 3,
+                "size_on_disk_bytes": 300,
                 "series_never_watched_tautulli": False,
                 "series_level_stale": True,
                 "seasons": [{"season_number": 1, "file_count": 3, "monitored": True, "stale": True}],
@@ -37,6 +38,7 @@ def _sample_payload() -> dict:
                 "sonarr_series_id": 11,
                 "series_monitored": False,
                 "total_files": 1,
+                "size_on_disk_bytes": 100,
                 "series_never_watched_tautulli": True,
                 "series_level_stale": True,
                 "seasons": [],
@@ -61,6 +63,26 @@ class StaleLibraryExportTests(unittest.TestCase):
         titles = [s["title"] for s in data["series"]]
         self.assertEqual(titles, ["Zebra Show", "Alpha Show"])
 
+    def test_json_sort_size_asc(self) -> None:
+        body, _, _ = build_stale_export("json", _sample_payload(), "size_asc")
+        data = json.loads(body.decode("utf-8"))
+        titles = [s["title"] for s in data["series"]]
+        self.assertEqual(titles, ["Alpha Show", "Zebra Show"])
+
+    def test_json_sort_size_desc(self) -> None:
+        body, _, _ = build_stale_export("json", _sample_payload(), "size_desc")
+        data = json.loads(body.decode("utf-8"))
+        titles = [s["title"] for s in data["series"]]
+        self.assertEqual(titles, ["Zebra Show", "Alpha Show"])
+
+    def test_sort_size_tiebreaker_title(self) -> None:
+        rows = [
+            {"title": "B", "size_on_disk_bytes": 50},
+            {"title": "A", "size_on_disk_bytes": 50},
+        ]
+        sort_stale_library_series(rows, "size_asc")
+        self.assertEqual([r["title"] for r in rows], ["A", "B"])
+
     def test_csv_has_header_and_rows(self) -> None:
         body, mime, name = build_stale_export("csv", _sample_payload(), "asc")
         self.assertIn("text/csv", mime)
@@ -68,7 +90,9 @@ class StaleLibraryExportTests(unittest.TestCase):
         r = csv.reader(io.StringIO(body.decode("utf-8")))
         rows = list(r)
         self.assertEqual(rows[0][0], "title")
+        self.assertIn("size_on_disk_bytes", rows[0])
         self.assertEqual(len(rows), 3)
+        self.assertEqual(len(rows[1]), len(rows[0]))
 
     def test_txt_contains_titles(self) -> None:
         body, mime, _ = build_stale_export("txt", _sample_payload(), "asc")

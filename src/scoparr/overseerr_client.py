@@ -153,12 +153,3 @@ async def fetch_overseerr_tv_request_maps(
     tvdb_out = {tid: finalize_overseerr_tv_entry(v) for tid, v in acc_tvdb.items()}
     tmdb_out = {mid: finalize_overseerr_tv_entry(v) for mid, v in acc_tmdb.items()}
     return tvdb_out, tmdb_out
-
-
-async def fetch_overseerr_tvdb_request_map(
-    client: httpx.AsyncClient,
-    settings: Settings,
-) -> dict[int, dict[str, Any]]:
-    """Backward-compatible: TVDB-keyed map only. Prefer :func:`fetch_overseerr_tv_request_maps`."""
-    tvdb_map, _ = await fetch_overseerr_tv_request_maps(client, settings)
-    return tvdb_map

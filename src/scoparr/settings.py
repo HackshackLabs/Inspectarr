@@ -225,7 +225,3 @@ def plex_mapped_tautulli_server_ids(settings: Settings) -> list[str]:
             out.append(tid)
     return out
 
-
-def plex_per_server_actions_available(settings: Settings) -> bool:
-    """True when at least one per-server row could use Plex delete (mapping + token + client id)."""
-    return bool(plex_mapped_tautulli_server_ids(settings))

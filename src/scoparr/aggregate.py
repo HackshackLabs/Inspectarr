@@ -113,12 +113,6 @@ def canonical_utc_epoch_for_row(row: dict) -> int:
     return _extract_canonical_utc_epoch(row)
 
 
-def epoch_to_utc_display(epoch: int) -> str:
-    if epoch <= 0:
-        return "-"
-    return datetime.fromtimestamp(epoch, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-
-
 def tvdb_id_from_guid(guid: object) -> int | None:
     """Parse TVDB series id from a Plex/Tautulli guid (thetvdb agent URLs)."""
     s = str(guid or "").strip()

@@ -87,6 +87,6 @@ The official API lists separate delete operations for **metadata** vs **media**.
 
 ## TODO (optional follow-ups)
 
-- [ ] Optional `httpx` mock tests for `plex_delete_library_metadata` and PIN helpers.
+- [ ] Optional `httpx` mock tests for `plex_delete_library_metadata_optional` and PIN helpers.
 - [ ] Optional section **empty trash** or **delete media** variant once confirmed against target PMS OpenAPI.
 - [ ] Optional JWT device flow if Plex deprecates classic PIN for your use case.

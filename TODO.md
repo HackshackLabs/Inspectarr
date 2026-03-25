@@ -61,7 +61,7 @@
 Pick these up when you pin a specific Plex Media Server version or need stronger regression coverage.
 
 - **Docs vs OpenAPI:** For a given PMS build, compare `docs/PLEX_API_LIBRARY_REMOVAL.md` to that version’s PMS OpenAPI (export from [Plex Media Server API](https://developer.plex.tv/pms/)) and update paths, parameters, or behavior notes if they differ.
-- **Tests and delete variants:** Optionally add `httpx`-mocked tests around `plex_delete_library_metadata` and the Library Unwatched delete route. If production needs empty-trash, delete-media, or other PMS endpoints, document the gap and extend the client the same way as metadata delete.
+- **Tests and delete variants:** Optionally add `httpx`-mocked tests around `plex_delete_library_metadata_optional` and the Horizon Watch / stale-library Plex chain. If production needs empty-trash, delete-media, or other PMS endpoints, document the gap and extend the client the same way as metadata delete.
 
 ---
 

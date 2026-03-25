@@ -13,7 +13,7 @@ from fastapi.templating import Jinja2Templates
 
 from scoparr.activity_cache import ActivitySnapshotCache
 from scoparr.dashboard_config import build_template_globals
-from scoparr.aggregate import epoch_to_utc_display, merge_activity, merge_history
+from scoparr.aggregate import merge_activity, merge_history
 from scoparr.history_cache import HistoryPageCache
 from scoparr.history_health import enrich_history_server_statuses
 from scoparr.live_streams import group_live_streams_by_server

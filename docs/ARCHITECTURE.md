@@ -2,7 +2,7 @@
 
 ## Overview
 
-`inspectarr` provides a lightweight FastAPI dashboard that aggregates read-only data from multiple Tautulli instances into a single operator view.
+`scoparr` provides a lightweight FastAPI dashboard that aggregates read-only data from multiple Tautulli instances into a single operator view.
 
 Primary MVP goals:
 
@@ -27,7 +27,7 @@ The app uses a fan-out and merge model:
 ## Repository layout (selected)
 
 ```text
-src/inspectarr/
+src/scoparr/
   main.py                 # FastAPI app
   settings.py             # pydantic-settings from env + JSON overrides
   tautulli_client.py      # upstream fan-out
@@ -39,7 +39,6 @@ src/inspectarr/
   routes_library_plex.py
   routes_configuration.py # /settings
   templates/              # Jinja2
-src/tautulli_inspector/   # legacy entry shim (uvicorn module path)
 docs/                     # operator and contributor docs
 ```
 
@@ -50,7 +49,7 @@ flowchart LR
   subgraph browser [Browser]
     UI[Dashboard]
   end
-  subgraph app [inspectarr]
+  subgraph app [scoparr]
     API[FastAPI routes]
     Agg[aggregate]
     Client[tautulli_client]

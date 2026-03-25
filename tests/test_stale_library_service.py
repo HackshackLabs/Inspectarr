@@ -3,7 +3,7 @@
 import unittest
 from datetime import datetime, timezone
 
-from inspectarr.stale_library_service import (
+from scoparr.stale_library_service import (
     NEVER_PLAYED_MIN_AGE_SECONDS,
     build_last_watch_index_from_history,
     build_watch_index_from_history,

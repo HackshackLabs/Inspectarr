@@ -2,7 +2,7 @@
 
 import unittest
 
-from inspectarr.plex_client import _pick_show_rating_key
+from scoparr.plex_client import _pick_show_rating_key
 
 
 class PlexHubMatchTests(unittest.TestCase):

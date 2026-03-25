@@ -1,6 +1,6 @@
 # UI review and implementation backlog
 
-This document records a design review of **Insecpectarr** against a design-system-style target: WCAG-minded contrast and focus, responsive layout, shared tokens, component consistency, and clear handoff patterns. Use it to prioritize UI work; update sections as items ship.
+This document records a design review of **Scoparr** against a design-system-style target: WCAG-minded contrast and focus, responsive layout, shared tokens, component consistency, and clear handoff patterns. Use it to prioritize UI work; update sections as items ship.
 
 ## Recently implemented (2026-03)
 

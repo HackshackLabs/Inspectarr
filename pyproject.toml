@@ -3,9 +3,9 @@ requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "inspectarr"
+name = "scoparr"
 version = "0.1.0"
-description = "Insecpectarr — single-pane dashboard for multiple Tautulli servers."
+description = "Scoparr — single-pane dashboard for multiple Tautulli servers."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -19,8 +19,7 @@ dependencies = [
 ]
 
 [project.scripts]
-inspectarr = "inspectarr.main:run"
-tautulli-inspector = "tautulli_inspector.main:run"
+scoparr = "scoparr.main:run"
 
 [tool.setuptools.package-dir]
 "" = "src"

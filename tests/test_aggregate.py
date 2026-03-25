@@ -2,9 +2,9 @@
 
 import unittest
 
-from inspectarr.aggregate import merge_activity, merge_history, tvdb_id_from_guid
-from inspectarr.sonarr_client import resolve_series
-from inspectarr.models import ActivityFetchResult, HistoryFetchResult
+from scoparr.aggregate import merge_activity, merge_history, tvdb_id_from_guid
+from scoparr.sonarr_client import resolve_series
+from scoparr.models import ActivityFetchResult, HistoryFetchResult
 
 
 class MergeActivityTests(unittest.TestCase):

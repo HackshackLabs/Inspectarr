@@ -2,7 +2,7 @@
 
 import unittest
 
-from inspectarr.live_streams import group_live_streams_by_server
+from scoparr.live_streams import group_live_streams_by_server
 
 
 class LiveStreamsByServerTests(unittest.TestCase):

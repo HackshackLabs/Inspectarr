@@ -3,7 +3,7 @@
 import unittest
 from datetime import datetime, timezone
 
-from inspectarr.overseerr_client import _accumulate_tv_request_row, finalize_overseerr_tv_entry
+from scoparr.overseerr_client import _accumulate_tv_request_row, finalize_overseerr_tv_entry
 
 
 class OverseerrRequestMapTests(unittest.TestCase):

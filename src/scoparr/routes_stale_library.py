@@ -10,27 +10,27 @@ from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
-from inspectarr.limiter import limiter
-from inspectarr.routes_dashboard import _template_ctx
-from inspectarr.overseerr_client import overseerr_is_configured
-from inspectarr.settings import get_settings, sonarr_is_configured
-from inspectarr.stale_library_plex import cold_storage_plex_delete_on_all_servers, plex_any_configured_for_cold_storage
-from inspectarr.sonarr_client import (
+from scoparr.limiter import limiter
+from scoparr.routes_dashboard import _template_ctx
+from scoparr.overseerr_client import overseerr_is_configured
+from scoparr.settings import get_settings, sonarr_is_configured
+from scoparr.stale_library_plex import cold_storage_plex_delete_on_all_servers, plex_any_configured_for_cold_storage
+from scoparr.sonarr_client import (
     SonarrKind,
     sonarr_delete,
     sonarr_monitor,
     sonarr_remove_files_and_unmonitor,
     sonarr_unmonitor,
 )
-from inspectarr.stale_library_service import (
+from scoparr.stale_library_service import (
     apply_stale_library_cache_after_delete,
     apply_stale_library_cache_after_monitor_toggle,
     get_stale_library_cached,
     invalidate_stale_library_cache,
     kick_stale_library_rebuild,
 )
-from inspectarr.stale_library_export import ExportFormat, build_stale_export
-from inspectarr.stale_library_upstream import stale_library_upstream_snapshot
+from scoparr.stale_library_export import ExportFormat, build_stale_export
+from scoparr.stale_library_upstream import stale_library_upstream_snapshot
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ async def stale_library_page(request: Request) -> HTMLResponse:
         name="stale_library.html",
         context=_template_ctx(
             request,
-            "Cold Storage",
+            "Horizon Watch",
             nav_current="stale_library",
             sonarr_enabled=sonarr_is_configured(settings),
             lookback_days=730,

@@ -13,8 +13,8 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 
-from inspectarr.csrf import verify_csrf_double_submit
-from inspectarr.dashboard_config import (
+from scoparr.csrf import verify_csrf_double_submit
+from scoparr.dashboard_config import (
     SETTINGS_EDITOR_FIELDS,
     THEME_CHOICES,
     PresentationConfig,
@@ -26,15 +26,15 @@ from inspectarr.dashboard_config import (
     save_raw_config,
     upload_dir,
 )
-from inspectarr.limiter import limiter
-from inspectarr.settings import (
+from scoparr.limiter import limiter
+from scoparr.settings import (
     PlexServer,
     TautulliServer,
     _settings_from_env,
     get_settings,
     plex_mapped_tautulli_server_ids,
 )
-from inspectarr.url_safety import validate_upstream_base_url
+from scoparr.url_safety import validate_upstream_base_url
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
@@ -119,7 +119,7 @@ async def settings_page(
     ov = load_overrides_dict(env_base)
     plex_saved_ok = plex_saved in ("primary", "secondary")
     ctx = build_template_globals(
-        "Inspector's Clipboard", csrf_token=getattr(request.state, "csrf_token", "") or ""
+        "Scoparr's Clipboard", csrf_token=getattr(request.state, "csrf_token", "") or ""
     )
     ctx.update(
         {
@@ -210,7 +210,7 @@ async def settings_save(request: Request) -> RedirectResponse:
 
     presentation = {
         "theme": theme,
-        "site_title": (scalar.get("site_title") or "Insecpectarr").strip()[:200],
+        "site_title": (scalar.get("site_title") or "Scoparr").strip()[:200],
         "footer_text": (scalar.get("footer_text") or "")[:500],
         "custom_nav_note": (scalar.get("custom_nav_note") or "")[:300],
         "logo_file": logo_name,

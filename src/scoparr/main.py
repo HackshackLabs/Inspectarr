@@ -1,24 +1,24 @@
-"""FastAPI entrypoint for Insecpectarr."""
+"""FastAPI entrypoint for Scoparr."""
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from inspectarr.auth_middleware import BasicAuthMiddleware
-from inspectarr.dashboard_config import upload_dir
-from inspectarr.limiter import limiter
-from inspectarr.routes_configuration import router as configuration_router
-from inspectarr.routes_dashboard import router as dashboard_router
-from inspectarr.routes_stale_library import router as stale_library_router
-from inspectarr.routes_plex_auth import router as plex_auth_router
-from inspectarr.security_middleware import CsrfMiddleware, SecurityHeadersMiddleware
-from inspectarr.settings import _settings_from_env, get_settings
+from scoparr.auth_middleware import BasicAuthMiddleware
+from scoparr.dashboard_config import upload_dir
+from scoparr.limiter import limiter
+from scoparr.routes_configuration import router as configuration_router
+from scoparr.routes_dashboard import router as dashboard_router
+from scoparr.routes_stale_library import router as stale_library_router
+from scoparr.routes_plex_auth import router as plex_auth_router
+from scoparr.security_middleware import CsrfMiddleware, SecurityHeadersMiddleware
+from scoparr.settings import _settings_from_env, get_settings
 
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
-    app = FastAPI(title="Insecpectarr", version="0.1.0")
+    app = FastAPI(title="Scoparr", version="0.1.0")
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     app.add_middleware(SecurityHeadersMiddleware)
@@ -49,4 +49,4 @@ def run() -> None:
     import uvicorn
 
     settings = get_settings()
-    uvicorn.run("inspectarr.main:app", host=settings.host, port=settings.port, reload=True)
+    uvicorn.run("scoparr.main:app", host=settings.host, port=settings.port, reload=True)

@@ -9,10 +9,10 @@ import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-from inspectarr.dashboard_config import ensure_plex_client_identifier, load_raw_config, save_raw_config
-from inspectarr.limiter import limiter
-from inspectarr.plex_client import plex_auth_app_url, plex_check_pin, plex_create_pin
-from inspectarr.settings import _settings_from_env, get_settings, plex_token_for_profile
+from scoparr.dashboard_config import ensure_plex_client_identifier, load_raw_config, save_raw_config
+from scoparr.limiter import limiter
+from scoparr.plex_client import plex_auth_app_url, plex_check_pin, plex_create_pin
+from scoparr.settings import _settings_from_env, get_settings, plex_token_for_profile
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +131,7 @@ async def plex_auth_validate(
         "X-Plex-Token": token,
         "Accept": "application/json",
         "X-Plex-Client-Identifier": cid,
-        "X-Plex-Product": "Insecpectarr",
+        "X-Plex-Product": "Scoparr",
         "X-Plex-Version": "0.1.0",
     }
     try:

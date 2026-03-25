@@ -8,9 +8,9 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import httpx
 
-from inspectarr.aggregate import canonical_utc_epoch_for_row
-from inspectarr.models import ActivityFetchResult, HistoryFetchResult
-from inspectarr.settings import TautulliServer
+from scoparr.aggregate import canonical_utc_epoch_for_row
+from scoparr.models import ActivityFetchResult, HistoryFetchResult
+from scoparr.settings import TautulliServer
 
 logger = logging.getLogger(__name__)
 

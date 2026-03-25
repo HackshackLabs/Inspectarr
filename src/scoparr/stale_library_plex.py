@@ -7,12 +7,12 @@ from typing import Any, Literal
 
 import httpx
 
-from inspectarr.plex_client import (
+from scoparr.plex_client import (
     plex_delete_library_metadata_optional,
     plex_resolve_show_rating_key,
     plex_season_rating_key_for_show,
 )
-from inspectarr.settings import Settings, plex_token_for_profile
+from scoparr.settings import Settings, plex_token_for_profile
 
 logger = logging.getLogger(__name__)
 

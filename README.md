@@ -1,4 +1,4 @@
-# Insecpectarr
+# Scoparr
 
 Small "single pane of glass" dashboard that aggregates activity and history from multiple Tautulli instances.
 
@@ -134,7 +134,7 @@ Example:
 
    ```bash
    uv sync
-   uv run uvicorn inspectarr.main:app --reload --host 127.0.0.1 --port 8000
+   uv run uvicorn scoparr.main:app --reload --host 127.0.0.1 --port 8000
    ```
 
    **pip**
@@ -142,10 +142,8 @@ Example:
    ```bash
    python -m venv .venv && source .venv/bin/activate
    pip install -e .
-   uvicorn inspectarr.main:app --reload --host 127.0.0.1 --port 8000
+   uvicorn scoparr.main:app --reload --host 127.0.0.1 --port 8000
    ```
-
-   Legacy entry name: `uvicorn tautulli_inspector.main:app` still works via the shim under `src/tautulli_inspector/`.
 
 By default, open `http://127.0.0.1:8000/`.
 
@@ -184,11 +182,11 @@ Or: `PYTHONPATH=src python -m unittest discover -s tests`
 
 Build:
 
-- `docker build -t inspectarr:latest .`
+- `docker build -t scoparr:latest .`
 
 Run:
 
-- `docker run --rm -p 8000:8000 --env-file .env.local inspectarr:latest`
+- `docker run --rm -p 8000:8000 --env-file .env.local scoparr:latest`
 
 ## Security notes
 
@@ -217,4 +215,4 @@ Run:
 | `docs/UI_IMPROVEMENTS.md` | UI review backlog and implementation notes |
 | `TODO.md` | Maintainer checklist (mostly historical) |
 
-Shared layout, nav, and theme tokens: `src/inspectarr/templates/layout.html` (`nav_current` set from `routes_dashboard.py` / `routes_configuration.py`).
+Shared layout, nav, and theme tokens: `src/scoparr/templates/layout.html` (`nav_current` set from `routes_dashboard.py` / `routes_configuration.py`).

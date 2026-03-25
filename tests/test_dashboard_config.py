@@ -6,8 +6,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from inspectarr.dashboard_config import save_raw_config
-from inspectarr.settings import TautulliServer, _settings_from_env, get_settings
+from scoparr.dashboard_config import load_presentation, save_raw_config
+from scoparr.settings import TautulliServer, _settings_from_env, get_settings
 
 
 class DashboardConfigMergeTests(unittest.TestCase):
@@ -57,6 +57,17 @@ class DashboardConfigMergeTests(unittest.TestCase):
             "overrides": new_ov,
         }
         json.dumps(payload)
+
+    def test_legacy_site_title_normalized_to_scoparr(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            cfg = Path(td) / "dash.json"
+            os.environ["DASHBOARD_CONFIG_PATH"] = str(cfg)
+            _settings_from_env.cache_clear()
+            base = _settings_from_env()
+            for legacy in ("Inspectarr", "Insecpectarr", "inspectarr", " INSPECTARR "):
+                save_raw_config(base, {"presentation": {"site_title": legacy}})
+                pres = load_presentation(base)
+                self.assertEqual(pres.site_title, "Scoparr", msg=repr(legacy))
 
     def test_tautulli_servers_from_overrides(self) -> None:
         with tempfile.TemporaryDirectory() as td:

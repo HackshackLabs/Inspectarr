@@ -8,7 +8,7 @@ import json
 import unittest
 import xml.etree.ElementTree as ET
 
-from inspectarr.stale_library_export import build_stale_export
+from scoparr.stale_library_export import build_stale_export
 
 
 def _sample_payload() -> dict:

@@ -149,7 +149,7 @@
 {% endblock %}
 {% block content %}
     <div class="settings-wrap">
-      <h2>Inspector's clipboard</h2>
+      <h2>Scoparr's clipboard</h2>
       <p class="meta">
         Values are stored in <code>{{ config_path_display }}</code> (see documentation). Environment variables still apply for any key not listed under overrides, and for <code>DASHBOARD_CONFIG_PATH</code>.
       </p>
@@ -172,7 +172,7 @@
         <div class="actions actions-top">
           <button type="submit">Save configuration</button>
         </div>
-        <details class="settings-block">
+        <details class="settings-block" data-settings-section="appearance">
           <summary>Appearance</summary>
           <div class="settings-block-body">
           <div class="field-grid">
@@ -205,7 +205,7 @@
           </div>
         </details>
 
-        <details class="settings-block">
+        <details class="settings-block" data-settings-section="tautulli">
           <summary>Tautulli servers</summary>
           <div class="settings-block-body">
           <label class="field">JSON array (id, name, base_url, api_key)
@@ -215,7 +215,7 @@
           </div>
         </details>
 
-        <details class="settings-block">
+        <details class="settings-block" data-settings-section="sonarr">
           <summary>Sonarr</summary>
           <div class="settings-block-body">
           <div class="field-grid">
@@ -236,7 +236,7 @@
           </div>
         </details>
 
-        <details class="settings-block">
+        <details class="settings-block" data-settings-section="plex">
           <summary>Plex Media Server</summary>
           <div class="settings-block-body">
           <div class="plex-summary">
@@ -245,7 +245,7 @@
               <strong>X-Plex-Client-Identifier</strong>:
               {% if plex_client_identifier_configured %}set (see below){% else %}not created yet — click either Sign in once{% endif %}
               · <strong>Plex server mappings</strong>: {{ plex_servers_count }} in JSON
-              · <strong>Cold Storage</strong> can chain Plex on {{ plex_chaining_server_count }} Tautulli server(s)
+              · <strong>Horizon Watch</strong> can chain Plex on {{ plex_chaining_server_count }} Tautulli server(s)
               (needs mapping + token + client id).
             </span>
           </div>
@@ -262,7 +262,7 @@
           </label>
           <p class="hint">
             Example (adjust ids to match your Tautulli <code>id</code> fields):
-            <code>[{"id":"plex1","base_url":"https://plex1.schusterplex.com","tautulli_server_id":"tautulli1","token_profile":"primary"},{"id":"plex2","base_url":"https://plex2.schusterplex.com","tautulli_server_id":"tautulli2","token_profile":"primary"}]</code>
+            <code>[{"id":"plex1","base_url":"https://plex-a.example.com","tautulli_server_id":"server-1","token_profile":"primary"},{"id":"plex2","base_url":"https://plex-b.example.com","tautulli_server_id":"server-2","token_profile":"primary"}]</code>
           </p>
           <div class="field-grid">
             <label class="field">Plex request timeout (s)
@@ -313,7 +313,7 @@
           </div>
         </details>
 
-        <details class="settings-block">
+        <details class="settings-block" data-settings-section="application">
           <summary>Application &amp; upstream</summary>
           <div class="settings-block-body">
           <div class="field-grid">
@@ -339,6 +339,37 @@
     </div>
     <script>
       (function () {
+        var SETTINGS_SECTIONS_LS = "scoparr:settings:openSections";
+        function readSectionOpenState() {
+          var out = {};
+          document.querySelectorAll("details.settings-block[data-settings-section]").forEach(function (el) {
+            var key = el.getAttribute("data-settings-section");
+            if (key) out[key] = el.open;
+          });
+          return out;
+        }
+        function persistSectionOpenState() {
+          try {
+            localStorage.setItem(SETTINGS_SECTIONS_LS, JSON.stringify(readSectionOpenState()));
+          } catch (e) {}
+        }
+        function restoreSectionOpenState() {
+          try {
+            var raw = localStorage.getItem(SETTINGS_SECTIONS_LS);
+            if (!raw) return;
+            var state = JSON.parse(raw);
+            if (!state || typeof state !== "object") return;
+            document.querySelectorAll("details.settings-block[data-settings-section]").forEach(function (el) {
+              var key = el.getAttribute("data-settings-section");
+              if (key && state[key] === true) el.open = true;
+            });
+          } catch (e) {}
+        }
+        restoreSectionOpenState();
+        document.querySelectorAll("details.settings-block[data-settings-section]").forEach(function (el) {
+          el.addEventListener("toggle", persistSectionOpenState);
+        });
+
         function csrfHeader() {
           var m = document.querySelector('meta[name="csrf-token"]');
           var t = m && m.getAttribute("content") ? m.getAttribute("content") : "";

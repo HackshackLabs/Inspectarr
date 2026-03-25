@@ -222,7 +222,7 @@
 {% endblock %}
 {% block content %}
       <details class="cold-storage-intro">
-        <summary>Cold Storage</summary>
+        <summary>Horizon Watch</summary>
         <div class="meta cold-storage-intro-body">
         <strong>Sonarr</strong> lists every managed series and which episodes have files on disk.
         <strong>Tautulli</strong> supplies watch history: an <strong>all-time crawl</strong> (capped per server by <code>HISTORY_FULL_MAX_ROWS_PER_SERVER</code>) drives <em>never watched</em> (strictly no Tautulli plays in that dataset), and the last <strong>{{ lookback_days }}</strong> days define <em>no plays in the 2-year window</em>.
@@ -269,7 +269,7 @@
       </div>
 
       <h2>Snapshot status</h2>
-      <section class="status-grid" id="stale-status-cards" aria-label="Cold Storage data sources and snapshot"></section>
+      <section class="status-grid" id="stale-status-cards" aria-label="Horizon Watch data sources and snapshot"></section>
 
       <h2>Upstream activity</h2>
       <p class="note stale-fetch-line" id="stale-upstream-summary" aria-live="polite">—</p>
@@ -286,7 +286,7 @@
           var REFRESH_URL = "/insights/stale-library/api/refresh";
           var UPSTREAM_URL = "/insights/stale-library/api/upstream";
           var upstreamPollMs = 2500;
-          var LS_KEY = "inspectarr:staleLibrary:removed";
+          var LS_KEY = "scoparr:staleLibrary:removed";
           var page = 1;
           var sort = "asc";
           var perPage = 12;
@@ -707,7 +707,7 @@
             if (!sumEl || !grid) return;
             if (!u || !u.busy) {
               sumEl.textContent =
-                "Idle — no Cold Storage snapshot is building. Start or wait for a refresh to see live Tautulli servers and Sonarr calls.";
+                "Idle — no Horizon Watch snapshot is building. Start or wait for a refresh to see live Tautulli servers and Sonarr calls.";
               grid.innerHTML =
                 '<article class="status-card"><div><strong>Upstream</strong></div><div class="muted">Nothing in flight.</div></article>';
               return;
@@ -1274,7 +1274,7 @@
           pollUpstream();
 
           renderStaleStatusLoading("Starting request…");
-          setFetchLine("Connecting to Cold Storage API…");
+          setFetchLine("Connecting to Horizon Watch API…");
           updateStaleExportLinks();
           loadData(false);
         })();

@@ -1,6 +1,6 @@
 # Tautulli API Usage
 
-This document describes the upstream API calls used by `inspectarr`.
+This document describes the upstream API calls used by `scoparr`.
 
 Official reference:
 
@@ -33,7 +33,7 @@ Notable response sections:
 - `response.data.stream_count`
 - `response.data.sessions` (array of active streams)
 
-Insecpectarr usage notes:
+Scoparr usage notes:
 
 - Called in parallel across all configured servers.
 - `sessions` rows are normalized and tagged with `server_id`.
@@ -51,7 +51,7 @@ Typical query parameters:
 - `start` (offset)
 - `length` (page/window size)
 - `after` / `before` (optional `YYYY-MM-DD` bounds; see Tautulli API reference)
-- `order_column` / `order_dir` (inspector sets `date` + `desc` for predictable newest-first paging)
+- `order_column` / `order_dir` (Scoparr sets `date` + `desc` for predictable newest-first paging)
 - optional filters (as supported upstream and selected by UI)
 
 Notable response sections:
@@ -61,7 +61,7 @@ Notable response sections:
 - `response.data.recordsFiltered`
 - `response.data.recordsTotal`
 
-Insecpectarr usage notes:
+Scoparr usage notes:
 
 - Called per server, then merged to one timeline.
 - Uses global timestamp-based merge-sort via canonical UTC epoch normalization.
@@ -77,7 +77,7 @@ Purpose:
 
 - Discover library sections and identify TV libraries (`section_type=show`) for inventory traversal.
 
-Insecpectarr usage notes:
+Scoparr usage notes:
 
 - Called per server before inventory fetch in `/insights/library-unwatched`.
 
@@ -95,7 +95,7 @@ Typical query parameters:
 - `start`
 - `length`
 
-Insecpectarr usage notes:
+Scoparr usage notes:
 
 - Used to page through show rows before season/episode traversal.
 - In library-unwatched mode, called incrementally with small `start`/`length` chunks per request.
@@ -112,7 +112,7 @@ Typical query parameters:
 - `cmd=get_children_metadata`
 - `rating_key`
 
-Insecpectarr usage notes:
+Scoparr usage notes:
 
 - Called on show `rating_key` to fetch seasons, then on season `rating_key` to fetch episodes.
 - Supports inventory-joined report for shows/seasons/episodes not watched in the history index window.

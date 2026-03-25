@@ -3,7 +3,7 @@
 import asyncio
 import unittest
 
-from inspectarr.activity_cache import ActivitySnapshotCache
+from scoparr.activity_cache import ActivitySnapshotCache
 
 
 class ActivitySnapshotCacheTests(unittest.IsolatedAsyncioTestCase):

@@ -3,7 +3,7 @@
 import re
 from datetime import datetime, timezone
 
-from inspectarr.models import ActivityFetchResult, HistoryFetchResult
+from scoparr.models import ActivityFetchResult, HistoryFetchResult
 
 
 def merge_activity(results: list[ActivityFetchResult]) -> dict:

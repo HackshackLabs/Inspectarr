@@ -2,7 +2,7 @@
 
 import unittest
 
-from inspectarr.history_health import enrich_history_server_statuses, format_last_ok_display
+from scoparr.history_health import enrich_history_server_statuses, format_last_ok_display
 
 
 class HistoryHealthTests(unittest.TestCase):

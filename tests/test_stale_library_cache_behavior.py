@@ -10,8 +10,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import inspectarr.stale_library_service as sls
-from inspectarr.settings import Settings
+import scoparr.stale_library_service as sls
+from scoparr.settings import Settings
 
 
 def _minimal_payload() -> dict:
@@ -81,7 +81,7 @@ class StaleLibraryCacheBehaviorTests(unittest.IsolatedAsyncioTestCase):
         settings = Settings(stale_library_cache_path="")
         with (
             patch.object(sls, "compute_stale_library_payload", side_effect=compute),
-            patch("inspectarr.settings.get_settings", return_value=settings),
+            patch("scoparr.settings.get_settings", return_value=settings),
         ):
             await sls.get_stale_library_cached(settings, ttl_seconds=120.0, force=False)
             sls.invalidate_stale_library_cache()
@@ -130,7 +130,7 @@ class StaleLibraryCacheBehaviorTests(unittest.IsolatedAsyncioTestCase):
             path = Path(tmp) / "stale.json"
             path.write_text(json.dumps(_minimal_payload()), encoding="utf-8")
             settings = Settings(stale_library_cache_path=str(path))
-            with patch("inspectarr.settings.get_settings", return_value=settings):
+            with patch("scoparr.settings.get_settings", return_value=settings):
                 sls.invalidate_stale_library_cache()
             self.assertFalse(path.is_file())
 

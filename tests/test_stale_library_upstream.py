@@ -2,7 +2,7 @@
 
 import unittest
 
-from inspectarr.stale_library_upstream import (
+from scoparr.stale_library_upstream import (
     begin_stale_library_upstream_trace,
     bump_stale_library_tautulli_history_rows,
     end_stale_library_upstream_trace,

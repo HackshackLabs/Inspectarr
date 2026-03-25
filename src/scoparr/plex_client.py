@@ -48,7 +48,7 @@ async def plex_create_pin(
     headers = {
         "Accept": "application/json",
         "X-Plex-Client-Identifier": client_identifier,
-        "X-Plex-Product": "Insecpectarr",
+        "X-Plex-Product": "Scoparr",
         "X-Plex-Version": "0.1.0",
     }
     async with httpx.AsyncClient(timeout=timeout_seconds) as client:
@@ -69,7 +69,7 @@ async def plex_check_pin(
     headers = {
         "Accept": "application/json",
         "X-Plex-Client-Identifier": client_identifier,
-        "X-Plex-Product": "Insecpectarr",
+        "X-Plex-Product": "Scoparr",
         "X-Plex-Version": "0.1.0",
     }
     async with httpx.AsyncClient(timeout=timeout_seconds) as client:
@@ -117,7 +117,7 @@ async def plex_delete_library_metadata(
         "Accept": "application/json",
         "X-Plex-Token": tok,
         "X-Plex-Client-Identifier": cid,
-        "X-Plex-Product": "Insecpectarr",
+        "X-Plex-Product": "Scoparr",
         "X-Plex-Version": "0.1.0",
     }
     async with httpx.AsyncClient(timeout=timeout_seconds, follow_redirects=True) as client:
@@ -141,7 +141,7 @@ def _plex_xml_headers(token: str, client_identifier: str) -> dict[str, str]:
         "Accept": "application/xml",
         "X-Plex-Token": str(token or "").strip(),
         "X-Plex-Client-Identifier": str(client_identifier or "").strip(),
-        "X-Plex-Product": "Insecpectarr",
+        "X-Plex-Product": "Scoparr",
         "X-Plex-Version": "0.1.0",
     }
 
@@ -344,7 +344,7 @@ async def plex_delete_library_metadata_optional(
         "Accept": "application/json",
         "X-Plex-Token": tok,
         "X-Plex-Client-Identifier": cid,
-        "X-Plex-Product": "Insecpectarr",
+        "X-Plex-Product": "Scoparr",
         "X-Plex-Version": "0.1.0",
     }
     async with httpx.AsyncClient(timeout=timeout_seconds, follow_redirects=True) as client:

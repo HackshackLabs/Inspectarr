@@ -6,11 +6,11 @@ from unittest import mock
 
 from pydantic import ValidationError
 
-from inspectarr.url_safety import validate_upstream_base_url
+from scoparr.url_safety import validate_upstream_base_url
 
 
 def _clear_settings_cache() -> None:
-    from inspectarr.settings import _settings_from_env
+    from scoparr.settings import _settings_from_env
 
     _settings_from_env.cache_clear()
 
@@ -53,7 +53,7 @@ class UrlSafetyTests(unittest.TestCase):
     )
     def test_settings_validation_rejects_private_upstream_when_enabled(self) -> None:
         _clear_settings_cache()
-        from inspectarr.settings import Settings
+        from scoparr.settings import Settings
 
         with self.assertRaises(ValidationError):
             Settings()

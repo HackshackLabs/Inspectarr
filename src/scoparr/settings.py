@@ -6,7 +6,7 @@ from typing import Literal, Self
 from pydantic import BaseModel, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from inspectarr.url_safety import validate_upstream_base_url
+from scoparr.url_safety import validate_upstream_base_url
 
 
 class PlexServer(BaseModel):
@@ -166,7 +166,7 @@ def _settings_from_env() -> Settings:
 
 def get_settings() -> Settings:
     """Effective settings: environment values merged with `dashboard_config.json` overrides."""
-    from inspectarr.dashboard_config import apply_dashboard_overrides
+    from scoparr.dashboard_config import apply_dashboard_overrides
 
     return apply_dashboard_overrides(_settings_from_env())
 

@@ -7,8 +7,8 @@ from typing import Any
 
 import httpx
 
-from inspectarr.iso_time import parse_iso8601_utc_epoch
-from inspectarr.settings import Settings
+from scoparr.iso_time import parse_iso8601_utc_epoch
+from scoparr.settings import Settings
 
 logger = logging.getLogger(__name__)
 

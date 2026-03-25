@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from inspectarr.history_cache import HistoryPageCache
+from scoparr.history_cache import HistoryPageCache
 
 
 class HistoryPageCacheTests(unittest.TestCase):

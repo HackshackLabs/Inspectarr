@@ -12,12 +12,12 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-from inspectarr.settings import _settings_from_env
+from scoparr.settings import _settings_from_env
 
 _UNAUTH = JSONResponse(
     status_code=401,
     content={"detail": "Not authenticated"},
-    headers={"WWW-Authenticate": 'Basic realm="Insecpectarr"'},
+    headers={"WWW-Authenticate": 'Basic realm="Scoparr"'},
 )
 
 

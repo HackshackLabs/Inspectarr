@@ -11,15 +11,15 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from inspectarr.activity_cache import ActivitySnapshotCache
-from inspectarr.dashboard_config import build_template_globals
-from inspectarr.aggregate import epoch_to_utc_display, merge_activity, merge_history
-from inspectarr.history_cache import HistoryPageCache
-from inspectarr.history_health import enrich_history_server_statuses
-from inspectarr.live_streams import group_live_streams_by_server
-from inspectarr.history_scope import crawl_trim_cutoff_epoch, resolve_upstream_history_dates
-from inspectarr.settings import Settings, get_settings
-from inspectarr.tautulli_client import TautulliClient
+from scoparr.activity_cache import ActivitySnapshotCache
+from scoparr.dashboard_config import build_template_globals
+from scoparr.aggregate import epoch_to_utc_display, merge_activity, merge_history
+from scoparr.history_cache import HistoryPageCache
+from scoparr.history_health import enrich_history_server_statuses
+from scoparr.live_streams import group_live_streams_by_server
+from scoparr.history_scope import crawl_trim_cutoff_epoch, resolve_upstream_history_dates
+from scoparr.settings import Settings, get_settings
+from scoparr.tautulli_client import TautulliClient
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +93,7 @@ async def dashboard(request: Request) -> HTMLResponse:
         name="dashboard.html",
         context=_template_ctx(
             request,
-            "Stream Stakeout",
+            "Deck Watch",
             nav_current="live",
             server_statuses=server_statuses,
             sessions=sessions,
@@ -264,7 +264,7 @@ async def history(
             name="history.html",
             context=_template_ctx(
                 request,
-                "Case File Replay",
+                "Broadside Range",
                 nav_current="history",
                 server_statuses=pending_cards,
                 rows=[],
@@ -323,7 +323,7 @@ async def history(
         name="history.html",
         context=_template_ctx(
             request,
-            "Case File Replay",
+            "Broadside Range",
             nav_current="history",
             server_statuses=server_statuses,
             rows=_with_humanized_history_rows(cache_payload["rows"]),

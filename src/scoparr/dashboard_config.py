@@ -6,11 +6,11 @@ import json
 import logging
 import uuid
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
-from inspectarr.settings import PlexServer, Settings, TautulliServer
+from scoparr.settings import PlexServer, Settings, TautulliServer
 
 logger = logging.getLogger(__name__)
 
@@ -25,14 +25,25 @@ THEME_CHOICES: list[tuple[str, str]] = [
 ]
 
 
+# Former product names stored in dashboard JSON — normalize to current brand on load.
+_LEGACY_SITE_TITLES_CASEFOLD = frozenset({"insecpectarr", "inspectarr"})
+
+
 class PresentationConfig(BaseModel):
     """UI-only options stored under `presentation` in the dashboard config file."""
 
     theme: ThemeId = "slate"
-    site_title: str = Field(default="Insecpectarr", max_length=200)
+    site_title: str = Field(default="Scoparr", max_length=200)
     logo_file: str | None = Field(default=None, max_length=255)
     footer_text: str = Field(default="", max_length=500)
     custom_nav_note: str = Field(default="", max_length=300)
+
+    @model_validator(mode="after")
+    def _normalize_legacy_site_title(self) -> Self:
+        key = self.site_title.strip().casefold()
+        if key in _LEGACY_SITE_TITLES_CASEFOLD:
+            return self.model_copy(update={"site_title": "Scoparr"})
+        return self
 
 
 def config_file_path(base: Settings) -> Path:
@@ -126,7 +137,7 @@ def apply_dashboard_overrides(base: Settings) -> Settings:
 
 def build_template_globals(page_title: str | None = None, csrf_token: str | None = None) -> dict[str, Any]:
     """Context keys shared by all HTML pages (call from routes)."""
-    import inspectarr.settings as settings_mod
+    import scoparr.settings as settings_mod
 
     env_base = settings_mod._settings_from_env()
     pres = load_presentation(env_base)
@@ -167,10 +178,10 @@ SETTINGS_EDITOR_FIELDS: list[tuple[str, str, str]] = [
     ("history_full_max_parallel_servers", "History full max parallel servers", "int"),
     (
         "library_unwatched_history_extra_delay_seconds",
-        "Cold Storage history crawl extra delay (s)",
+        "Horizon Watch history crawl extra delay (s)",
         "float",
     ),
-    ("tv_inventory_request_timeout_seconds", "Cold Storage Tautulli timeout ceiling (s)", "float"),
+    ("tv_inventory_request_timeout_seconds", "Horizon Watch Tautulli timeout ceiling (s)", "float"),
     ("activity_cache_ttl_seconds", "Activity cache TTL (s)", "float"),
     ("activity_cache_stale_seconds", "Activity cache stale window (s)", "float"),
 ]

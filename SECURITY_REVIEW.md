@@ -1,6 +1,6 @@
-# Security review: Insecpectarr
+# Security review: Scoparr
 
-**Scope:** Application code under `src/inspectarr/`, configuration patterns, and deployment assumptions.  
+**Scope:** Application code under `src/scoparr/`, configuration patterns, and deployment assumptions.  
 **Method:** Trust-boundary review, OWASP-oriented risk categories, and concrete remediation guidance (not exploit steps).
 
 ---
@@ -9,7 +9,7 @@
 
 | Item | Notes |
 |------|--------|
-| **Architecture** | Insecpectarr: Python FastAPI app; server-side templates (Jinja2); JSON file + SQLite caches for config and data. |
+| **Architecture** | Scoparr: Python FastAPI app; server-side templates (Jinja2); JSON file + SQLite caches for config and data. |
 | **Trust boundaries** | Browser ↔ app (HTTP Basic optional); app ↔ Tautulli / Sonarr / Plex / Plex.tv (admin-configured URLs and secrets). |
 | **Sensitive data** | Tautulli and Sonarr API keys, Plex tokens, Basic auth password, dashboard JSON at `DASHBOARD_CONFIG_PATH`, optional SQLite DB paths. |
 | **Attackers** | Unauthenticated network clients; authenticated users of the app (treated as admins); anyone who can read the host filesystem or backups. |

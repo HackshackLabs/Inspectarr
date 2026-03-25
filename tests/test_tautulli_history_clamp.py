@@ -2,7 +2,7 @@
 
 import unittest
 
-from inspectarr.tautulli_client import (
+from scoparr.tautulli_client import (
     TAUTULLI_GET_HISTORY_MAX_ROWS_PER_REQUEST,
     _clamp_get_history_length,
 )

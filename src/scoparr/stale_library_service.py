@@ -14,15 +14,15 @@ from typing import Any, Callable, Literal
 
 import httpx
 
-from inspectarr.aggregate import merge_history_rows_all, tvdb_id_from_guid
-from inspectarr.iso_time import parse_iso8601_utc_epoch
-from inspectarr.overseerr_client import (
+from scoparr.aggregate import merge_history_rows_all, tvdb_id_from_guid
+from scoparr.iso_time import parse_iso8601_utc_epoch
+from scoparr.overseerr_client import (
     fetch_overseerr_tv_request_maps,
     overseerr_is_configured,
 )
-from inspectarr.settings import Settings, TautulliServer
-from inspectarr.sonarr_client import _all_series_episodes, fetch_series_list_cached
-from inspectarr.stale_library_upstream import (
+from scoparr.settings import Settings, TautulliServer
+from scoparr.sonarr_client import _all_series_episodes, fetch_series_list_cached
+from scoparr.stale_library_upstream import (
     begin_stale_library_upstream_trace,
     bump_stale_library_tautulli_history_rows,
     end_stale_library_upstream_trace,
@@ -31,7 +31,7 @@ from inspectarr.stale_library_upstream import (
     set_stale_library_sonarr_series_list_count,
     set_stale_library_upstream_phase,
 )
-from inspectarr.tautulli_client import TautulliClient, TautulliTraceHook
+from scoparr.tautulli_client import TautulliClient, TautulliTraceHook
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +105,7 @@ def _try_load_stale_library_disk_cache(settings: Settings, ttl_seconds: float) -
 
 def _unlink_stale_library_disk_cache() -> None:
     try:
-        from inspectarr.settings import get_settings
+        from scoparr.settings import get_settings
 
         path = str(get_settings().stale_library_cache_path or "").strip()
         if not path:

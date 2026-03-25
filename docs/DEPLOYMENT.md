@@ -1,12 +1,12 @@
 # Deployment Guide
 
-This document describes safe deployment patterns for `inspectarr` outside localhost.
+This document describes safe deployment patterns for `scoparr` outside localhost.
 
 ## Recommended pattern
 
 Use:
 
-- `inspectarr` bound on a private interface or localhost
+- `scoparr` bound on a private interface or localhost
 - Reverse proxy for TLS termination
 - Authentication: **built-in HTTP Basic** (`.env`: `BASIC_AUTH_*`, see `docs/CONFIGURATION.md`) and/or at the **reverse proxy** (basic auth or SSO)
 
@@ -35,9 +35,9 @@ Do not expose the app directly to the internet without auth (change default Basi
 ## Container deployment
 
 1. Build image:
-   - `docker build -t inspectarr:latest .`
+   - `docker build -t scoparr:latest .`
 2. Run with environment file:
-   - `docker run --rm -p 8000:8000 --env-file .env.local inspectarr:latest`
+   - `docker run --rm -p 8000:8000 --env-file .env.local scoparr:latest`
 3. Put container behind reverse proxy for TLS and auth.
 
 ## Security reminders

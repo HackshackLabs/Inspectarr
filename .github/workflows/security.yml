@@ -19,5 +19,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install pip-audit
           pip install -e .
+      # pip-audit -> rich -> pygments. CVE-2026-4539 (GHSA-5239-wwwm-4pmq) affects pygments<=2.19.2;
+      # PyPI has no fixed release yet. When pygments>2.19.2 exists, add before audit:
+      #   pip install "pygments>=2.19.3"
+      # and remove --ignore-vuln below.
       - name: Audit dependencies
-        run: pip-audit
+        run: >
+          pip-audit
+          --skip-editable
+          --ignore-vuln CVE-2026-4539

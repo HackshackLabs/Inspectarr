@@ -197,7 +197,6 @@
 {% block content %}
       <h2>Cold Storage</h2>
       <p class="meta">
-        While you use Cold Storage, any in-progress <strong>Unshelved Mysteries</strong> background job is cancelled so upstream work is not doubled up.
         <strong>Sonarr</strong> lists every managed series and which episodes have files on disk.
         <strong>Tautulli</strong> supplies watch history: an <strong>all-time crawl</strong> (capped per server by <code>HISTORY_FULL_MAX_ROWS_PER_SERVER</code>) drives <em>never watched</em> (strictly no Tautulli plays in that dataset), and the last <strong>{{ lookback_days }}</strong> days define <em>no plays in the 2-year window</em>.
         Rows shown have files but <strong>no plays in the 2-year window</strong>. Badges distinguish <strong>never</strong> vs <strong>played before but not in 2y</strong>.

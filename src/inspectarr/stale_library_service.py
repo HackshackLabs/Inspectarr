@@ -20,7 +20,6 @@ from inspectarr.overseerr_client import (
     fetch_overseerr_tv_request_maps,
     overseerr_is_configured,
 )
-from inspectarr.routes_dashboard import cancel_library_unwatched_insights_refresh
 from inspectarr.settings import Settings, TautulliServer
 from inspectarr.sonarr_client import _all_series_episodes, fetch_series_list_cached
 from inspectarr.stale_library_upstream import (
@@ -595,8 +594,6 @@ async def compute_stale_library_payload(
     errors: list[str] = []
     cutoff = int((datetime.now(timezone.utc) - timedelta(days=max(lookback_days, 1))).timestamp())
     now_epoch = int(time.time())
-    # Unshelved Mysteries uses the same Tautulli APIs; stop that background job before this heavy crawl.
-    cancel_library_unwatched_insights_refresh(settings)
 
     tc = len(settings.tautulli_servers)
 

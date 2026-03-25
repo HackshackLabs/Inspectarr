@@ -70,50 +70,17 @@ class Settings(BaseSettings):
     history_full_max_parallel_servers: int = Field(
         default=1, ge=1, le=32, alias="HISTORY_FULL_MAX_PARALLEL_SERVERS"
     )
-    insights_history_length: int = Field(default=2000, alias="INSIGHTS_HISTORY_LENGTH")
-    tv_inventory_max_shows_per_server: int = Field(default=300, alias="TV_INVENTORY_MAX_SHOWS_PER_SERVER")
-    tv_inventory_batch_shows_per_server: int = Field(default=25, alias="TV_INVENTORY_BATCH_SHOWS_PER_SERVER")
-    tv_inventory_inter_request_delay_seconds: float = Field(
-        default=0.28,
-        ge=0.0,
-        alias="TV_INVENTORY_INTER_REQUEST_DELAY_SECONDS",
-    )
-    tv_inventory_metadata_max_parallel: int = Field(
-        default=12,
-        ge=1,
-        le=64,
-        alias="TV_INVENTORY_METADATA_MAX_PARALLEL",
-        description="Concurrent get_children_metadata calls per server during TV inventory chunk fetch.",
-    )
-    library_unwatched_max_inventory_chunks_per_job: int = Field(
-        default=5000,
-        ge=1,
-        le=100_000,
-        alias="LIBRARY_UNWATCHED_MAX_INVENTORY_CHUNKS_PER_JOB",
-        description="Safety cap for how many inventory chunks one library-unwatched refresh may run.",
-    )
     library_unwatched_history_extra_delay_seconds: float = Field(
         default=0.22,
         ge=0.0,
         alias="LIBRARY_UNWATCHED_HISTORY_EXTRA_DELAY_SECONDS",
-    )
-    library_unwatched_use_full_history_crawl: bool = Field(
-        default=True,
-        alias="LIBRARY_UNWATCHED_USE_FULL_HISTORY_CRAWL",
-        description=(
-            "When True, walk episode history up to HISTORY_FULL_MAX_ROWS_PER_SERVER per server so "
-            "watch detection is all-time within that cap. When False, use one short page "
-            "(INSIGHTS_HISTORY_LENGTH) and only plays inside the min..max epoch window count."
-        ),
+        description="Extra per-request delay during Cold Storage Tautulli history crawl (seconds).",
     )
     tv_inventory_request_timeout_seconds: float = Field(
         default=75.0,
         ge=5.0,
         alias="TV_INVENTORY_REQUEST_TIMEOUT_SECONDS",
     )
-    inventory_cache_db_path: str = Field(default="./data/inventory_cache.sqlite", alias="INVENTORY_CACHE_DB_PATH")
-    insights_cache_db_path: str = Field(default="./data/insights_cache.sqlite", alias="INSIGHTS_CACHE_DB_PATH")
-    insights_cache_ttl_seconds: float = Field(default=10800.0, alias="INSIGHTS_CACHE_TTL_SECONDS")
     stale_library_cache_path: str = Field(
         default="./data/stale_library_cache.json",
         alias="STALE_LIBRARY_CACHE_PATH",

@@ -11,7 +11,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
 from inspectarr.limiter import limiter
-from inspectarr.routes_dashboard import _template_ctx, cancel_library_unwatched_insights_refresh
+from inspectarr.routes_dashboard import _template_ctx
 from inspectarr.overseerr_client import overseerr_is_configured
 from inspectarr.settings import get_settings, sonarr_is_configured
 from inspectarr.stale_library_plex import cold_storage_plex_delete_on_all_servers, plex_any_configured_for_cold_storage
@@ -62,7 +62,6 @@ def _validate_kind(kind: str) -> SonarrKind:
 @router.get("/insights/stale-library", response_class=HTMLResponse, tags=["dashboard"])
 async def stale_library_page(request: Request) -> HTMLResponse:
     settings = get_settings()
-    cancel_library_unwatched_insights_refresh(settings)
     return templates.TemplateResponse(
         request=request,
         name="stale_library.html",
@@ -98,7 +97,6 @@ async def stale_library_api_export(
 ) -> Response:
     """Download the complete stale-library series list from the cached snapshot."""
     settings = get_settings()
-    cancel_library_unwatched_insights_refresh(settings)
     payload = await get_stale_library_cached(settings, force=force_refresh)
     if not payload.get("ok"):
         raise HTTPException(
@@ -125,7 +123,6 @@ async def stale_library_api_data(
     force_refresh: bool = Query(default=False),
 ) -> dict[str, Any]:
     settings = get_settings()
-    cancel_library_unwatched_insights_refresh(settings)
     payload = await get_stale_library_cached(settings, force=force_refresh)
     series: list[dict[str, Any]] = list(payload.get("series") or [])
     reverse = sort == "desc"
@@ -157,7 +154,6 @@ async def stale_library_api_refresh(request: Request) -> dict[str, Any]:
     in-flight build instead of blocking this POST for the full crawl duration.
     """
     settings = get_settings()
-    cancel_library_unwatched_insights_refresh(settings)
     invalidate_stale_library_cache()
     await kick_stale_library_rebuild(settings)
     return {
@@ -203,7 +199,6 @@ async def _sonarr_action_body(
 @limiter.limit("60/minute")
 async def stale_library_unmonitor_delete(request: Request, body: StaleSonarrBody) -> dict[str, Any]:
     settings = get_settings()
-    cancel_library_unwatched_insights_refresh(settings)
 
     async def _call_show(client: httpx.AsyncClient, base_url: str, api_key: str, **kw: Any) -> dict[str, Any]:
         return await sonarr_delete(client, base_url, api_key, **kw)
@@ -239,7 +234,6 @@ async def stale_library_unmonitor_delete(request: Request, body: StaleSonarrBody
 @limiter.limit("60/minute")
 async def stale_library_unmonitor_only(request: Request, body: StaleSonarrBody) -> dict[str, Any]:
     settings = get_settings()
-    cancel_library_unwatched_insights_refresh(settings)
 
     async def _call(client: httpx.AsyncClient, base_url: str, api_key: str, **kw: Any) -> dict[str, Any]:
         return await sonarr_unmonitor(client, base_url, api_key, **kw)
@@ -263,7 +257,6 @@ async def stale_library_unmonitor_only(request: Request, body: StaleSonarrBody) 
 @limiter.limit("60/minute")
 async def stale_library_monitor(request: Request, body: StaleSonarrBody) -> dict[str, Any]:
     settings = get_settings()
-    cancel_library_unwatched_insights_refresh(settings)
 
     async def _call(client: httpx.AsyncClient, base_url: str, api_key: str, **kw: Any) -> dict[str, Any]:
         return await sonarr_monitor(client, base_url, api_key, **kw)

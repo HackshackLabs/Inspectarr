@@ -1,111 +1,64 @@
 # Scoparr
 
-Small "single pane of glass" dashboard that aggregates activity and history from multiple Tautulli instances.
+Small “single pane of glass” dashboard that aggregates **live activity** and **merged history** from multiple [Tautulli](https://tautulli.com/) instances, plus a **Sonarr + Tautulli** view for long-unwatched TV library rows (optional Sonarr / Plex / Overseerr actions).
+
+In the UI, the main areas are labeled **Deck Watch** (live), **Broadside Range** (history), and **Horizon Watch** (stale-library insight).
 
 ## What it does
 
 - Fans out read requests to multiple Tautulli servers.
 - Merges live activity into one view while retaining `server_id` per row.
-- Merges history into a single timeline view.
+- Merges history into a single timeline view (week or all-time crawl modes).
 - Shows per-server health so one failed node does not blank the dashboard.
-- Front page includes visual stream summaries by server and media type.
+- Deck Watch includes stream summaries by server and media type.
+- Horizon Watch joins Sonarr series inventory to merged Tautulli history (all-time crawl capped per server) to surface “stale” shows; optional exports, Sonarr controls, Plex delete chaining, and Overseerr card extras when configured.
 
 ## Features (shipped)
 
-- **Live dashboard** (`/`) — merged `get_activity`, per-server health, stream summaries
-- **History** (`/history`) — global merge-sort timeline, filters, optional SQLite page cache, week vs all-time crawl modes
-- **Unwatched insights** (`/insights/unwatched`) — stale candidates from history index
-- **Library unwatched** (`/insights/library-unwatched`) — TV inventory joined to watch history; incremental indexing; optional **Sonarr** actions and **Plex** delete chaining on per-server rows
-- **Settings** (`/settings`) — themes, branding, `TAUTULLI_SERVERS_JSON`, Sonarr/Plex fields, and safe overrides persisted to `DASHBOARD_CONFIG_PATH`
+| UI name | Path | Notes |
+|--------|------|--------|
+| **Deck Watch** | `/` | Merged `get_activity`, per-server health, stream summaries |
+| **Broadside Range** | `/history` | Global merge-sort timeline, filters, optional SQLite page cache, `range_mode=week` (default) or `all` |
+| **Horizon Watch** | `/insights/stale-library` | Stale-library cards, JSON API, export (JSON/CSV/TXT/XML), Sonarr + optional Plex chain |
+| **Settings** | `/settings` | Themes, branding, `TAUTULLI_SERVERS_JSON`, Sonarr / Overseerr / Plex, tuning overrides → `DASHBOARD_CONFIG_PATH` |
+| **Plex sign-in** | `/settings/plex-auth/*` | Pin flow + token check (used from Settings) |
 
 Stack: Python 3.11+, FastAPI, Jinja2 (server-rendered UI).
 
 ## Prerequisites
 
-- Python 3.11+ recommended
-- Network access from this app to each Tautulli server
+- Python 3.11+
+- Network access from this app to each Tautulli server (and optionally Sonarr, Plex, Overseerr)
 - A valid Tautulli API key for each configured server
 
 ## Configuration
 
-Copy `.env.example` to `.env` and set values for your environment.
+Copy `.env.example` to `.env` and adjust for your environment. **Authoritative names and comments** for variables live in `.env.example` and in `scoparr.settings` (`src/scoparr/settings.py`).
 
-Required variables:
+**Minimum to run**
 
-- `HOST`
-- `PORT`
-- `REQUEST_TIMEOUT_SECONDS`
-- `HISTORY_REQUEST_TIMEOUT_SECONDS`
-- `UPSTREAM_MAX_PARALLEL_SERVERS` (throttle max simultaneous server fan-out)
-- `UPSTREAM_PER_REQUEST_DELAY_SECONDS` (small delay before each server request)
-- `ACTIVITY_TIMEOUT_RETRY_SECONDS` (retry delay for timed-out live activity servers)
-- `HISTORY_TIMEOUT_RETRY_SECONDS` (retry delay for timed-out history fetches when the history page cache is enabled)
-- `ACTIVITY_CACHE_TTL_SECONDS`
-- `ACTIVITY_CACHE_STALE_SECONDS`
-- `HISTORY_CACHE_DB_PATH` (optional; empty disables SQLite cache)
-- `HISTORY_CACHE_TTL_SECONDS` (optional; applies when SQLite cache is enabled)
-- `HISTORY_DEFAULT_WEEK_DAYS` (default rolling window for `/history` week mode, UTC)
-- `HISTORY_ADDITIONAL_PER_REQUEST_DELAY_SECONDS` (extra delay before each `get_history`, added to upstream delay)
-- `HISTORY_WEEK_PAGE_SIZE`, `HISTORY_WEEK_INTER_PAGE_DELAY_SECONDS`, `HISTORY_WEEK_MAX_ROWS_PER_SERVER` (week-mode crawl tuning)
-- `HISTORY_FULL_PAGE_SIZE`, `HISTORY_FULL_INTER_PAGE_DELAY_SECONDS`, `HISTORY_FULL_MAX_ROWS_PER_SERVER`, `HISTORY_FULL_MAX_PARALLEL_SERVERS` (all-time crawl tuning; default parallel 1)
-- `INSIGHTS_HISTORY_LENGTH` (history rows fetched per server for insights reports)
-- `TV_INVENTORY_MAX_SHOWS_PER_SERVER` (show cap per server for library inventory traversal)
-- `TV_INVENTORY_BATCH_SHOWS_PER_SERVER` (incremental shows/server/request for library indexing)
-- `INVENTORY_CACHE_DB_PATH` (SQLite store for incremental inventory index)
-- `INSIGHTS_CACHE_DB_PATH` (SQLite store for cached insights snapshots)
-- `INSIGHTS_CACHE_TTL_SECONDS` (insights cache TTL; default 3 hours)
-- `DASHBOARD_CONFIG_PATH` (optional JSON for presentation + settings overrides; default `./data/dashboard_config.json`)
-- `TAUTULLI_SERVERS_JSON`
+- `TAUTULLI_SERVERS_JSON` — JSON array of `{ id, name, base_url, api_key }`
+- If HTTP Basic auth is enabled (default): `BASIC_AUTH_USERNAME`, `BASIC_AUTH_PASSWORD` (change the default password for any non-local use)
 
-Optional Sonarr (Library Unwatched actions only):
+**Groups of settings** (non-exhaustive; see `.env.example`)
 
-- `SONARR_BASE_URL` (empty disables Sonarr UI and API routes)
-- `SONARR_API_KEY`
-- `SONARR_REQUEST_TIMEOUT_SECONDS` (optional, default 15)
+- **Binding:** `HOST`, `PORT`
+- **Auth / probes:** `BASIC_AUTH_*`, `HEALTHZ_TOKEN`, `BLOCK_PRIVATE_UPSTREAM_URLS`
+- **Upstream:** `REQUEST_TIMEOUT_SECONDS`, `HISTORY_REQUEST_TIMEOUT_SECONDS`, `UPSTREAM_MAX_PARALLEL_SERVERS`, `UPSTREAM_PER_REQUEST_DELAY_SECONDS`, timeout retry intervals for activity and history cache
+- **Live activity cache:** `ACTIVITY_CACHE_TTL_SECONDS`, `ACTIVITY_CACHE_STALE_SECONDS`
+- **History crawl:** `HISTORY_DEFAULT_WEEK_DAYS`, week vs full crawl sizes/delays/limits, optional `HISTORY_CACHE_DB_PATH` + `HISTORY_CACHE_TTL_SECONDS`
+- **Horizon Watch snapshot:** `STALE_LIBRARY_CACHE_PATH`, `STALE_LIBRARY_CACHE_TTL_SECONDS`, `LIBRARY_UNWATCHED_HISTORY_EXTRA_DELAY_SECONDS`, `TV_INVENTORY_REQUEST_TIMEOUT_SECONDS`
+- **Optional integrations:** `SONARR_*`, `OVERSEERR_*`, `PLEX_*`, `DASHBOARD_CONFIG_PATH`
 
-Timeout guidance:
+### Timeout and gentleness
 
-- Use `REQUEST_TIMEOUT_SECONDS` for lightweight calls (for example live activity).
-- Use `HISTORY_REQUEST_TIMEOUT_SECONDS` for heavier history queries.
-- Reduce upstream pressure with:
-  - `UPSTREAM_MAX_PARALLEL_SERVERS` (lower = gentler, slower)
-  - `UPSTREAM_PER_REQUEST_DELAY_SECONDS` (higher = gentler, slower)
-- Live activity timeout recovery:
-  - timed-out servers auto-schedule retries with backoff:
-    - `ACTIVITY_TIMEOUT_RETRY_SECONDS` (base, default 30s)
-    - then 60s, then 120s for consecutive timeout snapshots
-  - dashboard shows countdown until next retry attempt
-- History page timeout recovery (when `HISTORY_CACHE_DB_PATH` is set):
-  - uses `HISTORY_TIMEOUT_RETRY_SECONDS` with the same 30s / 60s / 120s backoff pattern per cached filter snapshot
-  - `/history` shows a countdown until the next background refetch attempt
-- Live activity uses stale-while-revalidate cache:
-  - `ACTIVITY_CACHE_TTL_SECONDS` defines fresh-hit lifetime (default 300s / 5 minutes).
-  - `ACTIVITY_CACHE_STALE_SECONDS` defines additional stale-serve window while background refresh runs.
-- History page can use optional SQLite page cache:
-  - set `HISTORY_CACHE_DB_PATH` to a writable path (for example `./data/history_cache.sqlite`)
-  - `HISTORY_CACHE_TTL_SECONDS` controls cache expiry
-  - cold/expired snapshots are refreshed in background and page auto-refreshes while pending
-  - if `HISTORY_CACHE_DB_PATH` is empty, each `/history` load runs a full compute inline (no background cache); server health cards still render
-- `/history` time range:
-  - default **week** mode sends Tautulli `after` for the last `HISTORY_DEFAULT_WEEK_DAYS` UTC days and pages gently within that window
-  - **all** mode omits `after` (unless you set start/end dates) and walks the full history with small pages, long inter-page delays, and `HISTORY_FULL_MAX_PARALLEL_SERVERS` (default 1); each server stops at `HISTORY_FULL_MAX_ROWS_PER_SERVER`
-  - every `get_history` still uses `UPSTREAM_PER_REQUEST_DELAY_SECONDS` plus `HISTORY_ADDITIONAL_PER_REQUEST_DELAY_SECONDS`
-- Unwatched insights use history-indexed data:
-  - `INSIGHTS_HISTORY_LENGTH` controls rows fetched per server for indexing
-  - items never present in history are not included in stale candidate reports
-- Library-unwatched insights join TV inventory and episode history:
-  - `TV_INVENTORY_MAX_SHOWS_PER_SERVER` limits traversal work per server
-  - identifies shows/seasons/episodes with zero watched episodes in the index window
-  - indexing can run incrementally:
-    - each request fetches `TV_INVENTORY_BATCH_SHOWS_PER_SERVER` new shows per server section
-    - indexed inventory is persisted in `INVENTORY_CACHE_DB_PATH`
-    - UI shows per-section indexing progress and completion state
-- Insights pages use background snapshot refresh:
-  - if cache is cold/expired, page returns quickly in pending state and auto-refreshes
-  - when snapshot job completes, page renders cached data
-  - default snapshot cache TTL is 3 hours (`INSIGHTS_CACHE_TTL_SECONDS=10800`)
+- Use `REQUEST_TIMEOUT_SECONDS` for lighter calls (e.g. live activity) and `HISTORY_REQUEST_TIMEOUT_SECONDS` for `get_history`.
+- Reduce pressure with lower `UPSTREAM_MAX_PARALLEL_SERVERS` and/or higher `UPSTREAM_PER_REQUEST_DELAY_SECONDS` (and history-specific delays).
+- Live activity uses stale-while-revalidate (`ACTIVITY_CACHE_*`). History can use an optional SQLite page cache when `HISTORY_CACHE_DB_PATH` is set; timed-out servers can show a countdown and background retry when that cache is enabled.
 
-`TAUTULLI_SERVERS_JSON` is a JSON array. Each server object should include:
+### `TAUTULLI_SERVERS_JSON`
+
+Each server object should include:
 
 - `id` (stable machine-friendly identifier)
 - `name` (display name)
@@ -137,6 +90,12 @@ Example:
    uv run uvicorn scoparr.main:app --reload --host 127.0.0.1 --port 8000
    ```
 
+   Or the installed console script (uses `HOST` / `PORT` from settings, `reload=True`):
+
+   ```bash
+   uv run scoparr
+   ```
+
    **pip**
 
    ```bash
@@ -145,74 +104,68 @@ Example:
    uvicorn scoparr.main:app --reload --host 127.0.0.1 --port 8000
    ```
 
-By default, open `http://127.0.0.1:8000/`.
+Open `http://127.0.0.1:8000/` by default.
 
-Pages:
+### Main HTTP routes
 
-- `GET /` live now-playing and server health
-- `GET /settings` browser configuration (themes, title, logo, Tautulli servers JSON, Sonarr, timeouts); `POST /settings` saves to `DASHBOARD_CONFIG_PATH` (see `docs/CONFIGURATION.md`)
-- `GET /history` merged history timeline
-  - query params: `start`, `length`, `user`, `media_type`, `start_date`, `end_date`, `range_mode` (`week` default or `all`), `refresh`
-  - per-server status cards are sorted by configured display name; when the history SQLite cache is enabled and any server is `timeout`, the page shows a countdown to the next automatic refetch (see `HISTORY_TIMEOUT_RETRY_SECONDS`)
-- `GET /insights/unwatched` stale media insights (per-server and cumulative)
-  - query params: `media_type` (`episode|movie`), `days`, `max_items`, `refresh`
-  - exports (cached full lists, not HTML page slices): `GET /insights/unwatched/export?group=cumulative_stale|server_stale&format=txt|csv|json|xml&media_type=…&days=…` (add `server_id` for `server_stale`)
-- `GET /insights/library-unwatched` TV inventory joined with watch history (see `LIBRARY_UNWATCHED_USE_FULL_HISTORY_CRAWL` for all-time vs window-scoped history)
-  - query params: `show_start`, `season_start`, `episode_start`, `server_start`, `length`, `max_items`, `refresh`
-  - while the insights snapshot is building, the page polls `GET /insights/library-unwatched/build-status` and then reloads when ready
-  - cumulative shows/seasons/episodes appear side-by-side on wide viewports; per-server unwatched inventory is in a collapsible `<details>` section
-  - exports (cached full lists): `GET /insights/library-unwatched/export?group=cumulative_shows|cumulative_seasons|cumulative_episodes|server_shows|server_seasons|server_episodes&format=txt|csv|json|xml` (add `server_id` for `server_*` groups)
-  - **show**-level unwatched: no “ever watched” evidence (Plex play/view metadata, show-level flags, or matching history)
-  - **season**-level unwatched: same **ever-watched** rules as shows (not window-only), plus history rows that only expose `SxEy` in titles where applicable
-  - timed-out/incomplete server index states auto-schedule background retries; UI shows retry status
-  - cumulative lists are deduped across servers; a watch on any server in the indexed window excludes that item from cumulative lists
-  - optional Sonarr (`SONARR_BASE_URL`, `SONARR_API_KEY`): per-row **monitored**, **file count**, **ⓘ** paths, **Unmonitor** / **Remove & unmonitor** / **Delete** — see `docs/SONARR.md`
-  - Sonarr routes: `GET …/sonarr/status`, `POST …/sonarr/unmonitor`, `POST …/sonarr/remove-from-plex-and-unmonitor`, `POST …/sonarr/delete`
-  - optional Plex (`/settings` tokens + mapping): on **per-server** rows with `ratingKey`, destructive Sonarr actions can chain `POST …/plex/delete-library-item`. Cumulative rows are Sonarr-only.
+- `GET /` — Deck Watch (live activity, health, stream summaries)
+- `GET /history` — Broadside Range (merged history). Query params include `start`, `length`, `user`, `media_type`, `start_date`, `end_date`, `range_mode` (`week` | `all`), `refresh`
+- `GET /insights/stale-library` — Horizon Watch (HTML)
+- `GET /insights/stale-library/api/data` — paginated JSON for the UI
+- `GET /insights/stale-library/api/export?format=json|csv|txt|xml` — full snapshot export
+- `POST /insights/stale-library/api/refresh` — invalidate and rebuild snapshot (rate limited)
+- `GET /insights/stale-library/api/upstream` — live upstream trace while a build runs
+- `POST /insights/stale-library/sonarr/*` — Sonarr actions from the UI (rate limited); optional Plex chain on destructive actions when configured
+- `GET /settings`, `POST /settings` — configuration form and save
+- `POST /settings/plex-auth/start`, `POST /settings/plex-auth/check`, `GET /settings/plex-auth/validate` — Plex token flow
+- `GET /healthz` — health check (see `BASIC_AUTH_ENABLED` / `HEALTHZ_TOKEN`)
+
+See `docs/CONFIGURATION.md` for dashboard JSON and override behavior.
 
 ## Run tests
 
 ```bash
-uv run python -m unittest discover -s tests -q
+uv run pytest
 ```
-
-Or: `PYTHONPATH=src python -m unittest discover -s tests`
 
 ## Docker
 
 Build:
 
-- `docker build -t scoparr:latest .`
+```bash
+docker build -t scoparr:latest .
+```
 
 Run:
 
-- `docker run --rm -p 8000:8000 --env-file .env.local scoparr:latest`
+```bash
+docker run --rm -p 8000:8000 --env-file .env.local scoparr:latest
+```
 
 ## Security notes
 
 - Never commit real API keys, `.env`, or other secrets.
-- **HTTP Basic auth** is on by default (`BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD` in `.env`; default password must be changed for any non-local use). **`GET /healthz`** stays unauthenticated for probes. Set **`BASIC_AUTH_ENABLED=false`** to disable.
-- Keep dashboard bound to localhost for MVP (`127.0.0.1`) unless protected by a reverse proxy and auth.
-- Treat upstream Tautulli endpoints as sensitive operational surfaces.
-- Sonarr actions can unmonitor and delete files on disk; Plex actions can delete library items (and often media files) on your PMS; protect the dashboard the same way as Tautulli keys if exposed beyond localhost.
-- `/settings` can write API keys and operational tuning to disk (`DASHBOARD_CONFIG_PATH`); restrict network access or add proxy auth.
-- Upstream request/error logging redacts `apikey`; raw upstream URLs should not be logged.
-- For non-local deployment, put the app behind a reverse proxy with TLS and auth (basic auth or SSO forward-auth).
+- **HTTP Basic auth** is on by default (`BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD` in `.env`). **`GET /healthz`** stays unauthenticated for probes unless `HEALTHZ_TOKEN` is set. Set **`BASIC_AUTH_ENABLED=false`** for open local dev only.
+- Keep the app bound to localhost unless it sits behind a reverse proxy with TLS and auth.
+- Treat upstream Tautulli (and Sonarr/Plex) endpoints as sensitive operational surfaces.
+- Sonarr actions can unmonitor and delete files on disk; Plex chaining can remove library items on your PMS. Protect the dashboard like any admin tool.
+- `/settings` can write API keys and tuning to `DASHBOARD_CONFIG_PATH`; restrict network access accordingly.
+- For non-local deployment, use a reverse proxy with TLS and authentication.
 
 ## Docs
 
 | Doc | Purpose |
 |-----|---------|
-| `docs/ARCHITECTURE.md` | Data flow, merge rules, caching, library-unwatched behavior |
+| `docs/ARCHITECTURE.md` | Data flow, merge rules, caching |
 | `docs/CONFIGURATION.md` | Environment variables and dashboard JSON overrides |
-| `docs/SONARR.md` | Sonarr matching, API routes, button semantics |
-| `docs/PLEX_API_LIBRARY_REMOVAL.md` | Plex delete chaining from library-unwatched |
+| `docs/SONARR.md` | Sonarr matching and API semantics (where applicable to Horizon Watch) |
+| `docs/PLEX_API_LIBRARY_REMOVAL.md` | Plex delete chaining from stale-library / Sonarr flows |
 | `docs/TAUTULLI_API.md` | Tautulli endpoints used by the client |
 | `docs/DEPLOYMENT.md` | Reverse proxy, TLS, container notes |
 | `docs/KNOWN_ISSUES.md` | Risk register |
 | `docs/DECISIONS.md` | Design decisions |
 | `SECURITY_REVIEW.md` | Security review summary |
-| `docs/UI_IMPROVEMENTS.md` | UI review backlog and implementation notes |
-| `TODO.md` | Maintainer checklist (mostly historical) |
+| `docs/UI_IMPROVEMENTS.md` | UI review backlog |
+| `TODO.md` | Maintainer checklist (may include historical items) |
 
-Shared layout, nav, and theme tokens: `src/scoparr/templates/layout.html` (`nav_current` set from `routes_dashboard.py` / `routes_configuration.py`).
+Shared layout, nav, and theme tokens: `src/scoparr/templates/layout.html` (`nav_current` from `routes_dashboard.py` / `routes_configuration.py` / `routes_stale_library.py`).

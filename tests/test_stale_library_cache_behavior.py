@@ -174,6 +174,26 @@ class StaleLibraryCacheBehaviorTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(sls._cache_payload)
         self.assertFalse(sls._cache_payload["series"][0]["series_monitored"])
 
+    async def test_delete_eviction_matches_sonarr_series_id_without_tvdb(self) -> None:
+        pl = _minimal_payload()
+        pl["series"] = [
+            {"sonarr_series_id": 42, "tvdb_id": None, "title": "Odd Show", "seasons": [{"season_number": 1}]},
+            {"sonarr_series_id": 99, "tvdb_id": 1, "title": "Other", "seasons": []},
+        ]
+        settings = Settings(stale_library_cache_path="")
+        sls._cache_payload = dict(pl)
+        await sls.apply_stale_library_cache_after_delete(
+            settings,
+            kind="show",
+            tvdb_id=None,
+            sonarr_series_id=42,
+            series_title="Wrong Title",
+            season_number=None,
+        )
+        self.assertIsNotNone(sls._cache_payload)
+        self.assertEqual(len(sls._cache_payload["series"]), 1)
+        self.assertEqual(sls._cache_payload["series"][0]["sonarr_series_id"], 99)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -6,7 +6,7 @@ import time
 from threading import Lock
 from typing import Any, Literal
 
-UpstreamName = Literal["tautulli", "sonarr"]
+UpstreamName = Literal["tautulli", "sonarr", "overseerr"]
 
 _lock = Lock()
 _state: dict[str, Any] = {

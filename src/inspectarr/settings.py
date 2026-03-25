@@ -131,6 +131,17 @@ class Settings(BaseSettings):
     sonarr_base_url: str = Field(default="", alias="SONARR_BASE_URL")
     sonarr_api_key: str = Field(default="", alias="SONARR_API_KEY")
     sonarr_request_timeout_seconds: float = Field(default=15.0, alias="SONARR_REQUEST_TIMEOUT_SECONDS")
+    overseerr_base_url: str = Field(
+        default="",
+        alias="OVERSEERR_BASE_URL",
+        description="Optional Overseerr root URL for Cold Storage requester / request date (API key required).",
+    )
+    overseerr_api_key: str = Field(default="", alias="OVERSEERR_API_KEY")
+    overseerr_request_timeout_seconds: float = Field(
+        default=30.0,
+        ge=3.0,
+        alias="OVERSEERR_REQUEST_TIMEOUT_SECONDS",
+    )
     plex_servers: list[PlexServer] = Field(default_factory=list, alias="PLEX_SERVERS_JSON")
     plex_token_primary: str = Field(default="", alias="PLEX_TOKEN_PRIMARY")
     plex_token_secondary: str = Field(default="", alias="PLEX_TOKEN_SECONDARY")
@@ -174,6 +185,9 @@ class Settings(BaseSettings):
         son = str(self.sonarr_base_url or "").strip()
         if son:
             validate_upstream_base_url(son, block_private_hosts=True)
+        ov = str(self.overseerr_base_url or "").strip()
+        if ov:
+            validate_upstream_base_url(ov, block_private_hosts=True)
         return self
 
 

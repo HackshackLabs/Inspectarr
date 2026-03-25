@@ -5,7 +5,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import time
+import unicodedata
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Literal
@@ -13,6 +15,11 @@ from typing import Any, Callable, Literal
 import httpx
 
 from inspectarr.aggregate import merge_history_rows_all, tvdb_id_from_guid
+from inspectarr.iso_time import parse_iso8601_utc_epoch
+from inspectarr.overseerr_client import (
+    fetch_overseerr_tv_request_maps,
+    overseerr_is_configured,
+)
 from inspectarr.routes_dashboard import cancel_library_unwatched_insights_refresh
 from inspectarr.settings import Settings, TautulliServer
 from inspectarr.sonarr_client import _all_series_episodes, fetch_series_list_cached
@@ -30,6 +37,8 @@ from inspectarr.tautulli_client import TautulliClient, TautulliTraceHook
 logger = logging.getLogger(__name__)
 
 LOOKBACK_DAYS_DEFAULT = 730
+# REBUILD.md §3: "never played" cohort requires media on disk 180+ days (6 months in prose).
+NEVER_PLAYED_MIN_AGE_SECONDS = 180 * 86400
 
 _cache_payload: dict[str, Any] | None = None
 _stale_compute_lock: asyncio.Lock | None = None
@@ -129,12 +138,20 @@ def _find_stale_series_index(
     series: list[Any],
     *,
     tvdb_id: int | None,
+    sonarr_series_id: int | None = None,
     series_title: str | None,
 ) -> int | None:
     tnorm = str(series_title or "").strip().lower()
     for i, s in enumerate(series):
         if not isinstance(s, dict):
             continue
+        if sonarr_series_id is not None and sonarr_series_id > 0:
+            raw = s.get("sonarr_series_id")
+            try:
+                if raw is not None and int(raw) == int(sonarr_series_id):
+                    return i
+            except (TypeError, ValueError):
+                pass
         if tvdb_id is not None and tvdb_id > 0:
             raw = s.get("tvdb_id")
             try:
@@ -176,6 +193,7 @@ async def apply_stale_library_cache_after_delete(
     *,
     kind: Literal["show", "season"],
     tvdb_id: int | None,
+    sonarr_series_id: int | None = None,
     series_title: str | None,
     season_number: int | None,
 ) -> None:
@@ -185,7 +203,12 @@ async def apply_stale_library_cache_after_delete(
         series = payload.get("series")
         if not isinstance(series, list):
             return False
-        idx = _find_stale_series_index(series, tvdb_id=tvdb_id, series_title=series_title)
+        idx = _find_stale_series_index(
+            series,
+            tvdb_id=tvdb_id,
+            sonarr_series_id=sonarr_series_id,
+            series_title=series_title,
+        )
         if idx is None:
             return False
         if kind == "show":
@@ -230,6 +253,7 @@ async def apply_stale_library_cache_after_monitor_toggle(
     *,
     kind: Literal["show", "season"],
     tvdb_id: int | None,
+    sonarr_series_id: int | None = None,
     series_title: str | None,
     season_number: int | None,
     monitored: bool,
@@ -240,7 +264,12 @@ async def apply_stale_library_cache_after_monitor_toggle(
         series = payload.get("series")
         if not isinstance(series, list):
             return False
-        idx = _find_stale_series_index(series, tvdb_id=tvdb_id, series_title=series_title)
+        idx = _find_stale_series_index(
+            series,
+            tvdb_id=tvdb_id,
+            sonarr_series_id=sonarr_series_id,
+            series_title=series_title,
+        )
         if idx is None:
             return False
         card = series[idx]
@@ -277,6 +306,29 @@ def _series_lookup_key(tvdb_id: int | None, title: str) -> str:
     return f"t:{t}" if t else "t:__unknown__"
 
 
+def _normalize_title_for_stale_match(fragment: str) -> str:
+    """Fold titles so Sonarr and Plex/Tautulli variants match (punctuation, quotes, year suffix).
+
+    Examples: ``American Dad!`` vs ``American Dad``; ``Black Sails (2014)`` vs ``Black Sails``.
+    Keeps ``:`` so ``Initial D: First Stage`` still splits for the colon-base variant elsewhere.
+    """
+    t = unicodedata.normalize("NFKC", (fragment or "").strip().lower())
+    if not t:
+        return ""
+    t = re.sub(r"\s*\([12][0-9]{3}\)\s*$", "", t).strip()
+    for u in ("\u2019", "\u2018", "\u201c", "\u201d", "'", '"'):
+        t = t.replace(u, "")
+    out: list[str] = []
+    for c in t:
+        if c.isalnum() or c.isspace() or c == ":":
+            out.append(c)
+        elif c in "!?.,":
+            continue
+        else:
+            out.append(" ")
+    return " ".join("".join(out).split())
+
+
 def _lookup_key_variants(tvdb_id: int | None, title: str) -> set[str]:
     """Keys used to align Sonarr rows with Tautulli history.
 
@@ -284,18 +336,71 @@ def _lookup_key_variants(tvdb_id: int | None, title: str) -> set[str]:
     Sonarr uses the short series title. We always record the primary key (TVDB when available)
     plus normalized full title and, when the title contains ``:``, the segment before the first
     colon so ``Initial D`` matches history for ``Initial D: First Stage``.
+
+    We also add a punctuation-folded title key so metadata that differs only by ``!``, commas,
+    or smart quotes (e.g. ``American Dad!`` in Sonarr vs ``American Dad`` in Plex) still matches.
     """
     keys: set[str] = set()
     keys.add(_series_lookup_key(tvdb_id, title))
     t = (title or "").strip().lower()
     if not t:
         return keys
-    keys.add(f"t:{t}")
+    fragments: list[str] = [t]
     if ":" in t:
         base = t.split(":", 1)[0].strip()
         if base and base != t:
-            keys.add(f"t:{base}")
+            fragments.append(base)
+    for frag in fragments:
+        keys.add(f"t:{frag}")
+        norm = _normalize_title_for_stale_match(frag)
+        if norm and norm != frag:
+            keys.add(f"t:{norm}")
     return keys
+
+
+def series_added_epoch_utc(ser: dict[str, Any]) -> int | None:
+    """Sonarr ``GET /api/v3/series`` ``added`` field as UTC epoch, or None if missing or unparseable."""
+    return parse_iso8601_utc_epoch(ser.get("added"))
+
+
+def _episode_file_added_epoch(ep: dict[str, Any]) -> int | None:
+    ef = ep.get("episodeFile")
+    if isinstance(ef, dict):
+        t = parse_iso8601_utc_epoch(ef.get("dateAdded"))
+        if t is not None:
+            return t
+    return parse_iso8601_utc_epoch(ep.get("dateAdded"))
+
+
+def sonarr_series_run_state(raw_status: Any) -> tuple[str | None, str]:
+    """Return ``(raw_status_str, normalized)`` where normalized is ``continuing|ended|upcoming|deleted|unknown``."""
+    if raw_status is None:
+        return None, "unknown"
+    s = str(raw_status).strip()
+    if not s:
+        return None, "unknown"
+    low = s.lower()
+    if low in ("continuing", "ended", "upcoming", "deleted"):
+        return s, low
+    return s, "unknown"
+
+
+def season_is_stale_cold_storage(
+    *,
+    watched_in_lookback: bool,
+    watched_ever: bool,
+    series_added_epoch: int | None,
+    now_epoch: int,
+    never_played_min_age_seconds: int = NEVER_PLAYED_MIN_AGE_SECONDS,
+) -> bool:
+    """REBUILD.md §3: stale if no play in the lookback window and (played before that window or never-played old enough)."""
+    if watched_in_lookback:
+        return False
+    if watched_ever:
+        return True
+    if series_added_epoch is None:
+        return True
+    return (now_epoch - series_added_epoch) >= never_played_min_age_seconds
 
 
 def build_watch_index_from_history(rows: list[dict], cutoff_epoch: int) -> tuple[set[str], set[tuple[str, int]]]:
@@ -312,7 +417,12 @@ def build_watch_index_from_history(rows: list[dict], cutoff_epoch: int) -> tuple
         if ep < cutoff_epoch:
             continue
         tvdb = tvdb_id_from_guid(row.get("grandparent_guid")) or tvdb_id_from_guid(row.get("guid"))
-        title = str(row.get("grandparent_title") or "")
+        title = str(
+            row.get("grandparent_title")
+            or row.get("show_name")
+            or row.get("series_title")
+            or ""
+        ).strip()
         row_keys = _lookup_key_variants(tvdb, title)
         for sk in row_keys:
             series_watched.add(sk)
@@ -326,6 +436,103 @@ def build_watch_index_from_history(rows: list[dict], cutoff_epoch: int) -> tuple
         for sk in row_keys:
             season_watched.add((sk, sn_int))
     return series_watched, season_watched
+
+
+def _history_user_display(row: dict[str, Any]) -> str | None:
+    for key in ("friendly_name", "user", "username", "user_title"):
+        raw = row.get(key)
+        if raw is not None and str(raw).strip():
+            return str(raw).strip()
+    return None
+
+
+def _history_season_episode_numbers(row: dict[str, Any]) -> tuple[int | None, int | None]:
+    try:
+        sn = row.get("parent_media_index")
+        en = row.get("media_index")
+        sn_i = int(sn) if sn is not None else None
+        en_i = int(en) if en is not None else None
+        return sn_i, en_i
+    except (TypeError, ValueError):
+        return None, None
+
+
+def _format_tautulli_episode_play_label(
+    season_number: int | None,
+    episode_number: int | None,
+    episode_title: str | None,
+) -> str:
+    parts: list[str] = []
+    if season_number is not None and episode_number is not None:
+        parts.append(f"S{season_number}E{episode_number}")
+    elif season_number is not None:
+        parts.append(f"S{season_number}")
+    if episode_title:
+        parts.append(episode_title)
+    return " · ".join(parts) if parts else "Episode"
+
+
+def build_last_watch_index_from_history(rows: list[dict]) -> dict[str, dict[str, Any]]:
+    """Per series lookup key, the newest episode play in merged history (same keys as watch index)."""
+    best: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        if str(row.get("media_type") or "").lower() != "episode":
+            continue
+        try:
+            ep = int(row.get("canonical_utc_epoch") or 0)
+        except (TypeError, ValueError):
+            ep = 0
+        if ep <= 0:
+            continue
+        tvdb = tvdb_id_from_guid(row.get("grandparent_guid")) or tvdb_id_from_guid(row.get("guid"))
+        title = str(
+            row.get("grandparent_title")
+            or row.get("show_name")
+            or row.get("series_title")
+            or ""
+        ).strip()
+        row_keys = _lookup_key_variants(tvdb, title)
+        user = _history_user_display(row)
+        ep_title_raw = row.get("title")
+        ep_title = str(ep_title_raw).strip() if ep_title_raw is not None and str(ep_title_raw).strip() else None
+        sn, en = _history_season_episode_numbers(row)
+        label = _format_tautulli_episode_play_label(sn, en, ep_title)
+        blob: dict[str, Any] = {
+            "played_at_epoch": ep,
+            "user": user,
+            "episode_title": ep_title,
+            "season_number": sn,
+            "episode_number": en,
+            "episode_label": label,
+            "tautulli_server_id": str(row.get("server_id") or ""),
+            "tautulli_server_name": str(row.get("server_name") or ""),
+        }
+        for sk in row_keys:
+            prev = best.get(sk)
+            if prev is None or ep > int(prev.get("played_at_epoch") or 0):
+                best[sk] = dict(blob)
+    return best
+
+
+def pick_last_tautulli_play_for_series(
+    index: dict[str, dict[str, Any]],
+    sonarr_keys: set[str],
+) -> dict[str, Any] | None:
+    """Newest play among any lookup key that matches this Sonarr series."""
+    chosen: dict[str, Any] | None = None
+    best_ep = -1
+    for sk in sonarr_keys:
+        rec = index.get(sk)
+        if not rec:
+            continue
+        try:
+            e = int(rec.get("played_at_epoch") or 0)
+        except (TypeError, ValueError):
+            e = 0
+        if e > best_ep:
+            best_ep = e
+            chosen = rec
+    return chosen
 
 
 def _episode_has_file(ep: dict[str, Any]) -> bool:
@@ -384,9 +591,10 @@ async def compute_stale_library_payload(
     lookback_days: int = LOOKBACK_DAYS_DEFAULT,
     max_series_parallel: int = 6,
 ) -> dict[str, Any]:
-    """Build JSON snapshot: Sonarr series with on-disk files and no Tautulli plays in the window (per season)."""
+    """Build JSON snapshot aligned with REBUILD.md: on-disk Sonarr files, Tautulli history as usage (cf. last_played), 2y lookback + 180d never-played rule."""
     errors: list[str] = []
     cutoff = int((datetime.now(timezone.utc) - timedelta(days=max(lookback_days, 1))).timestamp())
+    now_epoch = int(time.time())
     # Unshelved Mysteries uses the same Tautulli APIs; stop that background job before this heavy crawl.
     cancel_library_unwatched_insights_refresh(settings)
 
@@ -403,6 +611,10 @@ async def compute_stale_library_payload(
             "history_rows_used": 0,
             "tautulli_server_count": tc,
             "sonarr_series_scanned": 0,
+            "overseerr_configured": overseerr_is_configured(settings),
+            "overseerr_tvdb_keys": 0,
+            "overseerr_tmdb_keys": 0,
+            "overseerr_fetch_error": None,
             "errors": errors,
         }
 
@@ -417,6 +629,10 @@ async def compute_stale_library_payload(
             "history_rows_used": 0,
             "tautulli_server_count": tc,
             "sonarr_series_scanned": 0,
+            "overseerr_configured": overseerr_is_configured(settings),
+            "overseerr_tvdb_keys": 0,
+            "overseerr_tmdb_keys": 0,
+            "overseerr_fetch_error": None,
             "errors": errors,
         }
 
@@ -441,6 +657,26 @@ async def compute_stale_library_payload(
 
         series_watched_2y, season_watched_2y = build_watch_index_from_history(hist_rows, cutoff)
         series_watched_ever, season_watched_ever = build_watch_index_from_history(hist_rows, 0)
+        last_watch_index = build_last_watch_index_from_history(hist_rows)
+
+        overseerr_by_tvdb: dict[int, dict[str, Any]] = {}
+        overseerr_by_tmdb: dict[int, dict[str, Any]] = {}
+        overseerr_fetch_error: str | None = None
+        if overseerr_is_configured(settings):
+            set_stale_library_upstream_phase(
+                "overseerr",
+                "Overseerr: paginate TV requests (index by TVDB + TMDB for Sonarr match)",
+            )
+            try:
+                async with httpx.AsyncClient(timeout=settings.overseerr_request_timeout_seconds) as ov_client:
+                    overseerr_by_tvdb, overseerr_by_tmdb = await fetch_overseerr_tv_request_maps(
+                        ov_client,
+                        settings,
+                    )
+            except Exception as exc:
+                logger.warning("stale library: Overseerr request fetch failed: %s", exc)
+                overseerr_fetch_error = str(exc)
+                errors.append(f"Overseerr: {exc}")
 
         sem = asyncio.Semaphore(max(1, int(max_series_parallel)))
 
@@ -455,6 +691,13 @@ async def compute_stale_library_payload(
                             tvdb = int(raw_tvdb)
                         except (TypeError, ValueError):
                             tvdb = None
+                    tmdb = None
+                    raw_tmdb = ser.get("tmdbId")
+                    if raw_tmdb is not None:
+                        try:
+                            tmdb = int(raw_tmdb)
+                        except (TypeError, ValueError):
+                            tmdb = None
                     title = str(ser.get("title") or "")
                     sk = _series_lookup_key(tvdb, title)
                     sonarr_keys = _lookup_key_variants(tvdb, title)
@@ -466,11 +709,15 @@ async def compute_stale_library_payload(
                         on_exchange=_stale_sonarr_exchange,
                     )
                     per_season: dict[int, int] = {}
+                    file_added_epochs: list[int] = []
                     for ep in eps:
                         if not isinstance(ep, dict):
                             continue
                         if not _episode_has_file(ep):
                             continue
+                        fa = _episode_file_added_epoch(ep)
+                        if fa is not None:
+                            file_added_epochs.append(fa)
                         try:
                             sn = int(ep.get("seasonNumber", 0))
                         except (TypeError, ValueError):
@@ -480,7 +727,22 @@ async def compute_stale_library_payload(
                     if total_files <= 0:
                         return None
 
+                    first_file_epoch = min(file_added_epochs) if file_added_epochs else None
+                    last_file_epoch = max(file_added_epochs) if file_added_epochs else None
+                    raw_sonarr_status, run_state = sonarr_series_run_state(ser.get("status"))
+                    overseerr_info: dict[str, Any] | None = None
+                    if tvdb is not None:
+                        hit = overseerr_by_tvdb.get(tvdb)
+                        if hit is not None:
+                            overseerr_info = {**hit, "matched_via": "tvdb"}
+                    if overseerr_info is None and tmdb is not None:
+                        hit = overseerr_by_tmdb.get(tmdb)
+                        if hit is not None:
+                            overseerr_info = {**hit, "matched_via": "tmdb"}
+                    last_play = pick_last_tautulli_play_for_series(last_watch_index, sonarr_keys)
+
                     series_monitored = bool(ser.get("monitored"))
+                    added_epoch = series_added_epoch_utc(ser)
                     stale_series = not any(k in series_watched_2y for k in sonarr_keys)
 
                     seasons_out: list[dict[str, Any]] = []
@@ -490,7 +752,12 @@ async def compute_stale_library_payload(
                             continue
                         watched_2y = any((k, sn) in season_watched_2y for k in sonarr_keys)
                         watched_ever = any((k, sn) in season_watched_ever for k in sonarr_keys)
-                        stale_season = not watched_2y
+                        stale_season = season_is_stale_cold_storage(
+                            watched_in_lookback=watched_2y,
+                            watched_ever=watched_ever,
+                            series_added_epoch=added_epoch,
+                            now_epoch=now_epoch,
+                        )
                         sample = next(
                             (
                                 e
@@ -522,6 +789,7 @@ async def compute_stale_library_payload(
                     return {
                         "sonarr_series_id": sid,
                         "tvdb_id": tvdb,
+                        "tmdb_id": tmdb,
                         "title": title,
                         "series_monitored": series_monitored,
                         "total_files": total_files,
@@ -530,6 +798,12 @@ async def compute_stale_library_payload(
                         "series_watched_in_2y": any(k in series_watched_2y for k in sonarr_keys),
                         "series_watched_ever_tautulli": any(k in series_watched_ever for k in sonarr_keys),
                         "series_never_watched_tautulli": not any(k in series_watched_ever for k in sonarr_keys),
+                        "sonarr_series_status": raw_sonarr_status,
+                        "series_run_state": run_state,
+                        "first_file_added_epoch": first_file_epoch,
+                        "last_file_added_epoch": last_file_epoch,
+                        "overseerr": overseerr_info,
+                        "last_tautulli_play": last_play,
                         "seasons": seasons_visible,
                     }
                 except Exception as exc:
@@ -561,12 +835,17 @@ async def compute_stale_library_payload(
             "series": son_series,
             "updated_at_epoch": int(time.time()),
             "lookback_days": lookback_days,
+            "never_played_min_age_days": 180,
             "history_cutoff_epoch": cutoff,
             "history_rows_used": len(hist_rows),
             "history_crawl_mode": "alltime_capped",
             "history_full_max_rows_per_server": settings.history_full_max_rows_per_server,
             "tautulli_server_count": tc,
             "sonarr_series_scanned": len(slist),
+            "overseerr_configured": overseerr_is_configured(settings),
+            "overseerr_tvdb_keys": len(overseerr_by_tvdb),
+            "overseerr_tmdb_keys": len(overseerr_by_tmdb),
+            "overseerr_fetch_error": overseerr_fetch_error,
             "errors": errors,
         }
     finally:

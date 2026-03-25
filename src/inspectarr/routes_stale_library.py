@@ -6,12 +6,13 @@ from typing import Any, Literal
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
 from inspectarr.limiter import limiter
 from inspectarr.routes_dashboard import _template_ctx, cancel_library_unwatched_insights_refresh
+from inspectarr.overseerr_client import overseerr_is_configured
 from inspectarr.settings import get_settings, sonarr_is_configured
 from inspectarr.stale_library_plex import cold_storage_plex_delete_on_all_servers, plex_any_configured_for_cold_storage
 from inspectarr.sonarr_client import (
@@ -28,6 +29,7 @@ from inspectarr.stale_library_service import (
     invalidate_stale_library_cache,
     kick_stale_library_rebuild,
 )
+from inspectarr.stale_library_export import ExportFormat, build_stale_export
 from inspectarr.stale_library_upstream import stale_library_upstream_snapshot
 
 logger = logging.getLogger(__name__)
@@ -39,6 +41,10 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 class StaleSonarrBody(BaseModel):
     kind: Literal["show", "season"]
     tvdb_id: int | None = None
+    sonarr_series_id: int | None = Field(
+        default=None,
+        description="Sonarr internal series id from the card; used to match cache rows when TVDB is missing.",
+    )
     series_title: str | None = Field(default=None, max_length=500)
     season_number: int | None = None
     chain_plex_delete: bool = Field(
@@ -67,6 +73,7 @@ async def stale_library_page(request: Request) -> HTMLResponse:
             sonarr_enabled=sonarr_is_configured(settings),
             lookback_days=730,
             plex_chain_enabled=plex_any_configured_for_cold_storage(settings),
+            overseerr_enabled=overseerr_is_configured(settings),
         ),
     )
 
@@ -76,6 +83,36 @@ async def stale_library_page(request: Request) -> HTMLResponse:
 async def stale_library_api_upstream(request: Request) -> dict[str, Any]:
     """Live Sonarr vs Tautulli progress while a Cold Storage snapshot is building."""
     return stale_library_upstream_snapshot()
+
+
+@router.get("/insights/stale-library/api/export", tags=["dashboard"])
+@limiter.limit("60/minute")
+async def stale_library_api_export(
+    request: Request,
+    fmt: ExportFormat = Query(
+        alias="format",
+        description="Download format: json, csv, txt, or xml (full stale list from snapshot, not paginated).",
+    ),
+    sort: Literal["asc", "desc"] = Query(default="asc"),
+    force_refresh: bool = Query(default=False),
+) -> Response:
+    """Download the complete stale-library series list from the cached snapshot."""
+    settings = get_settings()
+    cancel_library_unwatched_insights_refresh(settings)
+    payload = await get_stale_library_cached(settings, force=force_refresh)
+    if not payload.get("ok"):
+        raise HTTPException(
+            status_code=400,
+            detail=str(payload.get("error") or "Snapshot is not ready; fix configuration or refresh."),
+        )
+    body, mime, name = build_stale_export(fmt, payload, sort)
+    return Response(
+        content=body,
+        media_type=mime,
+        headers={
+            "Content-Disposition": f'attachment; filename="{name}"',
+        },
+    )
 
 
 @router.get("/insights/stale-library/api/data", tags=["dashboard"])
@@ -187,7 +224,14 @@ async def stale_library_unmonitor_delete(request: Request, body: StaleSonarrBody
             series_title=str(body.series_title or ""),
             season_number=body.season_number,
         )
-    invalidate_stale_library_cache()
+    await apply_stale_library_cache_after_delete(
+        settings,
+        kind=body.kind,
+        tvdb_id=body.tvdb_id,
+        sonarr_series_id=body.sonarr_series_id,
+        series_title=body.series_title,
+        season_number=body.season_number,
+    )
     return {**result, "plex_delete_results": plex_results}
 
 
@@ -207,6 +251,7 @@ async def stale_library_unmonitor_only(request: Request, body: StaleSonarrBody) 
         settings,
         kind=body.kind,
         tvdb_id=body.tvdb_id,
+        sonarr_series_id=body.sonarr_series_id,
         series_title=body.series_title,
         season_number=body.season_number,
         monitored=False,
@@ -230,6 +275,7 @@ async def stale_library_monitor(request: Request, body: StaleSonarrBody) -> dict
         settings,
         kind=body.kind,
         tvdb_id=body.tvdb_id,
+        sonarr_series_id=body.sonarr_series_id,
         series_title=body.series_title,
         season_number=body.season_number,
         monitored=True,

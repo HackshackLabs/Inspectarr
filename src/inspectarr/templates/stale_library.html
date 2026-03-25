@@ -32,6 +32,28 @@
       #stale-refresh-now.stale-refresh-working {
         opacity: 0.85;
       }
+      .stale-export-band {
+        font-size: var(--font-size-small);
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid var(--border);
+        line-height: 1.5;
+      }
+      .stale-export-band strong {
+        color: var(--heading);
+      }
+      #stale-export-links.stale-export-links {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: 10px 14px;
+        margin-left: 6px;
+        vertical-align: middle;
+        align-items: center;
+      }
+      #stale-export-links.stale-export-links a {
+        color: var(--link);
+        text-decoration: underline;
+      }
       .stale-pager {
         display: flex;
         flex-wrap: wrap;
@@ -59,6 +81,14 @@
         grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
         gap: 14px;
         align-items: start;
+      }
+      .stale-grid.stale-grid-updating {
+        opacity: 0.55;
+        pointer-events: none;
+        transition: opacity 0.15s ease;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .stale-grid.stale-grid-updating { transition: none; }
       }
       .stale-card {
         border: 1px solid var(--border);
@@ -171,6 +201,12 @@
         <strong>Sonarr</strong> lists every managed series and which episodes have files on disk.
         <strong>Tautulli</strong> supplies watch history: an <strong>all-time crawl</strong> (capped per server by <code>HISTORY_FULL_MAX_ROWS_PER_SERVER</code>) drives <em>never watched</em> (strictly no Tautulli plays in that dataset), and the last <strong>{{ lookback_days }}</strong> days define <em>no plays in the 2-year window</em>.
         Rows shown have files but <strong>no plays in the 2-year window</strong>. Badges distinguish <strong>never</strong> vs <strong>played before but not in 2y</strong>.
+        {% if overseerr_enabled %}
+        <strong>Overseerr</strong> is configured: each expanded card shows request date and requester when a TV request matches this series in Overseerr — first by <strong>Sonarr’s TVDB id</strong>, then by <strong>Sonarr’s TMDB id</strong> (Overseerr often only stores TMDB on the media record), plus when Overseerr marked the title available.
+        {% endif %}
+        Expanded cards also show <strong>Sonarr</strong> series status (continuing vs ended) and the earliest/latest episode-file dates Sonarr reports for files on disk.
+        <strong>Last Tautulli play</strong> on a card is the most recent episode watch for that show in the <strong>same merged history crawl</strong> as the rest of this page (capped per server by <code>HISTORY_FULL_MAX_ROWS_PER_SERVER</code>) — user, UTC time, S/E numbers, episode title, and which Tautulli server reported the row.
+        <a href="#stale-export">Download the full stale list</a> (JSON, CSV, TXT, or XML — same order as sort below).
         {% if plex_chain_enabled %}
         <strong>Remove series</strong> (series-level button) deletes the show in Sonarr (<code>DELETE /api/v3/series</code> with files) and then removes the <strong>show</strong> from each configured Plex server. <strong>Delete files</strong> on a season row unmonitors that season, deletes its episode files in Sonarr, and removes that <strong>season</strong> on Plex per server.
         {% else %}
@@ -197,6 +233,11 @@
           </select></label>
           <span class="muted" id="stale-updated">—</span>
         </div>
+        <div class="stale-export-band" id="stale-export" tabindex="-1">
+          <strong>Export full list</strong>
+          <span class="muted"> — every series in the snapshot (not just this page), using the sort order above: </span>
+          <span id="stale-export-links" class="stale-export-links" aria-label="Download full stale list"></span>
+        </div>
         <div class="stale-pager" id="stale-pager-top"></div>
       </div>
 
@@ -214,6 +255,7 @@
         window.STALE_PLEX_CHAIN = {% if plex_chain_enabled %}true{% else %}false{% endif %};
         (function () {
           var DATA_URL = "/insights/stale-library/api/data";
+          var EXPORT_URL = "/insights/stale-library/api/export";
           var REFRESH_URL = "/insights/stale-library/api/refresh";
           var UPSTREAM_URL = "/insights/stale-library/api/upstream";
           var upstreamPollMs = 2500;
@@ -238,6 +280,30 @@
               b.classList.toggle("stale-refresh-working", !!busy);
               b.setAttribute("aria-busy", busy ? "true" : "false");
             }
+          }
+
+          function updateStaleExportLinks() {
+            var wrap = document.getElementById("stale-export-links");
+            if (!wrap) return;
+            var fmts = [
+              { ext: "json", label: "JSON" },
+              { ext: "csv", label: "CSV" },
+              { ext: "txt", label: "TXT" },
+              { ext: "xml", label: "XML" },
+            ];
+            wrap.textContent = "";
+            fmts.forEach(function (x) {
+              var a = document.createElement("a");
+              a.href =
+                EXPORT_URL +
+                "?format=" +
+                encodeURIComponent(x.ext) +
+                "&sort=" +
+                encodeURIComponent(sort);
+              a.textContent = x.label;
+              a.setAttribute("download", "");
+              wrap.appendChild(a);
+            });
           }
 
           function captureOpenStaleSeriesIds(grid) {
@@ -360,6 +426,10 @@
               warnN > 0
                 ? '<div class="status-error">' + esc(warnList.slice(0, 2).join(" · ")) + (warnN > 2 ? " …" : "") + "</div>"
                 : '<div class="muted">None</div>';
+            var ovCf = !!(j && j.overseerr_configured);
+            var ovKeys = j && j.overseerr_tvdb_keys != null ? j.overseerr_tvdb_keys : "—";
+            var ovTmdb = j && j.overseerr_tmdb_keys != null ? j.overseerr_tmdb_keys : "—";
+            var ovErr = j && j.overseerr_fetch_error;
 
             el.innerHTML =
               '<article class="status-card">' +
@@ -400,6 +470,22 @@
               "</strong></div>" +
               '<div class="muted">Episodes with files drive season counts.</div>' +
               "</article>" +
+              (ovCf
+                ? '<article class="status-card">' +
+                  "<div><strong>Overseerr</strong></div>" +
+                  "<div>Indexed by TVDB: <strong>" +
+                  esc(ovKeys) +
+                  "</strong> · by TMDB: <strong>" +
+                  esc(ovTmdb) +
+                  "</strong></div>" +
+                  (ovErr
+                    ? '<div class="status-error">' + esc(ovErr) + "</div>"
+                    : '<div class="muted">Cards match Sonarr <code>tvdbId</code> first, then <code>tmdbId</code> (Overseerr’s primary id).</div>') +
+                  "</article>"
+                : '<article class="status-card">' +
+                  "<div><strong>Overseerr</strong></div>" +
+                  '<div class="muted">Not configured. Set <code>OVERSEERR_BASE_URL</code> and <code>OVERSEERR_API_KEY</code> for requester metadata.</div>' +
+                  "</article>") +
               '<article class="status-card">' +
               "<div><strong>Stale series</strong></div>" +
               "<div>Total matching: <strong>" +
@@ -485,6 +571,101 @@
             return new Date(n * 1000).toISOString().replace("T", " ").slice(0, 19) + " UTC";
           }
 
+          function seriesRunLabel(state) {
+            var m = {
+              continuing: "Continuing — more episodes may still air",
+              ended: "Ended",
+              upcoming: "Upcoming",
+              deleted: "Deleted",
+              unknown: "Unknown",
+            };
+            return m[state] || m.unknown;
+          }
+
+          function formatExpandedCardExtras(payload, s) {
+            var bits = [];
+            var rs = s.series_run_state || "unknown";
+            bits.push(
+              '<p class="stale-meta"><strong>Series run</strong> · ' + esc(seriesRunLabel(rs)) + "</p>"
+            );
+            if (s.sonarr_series_status && String(s.sonarr_series_status).toLowerCase() !== String(rs)) {
+              bits.push(
+                '<p class="stale-meta muted">Sonarr status: <code>' + esc(s.sonarr_series_status) + "</code></p>"
+              );
+            }
+            var lp = s.last_tautulli_play;
+            if (lp && lp.played_at_epoch) {
+              var who = lp.user ? esc(lp.user) : "Unknown user";
+              var when = formatEpochUtc(lp.played_at_epoch);
+              var epLab = lp.episode_label ? esc(lp.episode_label) : "Episode";
+              var srv = lp.tautulli_server_name ? esc(lp.tautulli_server_name) : "";
+              var srvBit = srv ? " · Tautulli: " + srv : "";
+              bits.push(
+                '<p class="stale-meta"><strong>Last Tautulli play</strong> · ' +
+                  who +
+                  " · " +
+                  when +
+                  " · " +
+                  epLab +
+                  srvBit +
+                  "</p>"
+              );
+            } else {
+              bits.push(
+                '<p class="stale-meta muted"><strong>Last Tautulli play</strong> — no matching episode rows in merged history (never watched in this dataset, or title/TVDB alignment missed).</p>'
+              );
+            }
+            var f1 = s.first_file_added_epoch;
+            var f2 = s.last_file_added_epoch;
+            if (f1) {
+              var line =
+                '<p class="stale-meta"><strong>Episode files (Sonarr)</strong> · first added ' +
+                formatEpochUtc(f1);
+              if (f2 && f2 !== f1) {
+                line += " · latest file added " + formatEpochUtc(f2);
+              }
+              line += "</p>";
+              bits.push(line);
+            } else {
+              bits.push(
+                '<p class="stale-meta muted">Sonarr did not include per-episode file dates for these rows.</p>'
+              );
+            }
+            var ov = s.overseerr;
+            var ovOn = payload && payload.overseerr_configured;
+            if (ovOn) {
+              if (ov && (ov.requested_at_epoch || ov.requested_by || ov.library_available_at_epoch)) {
+                var rq =
+                  ov.requested_at_epoch
+                    ? "Requested " + formatEpochUtc(ov.requested_at_epoch)
+                    : "Request date unknown";
+                if (ov.requested_by) rq += " · by " + esc(ov.requested_by);
+                bits.push('<p class="stale-meta"><strong>Overseerr</strong> · ' + rq + "</p>");
+                if (ov.library_available_at_epoch) {
+                  bits.push(
+                    '<p class="stale-meta">Overseerr marked available: ' +
+                      formatEpochUtc(ov.library_available_at_epoch) +
+                      " (proxy for when the request pipeline reported the series ready)</p>"
+                  );
+                }
+                if (ov.matched_via) {
+                  bits.push(
+                    '<p class="stale-meta muted">Overseerr match: <code>' + esc(ov.matched_via) + "</code> id (Sonarr)</p>"
+                  );
+                }
+              } else if (s.tvdb_id != null || s.tmdb_id != null) {
+                bits.push(
+                  '<p class="stale-meta muted">No Overseerr TV request matched Sonarr TVDB/TMDB ids for this series.</p>'
+                );
+              } else {
+                bits.push(
+                  '<p class="stale-meta muted">No TVDB or TMDB id on this Sonarr series — Overseerr matching skipped.</p>'
+                );
+              }
+            }
+            return bits.join("");
+          }
+
           function renderUpstreamPanel(u) {
             var sumEl = document.getElementById("stale-upstream-summary");
             var grid = document.getElementById("stale-upstream-cards");
@@ -496,7 +677,14 @@
                 '<article class="status-card"><div><strong>Upstream</strong></div><div class="muted">Nothing in flight.</div></article>';
               return;
             }
-            var src = u.upstream === "tautulli" ? "Tautulli" : u.upstream === "sonarr" ? "Sonarr" : "Starting";
+            var src =
+              u.upstream === "tautulli"
+                ? "Tautulli"
+                : u.upstream === "sonarr"
+                  ? "Sonarr"
+                  : u.upstream === "overseerr"
+                    ? "Overseerr"
+                    : "Starting";
             sumEl.textContent =
               "Active: " + src + " — " + (u.phase || "…") + " · trace updated " + formatEpochUtc(u.updated_epoch);
             var html = "";
@@ -632,13 +820,17 @@
               (cur >= tp ? " disabled" : "") +
               '>Last</button>';
             el.querySelectorAll("button[data-go]").forEach(function (btn) {
-              btn.onclick = function () {
+              btn.onclick = function (ev) {
+                if (ev) {
+                  ev.preventDefault();
+                  ev.stopPropagation();
+                }
                 var g = btn.getAttribute("data-go");
                 if (g === "first") page = 1;
                 else if (g === "prev") page = Math.max(1, cur - 1);
                 else if (g === "next") page = Math.min(tp, cur + 1);
                 else if (g === "last") page = tp;
-                loadData(false);
+                loadData(false, { softPagination: true });
               };
             });
           }
@@ -700,9 +892,11 @@
                 '<p class="stale-meta">Sonarr id ' +
                 esc(sid) +
                 (tvdb != null ? " · TVDB " + esc(tvdb) : "") +
+                (s.tmdb_id != null ? " · TMDB " + esc(s.tmdb_id) : "") +
                 " · " +
                 (s.total_files || 0) +
                 " file(s) on disk</p>";
+              html += formatExpandedCardExtras(payload, s);
               if (sls) {
                 html +=
                   '<p class="stale-meta">No Tautulli plays in the ' +
@@ -827,6 +1021,11 @@
             var tvdbRaw = btn.getAttribute("data-tvdb");
             var tvdb = tvdbRaw && tvdbRaw !== "null" && tvdbRaw !== "" ? parseInt(tvdbRaw, 10) : null;
             if (isNaN(tvdb)) tvdb = null;
+            var cardEl = btn.closest("details.stale-card");
+            var sidRaw = cardEl ? cardEl.getAttribute("data-series-id") : null;
+            var sonarrSeriesId =
+              sidRaw && sidRaw !== "null" && sidRaw !== "" ? parseInt(sidRaw, 10) : null;
+            if (isNaN(sonarrSeriesId)) sonarrSeriesId = null;
             var title = btn.getAttribute("data-title") || "";
             var season = btn.getAttribute("data-season");
             var seasonNum = season != null && season !== "" ? parseInt(season, 10) : null;
@@ -845,6 +1044,7 @@
             var body = {
               kind: kind,
               tvdb_id: tvdb,
+              sonarr_series_id: sonarrSeriesId,
               series_title: title || null,
               season_number: seasonNum,
               chain_plex_delete: typeof window.STALE_PLEX_CHAIN === "boolean" ? window.STALE_PLEX_CHAIN : true,
@@ -880,7 +1080,7 @@
                 else rem.add(removedKey(tvdb, null));
                 saveRemovedSet(rem);
               }
-              await loadData(false, { replace: true });
+              await loadData(false, { replace: true, silent: true });
             } catch (e) {
               if (statusEl) {
                 statusEl.className = "stale-status err";
@@ -891,6 +1091,7 @@
 
           async function loadData(force, opts) {
             opts = opts || {};
+            var softPagination = !!(opts && opts.softPagination);
             if (opts.replace) {
               if (staleDataFetchCtrl) {
                 try {
@@ -907,6 +1108,7 @@
             staleDataFetchCtrl = myCtrl;
             var silent = !!(opts && opts.silent);
             var grid = document.getElementById("stale-grid");
+            var showHeavyLoading = !silent && !softPagination;
             var hint;
             if (pendingRebuildHint) {
               pendingRebuildHint = false;
@@ -920,12 +1122,14 @@
             } else {
               hint = "Fetching page data…";
             }
-            if (!silent) {
+            if (showHeavyLoading) {
               renderStaleStatusLoading(hint);
               setFetchLine(hint);
               if (grid) {
                 grid.innerHTML = '<p class="note stale-grid-wait">Loading card grid…</p>';
               }
+            } else if (softPagination && grid) {
+              grid.classList.add("stale-grid-updating");
             }
             var u =
               DATA_URL +
@@ -947,28 +1151,38 @@
               }
               var j = await r.json();
               staleFirstLoad = false;
-              if (!silent) {
+              if (!silent || softPagination) {
                 renderStaleStatusFromPayload(j, j.pagination);
-                setFetchLine(
-                  "Last updated " + new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC (browser clock)."
-                );
+                if (!softPagination) {
+                  setFetchLine(
+                    "Last updated " + new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC (browser clock)."
+                  );
+                }
               }
               renderGrid(j);
               renderPager(j.pagination, "stale-pager-top");
               renderPager(j.pagination, "stale-pager-bottom");
+              updateStaleExportLinks();
             } catch (e) {
               if (e && e.name === "AbortError") {
                 return;
               }
               if (!silent) {
-                renderStaleStatusFetchError(e);
-                setFetchLine("Request failed — see Snapshot status card.");
-                if (grid) {
-                  grid.innerHTML =
-                    '<p class="status-error">Could not load data. Check the status cards above and try again.</p>';
+                if (!softPagination) {
+                  renderStaleStatusFetchError(e);
+                  setFetchLine("Request failed — see Snapshot status card.");
+                  if (grid) {
+                    grid.innerHTML =
+                      '<p class="status-error">Could not load data. Check the status cards above and try again.</p>';
+                  }
+                } else {
+                  setFetchLine("Could not load this page — try again or refresh.");
                 }
               }
             } finally {
+              if (grid) {
+                grid.classList.remove("stale-grid-updating");
+              }
               if (staleDataFetchCtrl === myCtrl) {
                 staleDataFetchCtrl = null;
                 staleFetchInFlight = false;
@@ -981,6 +1195,7 @@
             sortEl.onchange = function () {
               sort = this.value;
               page = 1;
+              updateStaleExportLinks();
               loadData(false);
             };
           }
@@ -1025,6 +1240,7 @@
 
           renderStaleStatusLoading("Starting request…");
           setFetchLine("Connecting to Cold Storage API…");
+          updateStaleExportLinks();
           loadData(false);
         })();
       </script>

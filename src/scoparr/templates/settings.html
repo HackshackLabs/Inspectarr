@@ -236,6 +236,27 @@
           </div>
         </details>
 
+        <details class="settings-block" data-settings-section="radarr">
+          <summary>Radarr</summary>
+          <div class="settings-block-body">
+          <div class="field-grid">
+            <label class="field">Radarr base URL
+              <input type="text" name="radarr_base_url" value="{{ form_values.radarr_base_url | e }}" />
+            </label>
+            <label class="field">Radarr request timeout (s)
+              <input type="number" name="radarr_request_timeout_seconds" value="{{ form_values.radarr_request_timeout_seconds }}" step="any" />
+            </label>
+            <label class="field">Radarr API key
+              <input type="password" name="radarr_api_key" autocomplete="off" placeholder="Leave blank to keep saved/env value" />
+            </label>
+          </div>
+          <div class="checkbox-line">
+            <input type="checkbox" name="clear_radarr_key" value="1" id="clear_radarr_key" />
+            <label for="clear_radarr_key">Clear stored Radarr API key (fall back to environment only)</label>
+          </div>
+          </div>
+        </details>
+
         <details class="settings-block" data-settings-section="plex">
           <summary>Plex Media Server</summary>
           <div class="settings-block-body">

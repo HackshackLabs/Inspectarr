@@ -29,6 +29,7 @@ from scoparr.dashboard_config import (
 from scoparr.limiter import limiter
 from scoparr.settings import (
     PlexServer,
+    Settings,
     TautulliServer,
     _settings_from_env,
     get_settings,
@@ -264,6 +265,19 @@ async def settings_save(request: Request) -> RedirectResponse:
                     status_code=303,
                 )
 
+    for radarr_field, radarr_typ in (
+        ("radarr_base_url", "text"),
+        ("radarr_request_timeout_seconds", "float"),
+    ):
+        if radarr_field in scalar:
+            try:
+                new_ov[radarr_field] = _coerce_field(scalar[radarr_field], radarr_typ)
+            except ValueError:
+                return RedirectResponse(
+                    url=f"/settings?error={_q(f'Invalid value for {radarr_field}')}",
+                    status_code=303,
+                )
+
     if "plex_request_timeout_seconds" in scalar:
         try:
             new_ov["plex_request_timeout_seconds"] = _coerce_field(
@@ -310,6 +324,14 @@ async def settings_save(request: Request) -> RedirectResponse:
     elif not new_ov.get("sonarr_api_key") and prev_ov.get("sonarr_api_key"):
         new_ov["sonarr_api_key"] = prev_ov["sonarr_api_key"]
 
+    rk = (scalar.get("radarr_api_key") or "").strip()
+    if scalar.get("clear_radarr_key") in ("1", "on", "true", "yes"):
+        new_ov.pop("radarr_api_key", None)
+    elif rk:
+        new_ov["radarr_api_key"] = rk
+    elif not new_ov.get("radarr_api_key") and prev_ov.get("radarr_api_key"):
+        new_ov["radarr_api_key"] = prev_ov["radarr_api_key"]
+
     pk1 = (scalar.get("plex_token_primary") or "").strip()
     if scalar.get("clear_plex_token_primary") in ("1", "on", "true", "yes"):
         new_ov.pop("plex_token_primary", None)
@@ -335,6 +357,18 @@ async def settings_save(request: Request) -> RedirectResponse:
         except ValueError as exc:
             return RedirectResponse(
                 url=f"/settings?error={_q(f'Sonarr URL: {exc}')}",
+                status_code=303,
+            )
+
+    effective_radarr = str(new_ov.get("radarr_base_url") or "").strip()
+    if not effective_radarr:
+        effective_radarr = str(env_base.radarr_base_url or "").strip()
+    if block_private and effective_radarr:
+        try:
+            validate_upstream_base_url(effective_radarr, block_private_hosts=True)
+        except ValueError as exc:
+            return RedirectResponse(
+                url=f"/settings?error={_q(f'Radarr URL: {exc}')}",
                 status_code=303,
             )
 

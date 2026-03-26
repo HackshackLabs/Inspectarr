@@ -26,6 +26,8 @@ Beyond environment variables (`.env` / `.env.local`), the app can load a **JSON 
     ],
     "sonarr_base_url": "",
     "sonarr_api_key": "",
+    "radarr_base_url": "",
+    "radarr_api_key": "",
     "plex_servers": [],
     "plex_token_primary": "",
     "plex_token_secondary": "",
@@ -46,6 +48,7 @@ If a key is **absent** from `overrides`, the value comes from the environment (o
 - **POST /settings** accepts `multipart/form-data` (same form): saves presentation + overrides, optional logo upload. The Tautulli servers textarea is parsed and validated as `TautulliServer` rows, then written to `overrides.tautulli_servers` as a JSON array of plain objects (so the file stays valid JSON).
 - **Themes** (body class `theme-*`): `slate`, `ocean`, `ember`, `forest`, `paper`.
 - **Sonarr API key**: leave password blank to keep the previous stored or env value; use **Clear stored Sonarr API key** to drop the key from the JSON file (env may still supply one).
+- **Radarr** (Harbor Watch): same pattern as Sonarr — **Radarr base URL**, **request timeout**, optional **Radarr API key** in the Radarr section; blank password keeps the previous JSON or `.env` value; **Clear stored Radarr API key** removes it from the dashboard file only.
 - **Plex**: optional JSON array `plex_servers` (`PlexServer`: `id`, `base_url`, `tautulli_server_id`, `token_profile` `primary`|`secondary`). **Sign in with Plex** saves tokens to JSON only — it does not populate `plex_servers`; you still edit that array and **Save**. The settings page shows whether each token is set, where it is stored (JSON vs `.env`), a masked suffix, and **Verify token at Plex.tv** (`GET /settings/plex-auth/validate`). See `docs/PLEX_API_LIBRARY_REMOVAL.md`, `POST /settings/plex-auth/start`, and `GET /settings/plex-auth/check`.
 
 ## Security

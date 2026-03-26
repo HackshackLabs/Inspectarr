@@ -20,7 +20,7 @@ In the UI, the main areas are labeled **Deck Watch** (live), **Broadside Range**
 | **Deck Watch** | `/` | Merged `get_activity`, per-server health, stream summaries |
 | **Broadside Range** | `/history` | Global merge-sort timeline, filters, optional SQLite page cache, `range_mode=week` (default) or `all` |
 | **Horizon Watch** | `/insights/stale-library` | Stale-library cards, JSON API, export (JSON/CSV/TXT/XML), Sonarr + optional Plex chain |
-| **Settings** | `/settings` | Themes, branding, `TAUTULLI_SERVERS_JSON`, Sonarr / Overseerr / Plex, tuning overrides → `DASHBOARD_CONFIG_PATH` |
+| **Settings** | `/settings` | Themes, branding, `TAUTULLI_SERVERS_JSON`, Sonarr / Radarr / Overseerr / Plex, tuning overrides → `DASHBOARD_CONFIG_PATH` |
 | **Plex sign-in** | `/settings/plex-auth/*` | Pin flow + token check (used from Settings) |
 
 Stack: Python 3.11+, FastAPI, Jinja2 (server-rendered UI).
@@ -48,7 +48,7 @@ Copy `.env.example` to `.env` and adjust for your environment. **Authoritative n
 - **Live activity cache:** `ACTIVITY_CACHE_TTL_SECONDS`, `ACTIVITY_CACHE_STALE_SECONDS`
 - **History crawl:** `HISTORY_DEFAULT_WEEK_DAYS`, week vs full crawl sizes/delays/limits, optional `HISTORY_CACHE_DB_PATH` + `HISTORY_CACHE_TTL_SECONDS`
 - **Horizon Watch snapshot:** `STALE_LIBRARY_CACHE_PATH`, `STALE_LIBRARY_CACHE_TTL_SECONDS`, `LIBRARY_UNWATCHED_HISTORY_EXTRA_DELAY_SECONDS`, `TV_INVENTORY_REQUEST_TIMEOUT_SECONDS`
-- **Optional integrations:** `SONARR_*`, `OVERSEERR_*`, `PLEX_*`, `DASHBOARD_CONFIG_PATH`
+- **Optional integrations:** `SONARR_*`, `RADARR_*`, `OVERSEERR_*`, `PLEX_*`, `DASHBOARD_CONFIG_PATH`
 
 ### Timeout and gentleness
 

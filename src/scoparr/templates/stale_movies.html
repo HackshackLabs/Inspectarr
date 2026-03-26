@@ -229,7 +229,7 @@
           var pendingRebuildHint = false;
 
           function esc(s) {
-            return String(s == null ? "")
+            return String(s == null ? "" : s)
               .replace(/&/g, "&amp;")
               .replace(/</g, "&lt;")
               .replace(/"/g, "&quot;");
@@ -400,10 +400,28 @@
               esc(h) +
               "</div>" +
               "</article>" +
-              '<article class="status-card"><div><strong>Tautulli</strong></div><div>Movie history</div>' +
-              '<div class="muted">All-time capped crawl; 2y + never from merged rows.</div></article>' +
-              '<article class="status-card"><div><strong>Radarr</strong></div><div>Movie library</div>' +
-              '<div class="muted">Movies with files on disk.</div></article>';
+              '<article class="status-card">' +
+              "<div><strong>Tautulli</strong></div>" +
+              "<div>Movie history</div>" +
+              '<div class="muted">Oldest play in merged data: —</div>' +
+              '<div class="muted">All-time capped crawl per server; 2y + never derived from merged rows.</div>' +
+              "</article>" +
+              '<article class="status-card">' +
+              "<div><strong>Radarr</strong></div>" +
+              "<div>Library &amp; files</div>" +
+              '<div class="muted">Movies in API list: —</div>' +
+              '<div class="muted">Stale rows are movies with files that match the 2y / never-played rules.</div>' +
+              "</article>" +
+              '<article class="status-card">' +
+              "<div><strong>Stale matches</strong></div>" +
+              "<div>—</div>" +
+              '<div class="muted">Movies with files but no plays in the lookback window (or never, with age rule).</div>' +
+              "</article>" +
+              '<article class="status-card">' +
+              "<div><strong>This page</strong></div>" +
+              "<div>—</div>" +
+              '<div class="muted">Sort, pagination, and grid fill after the snapshot returns.</div>' +
+              "</article>";
           }
 
           function renderStaleStatusFromPayload(j, pagination) {
@@ -417,6 +435,7 @@
             var radScan = j && j.radarr_movies_scanned != null ? j.radarr_movies_scanned : "—";
             var radFiles = j && j.radarr_movies_with_files != null ? j.radarr_movies_with_files : "—";
             var histOldest = formatEpochUtc(j && j.history_oldest_epoch);
+            var hmode = (j && j.history_crawl_mode) || "";
             var hcap = j && j.history_full_max_rows_per_server != null ? j.history_full_max_rows_per_server : "";
             var upd = formatEpochUtc(j && j.updated_at_epoch);
             var p = pagination || (j && j.pagination) || {};
@@ -453,23 +472,33 @@
               esc(lb) +
               " days</div></article>" +
               '<article class="status-card">' +
-              "<div><strong>Tautulli</strong></div><div>" +
+              "<div><strong>Tautulli</strong></div>" +
+              "<div>" +
               esc(tSrv) +
-              " server(s)</div><div>History rows merged: <strong>" +
+              " server(s)</div>" +
+              "<div>History rows merged: <strong>" +
               esc(hist) +
-              "</strong></div><div>Oldest: <strong>" +
+              "</strong></div>" +
+              "<div>Oldest play in merged data: <strong>" +
               esc(histOldest) +
               "</strong></div>" +
-              (hcap !== ""
-                ? '<div class="muted">Cap/server ' + esc(hcap) + "</div>"
-                : "") +
+              (hmode
+                ? '<div class="muted">Crawl: ' + esc(hmode) + (hcap !== "" ? " · cap/server " + esc(hcap) : "") + "</div>"
+                : hcap !== ""
+                  ? '<div class="muted">Cap/server ' + esc(hcap) + "</div>"
+                  : "") +
+              '<div class="muted">2y cutoff + never-watched use the same merged rows.</div>' +
               "</article>" +
               '<article class="status-card">' +
-              "<div><strong>Radarr</strong></div><div>Movies scanned: <strong>" +
+              "<div><strong>Radarr</strong></div>" +
+              "<div>Movies in API list: <strong>" +
               esc(radScan) +
-              "</strong></div><div>With files: <strong>" +
+              "</strong></div>" +
+              "<div>Movies with files: <strong>" +
               esc(radFiles) +
-              "</strong></div></article>" +
+              "</strong></div>" +
+              '<div class="muted">Only movies that match stale rules appear in the grid; scan count is the full Radarr list.</div>' +
+              "</article>" +
               (ovCf
                 ? '<article class="status-card"><div><strong>Overseerr</strong></div><div>Movie TMDB keys: <strong>' +
                   esc(ovKeys) +
@@ -501,10 +530,17 @@
             if (!el) return;
             var msg = e && e.message ? e.message : String(e);
             el.innerHTML =
-              '<article class="status-card"><div><strong>Snapshot</strong></div>' +
+              '<article class="status-card">' +
+              "<div><strong>Snapshot</strong></div>" +
+              '<div>Status: <span class="status-error">request failed</span></div>' +
               '<div class="status-error">' +
               esc(msg) +
-              "</div></article>";
+              "</div>" +
+              "</article>" +
+              '<article class="status-card">' +
+              "<div><strong>What to try</strong></div>" +
+              '<div class="muted">Check the browser network tab, server logs, and that you are still logged in. Use “Refresh snapshot now” after fixing the issue.</div>' +
+              "</article>";
           }
 
           function renderUpstreamPanel(u) {
@@ -513,7 +549,7 @@
             if (!sumEl || !grid) return;
             if (!u || !u.busy) {
               sumEl.textContent =
-                "Idle — no Harbor Watch snapshot is building.";
+                "Idle — no Harbor Watch snapshot is building. Start or wait for a refresh to see live Tautulli servers and Radarr calls.";
               grid.innerHTML =
                 '<article class="status-card"><div><strong>Upstream</strong></div><div class="muted">Nothing in flight.</div></article>';
               return;
@@ -527,55 +563,79 @@
                     ? "Overseerr"
                     : "Starting";
             sumEl.textContent =
-              "Active: " + src + " — " + (u.phase || "…") + " · " + formatEpochUtc(u.updated_epoch);
+              "Active: " + src + " — " + (u.phase || "…") + " · trace updated " + formatEpochUtc(u.updated_epoch);
             var html = "";
             var servers = u.tautulli_servers || [];
-            servers.forEach(function (s) {
-              var okCls =
-                s.last_ok === true ? "status-ok" : s.last_ok === false ? "status-error" : "muted";
-              var okTxt = s.last_ok === true ? "ok" : s.last_ok === false ? "error" : "—";
-              var lastPage =
-                s.last_history_page_rows === null || s.last_history_page_rows === undefined
-                  ? "—"
-                  : esc(s.last_history_page_rows);
+            if (servers.length) {
+              servers.forEach(function (s) {
+                var okCls =
+                  s.last_ok === true ? "status-ok" : s.last_ok === false ? "status-error" : "muted";
+                var okTxt =
+                  s.last_ok === true ? "ok" : s.last_ok === false ? "error" : "—";
+                var lastPage =
+                  s.last_history_page_rows === null || s.last_history_page_rows === undefined
+                    ? "—"
+                    : esc(s.last_history_page_rows);
+                html +=
+                  '<article class="status-card">' +
+                  "<div><strong>" +
+                  esc(s.server_name || s.server_id) +
+                  "</strong></div>" +
+                  '<div class="muted">ID: ' +
+                  esc(s.server_id) +
+                  "</div>" +
+                  "<div>Rows in last <code>get_history</code> response: <strong>" +
+                  lastPage +
+                  "</strong></div>" +
+                  "<div>Rows accumulated this build (all pages): <strong>" +
+                  esc(s.history_rows_accumulated != null ? s.history_rows_accumulated : 0) +
+                  "</strong></div>" +
+                  "<div>Last cmd: <code>" +
+                  esc(s.last_cmd || "—") +
+                  "</code></div>" +
+                  "<div>HTTP: " +
+                  (s.last_http_status != null ? esc(s.last_http_status) : "—") +
+                  ' · <span class="' +
+                  okCls +
+                  '">' +
+                  okTxt +
+                  "</span></div>" +
+                  "<div>Last response: <strong>" +
+                  formatEpochUtc(s.last_response_epoch) +
+                  "</strong></div>" +
+                  "</article>";
+              });
+            } else if (u.upstream === "tautulli") {
               html +=
-                '<article class="status-card"><div><strong>' +
-                esc(s.server_name || s.server_id) +
-                "</strong></div>" +
-                "<div>Last page rows: <strong>" +
-                lastPage +
-                "</strong> · accumulated: <strong>" +
-                esc(s.history_rows_accumulated != null ? s.history_rows_accumulated : 0) +
-                "</strong></div>" +
-                "<div>Cmd: <code>" +
-                esc(s.last_cmd || "—") +
-                "</code> · HTTP " +
-                (s.last_http_status != null ? esc(s.last_http_status) : "—") +
-                ' · <span class="' +
-                okCls +
-                '">' +
-                okTxt +
-                "</span></div></article>";
-            });
+                '<article class="status-card"><div><strong>Tautulli</strong></div><div class="muted">Waiting for first server response…</div></article>';
+            }
             var rd = u.radarr || {};
             var last = rd.last;
-            html += '<article class="status-card"><div><strong>Radarr</strong></div>';
+            var listCt = rd.movie_list_count != null ? rd.movie_list_count : 0;
+            html +=
+              '<article class="status-card">' +
+              "<div><strong>Radarr</strong></div>" +
+              "<div>Movies in list: <strong>" +
+              esc(listCt) +
+              "</strong></div>";
             if (last && last.label) {
               var sok = last.ok ? "status-ok" : "status-error";
               html +=
                 "<div>Last: <code>" +
                 esc(last.label) +
-                "</code></div><div>HTTP " +
+                "</code></div>" +
+                "<div>HTTP: " +
                 esc(last.http_status) +
                 ' · <span class="' +
                 sok +
                 '">' +
                 (last.ok ? "ok" : "error") +
-                "</span></div><div>" +
+                "</span></div>" +
+                "<div>Last response: <strong>" +
                 formatEpochUtc(last.last_response_epoch) +
-                "</div>";
+                "</strong></div>";
             } else {
-              html += '<div class="muted">No Radarr response yet.</div>';
+              html += '<div class="muted">No Radarr response recorded yet this build.</div>';
             }
             html += "</article>";
             grid.innerHTML = html;
@@ -749,11 +809,11 @@
               if (!r.ok) throw new Error("HTTP " + r.status);
               var j = await r.json();
               staleFirstLoad = false;
-              if (!silent || softPagination) {
-                renderStaleStatusFromPayload(j, j.pagination);
-                if (!softPagination) {
-                  setFetchLine("Updated " + new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC (browser).");
-                }
+              renderStaleStatusFromPayload(j, j.pagination);
+              if (!silent && !softPagination) {
+                setFetchLine(
+                  "Last updated " + new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC (browser clock)."
+                );
               }
               renderGrid(j);
               renderPager(j.pagination, "stale-pager-top");

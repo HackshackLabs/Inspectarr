@@ -34,6 +34,7 @@ from scoparr.stale_movies_upstream import (
     end_stale_movies_upstream_trace,
     record_stale_movies_radarr,
     record_stale_movies_tautulli,
+    set_stale_movies_radarr_movie_list_count,
     set_stale_movies_upstream_phase,
 )
 from scoparr.tautulli_client import TautulliClient, TautulliTraceHook
@@ -375,6 +376,9 @@ async def compute_stale_movies_payload(
                     settings.radarr_api_key,
                     on_exchange=_stale_radarr_exchange,
                 )
+            set_stale_movies_radarr_movie_list_count(
+                len([x for x in mlist if isinstance(x, dict)]),
+            )
         except Exception as exc:
             logger.exception("stale movies: Radarr movie list failed")
             errors.append(str(exc))

@@ -17,6 +17,7 @@ _state: dict[str, Any] = {
     "updated_epoch": 0,
     "tautulli_by_id": {},
     "radarr_last": None,
+    "radarr_movie_list_count": 0,
 }
 
 
@@ -32,6 +33,7 @@ def begin_stale_movies_upstream_trace(
         _state["updated_epoch"] = now
         _state["tautulli_by_id"] = {}
         _state["radarr_last"] = None
+        _state["radarr_movie_list_count"] = 0
         if tautulli_placeholders:
             by = _state["tautulli_by_id"]
             for sid_raw, name_raw in tautulli_placeholders:
@@ -57,6 +59,7 @@ def end_stale_movies_upstream_trace() -> None:
         _state["updated_epoch"] = now
         _state["tautulli_by_id"] = {}
         _state["radarr_last"] = None
+        _state["radarr_movie_list_count"] = 0
 
 
 def set_stale_movies_upstream_phase(upstream: UpstreamName | None, phase: str) -> None:
@@ -124,6 +127,15 @@ def record_stale_movies_radarr(label: str, http_status: int, ok: bool) -> None:
         }
 
 
+def set_stale_movies_radarr_movie_list_count(count: int) -> None:
+    """After ``GET /api/v3/movie`` succeeds; mirrors Sonarr series list count in Horizon Watch upstream."""
+    now = int(time.time())
+    with _lock:
+        _state["updated_epoch"] = now
+        _state["upstream"] = "radarr"
+        _state["radarr_movie_list_count"] = max(0, int(count))
+
+
 def stale_movies_upstream_snapshot() -> dict[str, Any]:
     with _lock:
         raw_t = _state.get("tautulli_by_id") or {}
@@ -145,5 +157,8 @@ def stale_movies_upstream_snapshot() -> dict[str, Any]:
             "started_epoch": int(_state.get("started_epoch") or 0),
             "updated_epoch": int(_state.get("updated_epoch") or 0),
             "tautulli_servers": servers,
-            "radarr": {"last": radarr_last},
+            "radarr": {
+                "last": radarr_last,
+                "movie_list_count": int(_state.get("radarr_movie_list_count") or 0),
+            },
         }

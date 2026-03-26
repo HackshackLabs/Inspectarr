@@ -3,7 +3,11 @@
 import unittest
 from datetime import datetime, timezone
 
-from scoparr.overseerr_client import _accumulate_tv_request_row, finalize_overseerr_tv_entry
+from scoparr.overseerr_client import (
+    _accumulate_movie_request_row,
+    _accumulate_tv_request_row,
+    finalize_overseerr_tv_entry,
+)
 
 
 class OverseerrRequestMapTests(unittest.TestCase):
@@ -89,6 +93,20 @@ class OverseerrRequestMapTests(unittest.TestCase):
         )
         self.assertEqual(acc_tvdb, {})
         self.assertEqual(acc_tmdb, {})
+
+    def test_movie_accumulates_by_tmdb(self) -> None:
+        acc: dict[int, dict] = {}
+        _accumulate_movie_request_row(
+            acc,
+            {
+                "type": "movie",
+                "createdAt": "2024-03-01T00:00:00.000Z",
+                "requestedBy": {"displayName": "Dan"},
+                "media": {"mediaType": "movie", "tmdbId": 424},
+            },
+        )
+        self.assertIn(424, acc)
+        self.assertEqual(finalize_overseerr_tv_entry(acc[424])["requested_by"], "Dan")
 
 
 if __name__ == "__main__":

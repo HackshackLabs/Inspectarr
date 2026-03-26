@@ -92,12 +92,26 @@ class Settings(BaseSettings):
         alias="STALE_LIBRARY_CACHE_TTL_SECONDS",
         description="Wall-clock seconds before a snapshot is stale and rebuilt (default 6 hours).",
     )
+    stale_movies_cache_path: str = Field(
+        default="./data/stale_movies_cache.json",
+        alias="STALE_MOVIES_CACHE_PATH",
+        description="Stale-movies snapshot JSON; empty string disables persisting to disk.",
+    )
+    stale_movies_cache_ttl_seconds: float = Field(
+        default=21600.0,
+        ge=5.0,
+        alias="STALE_MOVIES_CACHE_TTL_SECONDS",
+        description="TTL for the Radarr/Tautulli stale-movies snapshot (default 6 hours).",
+    )
     activity_cache_ttl_seconds: float = Field(default=10.0, alias="ACTIVITY_CACHE_TTL_SECONDS")
     activity_cache_stale_seconds: float = Field(default=30.0, alias="ACTIVITY_CACHE_STALE_SECONDS")
     tautulli_servers: list[TautulliServer] = Field(default_factory=list, alias="TAUTULLI_SERVERS_JSON")
     sonarr_base_url: str = Field(default="", alias="SONARR_BASE_URL")
     sonarr_api_key: str = Field(default="", alias="SONARR_API_KEY")
     sonarr_request_timeout_seconds: float = Field(default=15.0, alias="SONARR_REQUEST_TIMEOUT_SECONDS")
+    radarr_base_url: str = Field(default="", alias="RADARR_BASE_URL")
+    radarr_api_key: str = Field(default="", alias="RADARR_API_KEY")
+    radarr_request_timeout_seconds: float = Field(default=15.0, alias="RADARR_REQUEST_TIMEOUT_SECONDS")
     overseerr_base_url: str = Field(
         default="",
         alias="OVERSEERR_BASE_URL",
@@ -155,6 +169,9 @@ class Settings(BaseSettings):
         ov = str(self.overseerr_base_url or "").strip()
         if ov:
             validate_upstream_base_url(ov, block_private_hosts=True)
+        rad = str(self.radarr_base_url or "").strip()
+        if rad:
+            validate_upstream_base_url(rad, block_private_hosts=True)
         return self
 
 
@@ -174,6 +191,11 @@ def get_settings() -> Settings:
 def sonarr_is_configured(settings: Settings) -> bool:
     """True when Sonarr URL and API key are both non-empty."""
     return bool(str(settings.sonarr_base_url or "").strip() and str(settings.sonarr_api_key or "").strip())
+
+
+def radarr_is_configured(settings: Settings) -> bool:
+    """True when Radarr URL and API key are both non-empty."""
+    return bool(str(settings.radarr_base_url or "").strip() and str(settings.radarr_api_key or "").strip())
 
 
 def _plex_token_for_profile(settings: Settings, profile: Literal["primary", "secondary"]) -> str:

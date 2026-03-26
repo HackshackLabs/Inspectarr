@@ -129,6 +129,38 @@ def tvdb_id_from_guid(guid: object) -> int | None:
         return None
 
 
+def tmdb_id_from_guid(guid: object) -> int | None:
+    """Parse TMDB movie id from a Plex/Tautulli guid (themoviedb agent URLs)."""
+    s = str(guid or "").strip()
+    if not s:
+        return None
+    if "themoviedb" not in s.lower():
+        return None
+    match = re.search(r"themoviedb://(?:movie/)?(\d+)", s, re.IGNORECASE)
+    if not match:
+        return None
+    try:
+        return int(match.group(1))
+    except ValueError:
+        return None
+
+
+def imdb_tt_from_guid(guid: object) -> str | None:
+    """Parse IMDb id (``tt…``) from a Plex/Tautulli guid (imdb agent URLs)."""
+    s = str(guid or "").strip()
+    if not s:
+        return None
+    if "imdb" not in s.lower():
+        return None
+    m = re.search(r"imdb://(tt\d+)", s, re.IGNORECASE)
+    if m:
+        return m.group(1).lower()
+    m = re.search(r"imdb://(\d{4,})", s, re.IGNORECASE)
+    if m:
+        return "tt" + m.group(1)
+    return None
+
+
 def _extract_canonical_utc_epoch(row: dict) -> int:
     """Normalize available history timestamp fields into UTC epoch seconds."""
     for key in ("started", "date", "stopped"):

@@ -2,7 +2,13 @@
 
 import unittest
 
-from scoparr.aggregate import merge_activity, merge_history, tvdb_id_from_guid
+from scoparr.aggregate import (
+    imdb_tt_from_guid,
+    merge_activity,
+    merge_history,
+    tmdb_id_from_guid,
+    tvdb_id_from_guid,
+)
 from scoparr.sonarr_client import resolve_series
 from scoparr.models import ActivityFetchResult, HistoryFetchResult
 
@@ -119,6 +125,31 @@ class TvdbGuidTests(unittest.TestCase):
     def test_returns_none_without_thetvdb(self) -> None:
         self.assertIsNone(tvdb_id_from_guid(None))
         self.assertIsNone(tvdb_id_from_guid("imdb://tt0944947"))
+
+
+class TmdbGuidTests(unittest.TestCase):
+    def test_parses_themoviedb_guid(self) -> None:
+        self.assertEqual(
+            550,
+            tmdb_id_from_guid("com.plexapp.agents.themoviedb://movie/550?lang=en"),
+        )
+        self.assertEqual(99, tmdb_id_from_guid("themoviedb://99"))
+
+    def test_returns_none_without_themoviedb(self) -> None:
+        self.assertIsNone(tmdb_id_from_guid(None))
+        self.assertIsNone(tmdb_id_from_guid("com.plexapp.agents.imdb://tt0468569"))
+
+
+class ImdbGuidTests(unittest.TestCase):
+    def test_parses_imdb_tt_guid(self) -> None:
+        self.assertEqual("tt0468569", imdb_tt_from_guid("com.plexapp.agents.imdb://tt0468569?lang=en"))
+
+    def test_parses_numeric_imdb_guid(self) -> None:
+        self.assertEqual("tt0111161", imdb_tt_from_guid("imdb://0111161"))
+
+    def test_returns_none_without_imdb(self) -> None:
+        self.assertIsNone(imdb_tt_from_guid(None))
+        self.assertIsNone(imdb_tt_from_guid("themoviedb://550"))
 
 
 class SonarrResolveSeriesTests(unittest.TestCase):

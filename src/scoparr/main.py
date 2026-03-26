@@ -11,6 +11,7 @@ from scoparr.limiter import limiter
 from scoparr.routes_configuration import router as configuration_router
 from scoparr.routes_dashboard import router as dashboard_router
 from scoparr.routes_stale_library import router as stale_library_router
+from scoparr.routes_stale_movies import router as stale_movies_router
 from scoparr.routes_plex_auth import router as plex_auth_router
 from scoparr.security_middleware import CsrfMiddleware, SecurityHeadersMiddleware
 from scoparr.settings import _settings_from_env, get_settings
@@ -35,6 +36,7 @@ def create_app() -> FastAPI:
 
     app.include_router(dashboard_router)
     app.include_router(stale_library_router)
+    app.include_router(stale_movies_router)
     app.include_router(plex_auth_router)
     app.include_router(configuration_router)
 

@@ -78,6 +78,28 @@ def _merge_request_into_bucket(
             cur["library_available_at_epoch"] = media_added_epoch
 
 
+def _accumulate_movie_request_row(acc_tmdb: dict[int, dict[str, Any]], row: dict[str, Any]) -> None:
+    media = row.get("media")
+    if not isinstance(media, dict):
+        return
+    row_type = str(row.get("type") or media.get("mediaType") or media.get("media_type") or "").lower()
+    if row_type != "movie":
+        return
+    tmdb = _media_positive_int(media, "tmdbId", "tmdb_id")
+    if tmdb is None:
+        return
+    created = parse_iso8601_utc_epoch(row.get("createdAt") or row.get("created_at"))
+    media_added = parse_iso8601_utc_epoch(media.get("mediaAddedAt") or media.get("media_added_at"))
+    who = _requested_by_display(row.get("requestedBy") or row.get("requested_by"))
+    _merge_request_into_bucket(
+        acc_tmdb,
+        tmdb,
+        created_epoch=created,
+        media_added_epoch=media_added,
+        who=who,
+    )
+
+
 def _accumulate_tv_request_row(
     acc_tvdb: dict[int, dict[str, Any]],
     acc_tmdb: dict[int, dict[str, Any]],
@@ -153,3 +175,35 @@ async def fetch_overseerr_tv_request_maps(
     tvdb_out = {tid: finalize_overseerr_tv_entry(v) for tid, v in acc_tvdb.items()}
     tmdb_out = {mid: finalize_overseerr_tv_entry(v) for mid, v in acc_tmdb.items()}
     return tvdb_out, tmdb_out
+
+
+async def fetch_overseerr_movie_request_map(
+    client: httpx.AsyncClient,
+    settings: Settings,
+) -> dict[int, dict[str, Any]]:
+    """Paginate ``GET /api/v1/request``; map movie requests by TMDB id."""
+    base = _base(settings.overseerr_base_url)
+    key = str(settings.overseerr_api_key or "").strip()
+    acc_tmdb: dict[int, dict[str, Any]] = {}
+    url = f"{base}/api/v1/request"
+    headers = {"X-Api-Key": key, "Accept": "application/json"}
+
+    for page in range(OVERSEERR_MAX_PAGES):
+        skip = page * OVERSEERR_PAGE_SIZE
+        response = await client.get(
+            url,
+            headers=headers,
+            params={"take": OVERSEERR_PAGE_SIZE, "skip": skip},
+        )
+        response.raise_for_status()
+        data = response.json()
+        results = data.get("results") if isinstance(data, dict) else None
+        if not isinstance(results, list):
+            break
+        for row in results:
+            if isinstance(row, dict):
+                _accumulate_movie_request_row(acc_tmdb, row)
+        if len(results) < OVERSEERR_PAGE_SIZE:
+            break
+
+    return {mid: finalize_overseerr_tv_entry(v) for mid, v in acc_tmdb.items()}

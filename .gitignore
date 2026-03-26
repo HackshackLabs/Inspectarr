@@ -17,6 +17,7 @@ build/
 # Local runtime: secrets and caches (use .env.example / docs for setup)
 data/dashboard_config.json
 data/stale_library_cache.json
+data/stale_movies_cache.json
 data/*.sqlite
 data/*.sqlite-journal
 data/*.sqlite-wal

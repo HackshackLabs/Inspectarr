@@ -273,6 +273,64 @@
             }
           }
 
+          function captureOpenStaleMovieIds(grid) {
+            var out = new Set();
+            if (!grid) return out;
+            grid.querySelectorAll("details.stale-card[open]").forEach(function (d) {
+              var id = d.getAttribute("data-movie-id");
+              if (id != null && id !== "") out.add(String(id));
+            });
+            return out;
+          }
+
+          function restoreOpenStaleMovies(grid, openIds) {
+            if (!grid || !openIds || !openIds.size) return;
+            grid.querySelectorAll("details.stale-card").forEach(function (d) {
+              var id = d.getAttribute("data-movie-id");
+              if (id != null && openIds.has(String(id))) d.open = true;
+            });
+          }
+
+          var STALE_OPEN_MOVIES_SS_KEY = "stale-open-movie-ids";
+
+          function persistStaleOpenMoviesFromGrid() {
+            var grid = document.getElementById("stale-grid");
+            if (!grid) return;
+            try {
+              sessionStorage.setItem(
+                STALE_OPEN_MOVIES_SS_KEY,
+                JSON.stringify(Array.from(captureOpenStaleMovieIds(grid)))
+              );
+            } catch (e) {}
+          }
+
+          function mergeSavedOpenStaleMovieIds(reopen) {
+            try {
+              var raw = sessionStorage.getItem(STALE_OPEN_MOVIES_SS_KEY);
+              if (!raw) return;
+              var saved = JSON.parse(raw);
+              if (!Array.isArray(saved)) return;
+              saved.forEach(function (id) {
+                if (id != null && id !== "") reopen.add(String(id));
+              });
+            } catch (e) {}
+          }
+
+          if (!window.__staleOpenMoviesToggleBound) {
+            window.__staleOpenMoviesToggleBound = true;
+            document.addEventListener(
+              "toggle",
+              function (ev) {
+                var t = ev.target;
+                if (!t || !t.matches || !t.matches("details.stale-card")) return;
+                var grid = document.getElementById("stale-grid");
+                if (!grid || !grid.contains(t)) return;
+                persistStaleOpenMoviesFromGrid();
+              },
+              true
+            );
+          }
+
           function updateStaleExportLinks() {
             var wrap = document.getElementById("stale-export-links");
             if (!wrap) return;
@@ -696,6 +754,8 @@
             var banner = document.getElementById("stale-banner");
             var updated = document.getElementById("stale-updated");
             if (!grid) return;
+            var reopen = captureOpenStaleMovieIds(grid);
+            mergeSavedOpenStaleMovieIds(reopen);
             if (payload && payload.errors && payload.errors.length) {
               banner.style.display = "block";
               banner.textContent = "Warnings: " + payload.errors.join(" · ");
@@ -709,11 +769,15 @@
             if (!payload || !payload.ok) {
               grid.innerHTML =
                 '<p class="note">' + esc((payload && payload.error) || "No data.") + "</p>";
+              restoreOpenStaleMovies(grid, reopen);
+              persistStaleOpenMoviesFromGrid();
               return;
             }
             var movies = payload.movies || [];
             if (!movies.length) {
               grid.innerHTML = '<p class="meta">No stale movies match the rules right now.</p>';
+              restoreOpenStaleMovies(grid, reopen);
+              persistStaleOpenMoviesFromGrid();
               return;
             }
             var html = "";
@@ -751,6 +815,8 @@
               html += "</div></details>";
             });
             grid.innerHTML = html;
+            restoreOpenStaleMovies(grid, reopen);
+            persistStaleOpenMoviesFromGrid();
           }
 
           async function loadData(force, opts) {
@@ -843,7 +909,7 @@
               sort = this.value;
               page = 1;
               updateStaleExportLinks();
-              loadData(false);
+              loadData(false, { softPagination: true });
             };
           }
           var perEl = document.getElementById("stale-per");
@@ -851,7 +917,7 @@
             perEl.onchange = function () {
               perPage = parseInt(this.value, 10) || 12;
               page = 1;
-              loadData(false);
+              loadData(false, { softPagination: true });
             };
           }
           var refreshBtn = document.getElementById("stale-refresh-now");

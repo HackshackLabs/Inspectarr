@@ -1257,7 +1257,7 @@
               sort = this.value;
               page = 1;
               updateStaleExportLinks();
-              loadData(false);
+              loadData(false, { softPagination: true });
             };
           }
           var perEl = document.getElementById("stale-per");
@@ -1265,7 +1265,7 @@
             perEl.onchange = function () {
               perPage = parseInt(this.value, 10) || 12;
               page = 1;
-              loadData(false);
+              loadData(false, { softPagination: true });
             };
           }
           var refreshBtn = document.getElementById("stale-refresh-now");

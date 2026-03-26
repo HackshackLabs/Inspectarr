@@ -278,6 +278,29 @@ async def settings_save(request: Request) -> RedirectResponse:
                     status_code=303,
                 )
 
+    for radarr_4k_field, radarr_4k_typ in (
+        ("radarr_4k_base_url", "text"),
+        ("radarr_4k_request_timeout_seconds", "float"),
+    ):
+        if radarr_4k_field in scalar:
+            try:
+                new_ov[radarr_4k_field] = _coerce_field(scalar[radarr_4k_field], radarr_4k_typ)
+            except ValueError:
+                return RedirectResponse(
+                    url=f"/settings?error={_q(f'Invalid value for {radarr_4k_field}')}",
+                    status_code=303,
+                )
+
+    if "harbor_watch_4k_tautulli_section_id" in scalar:
+        try:
+            raw = _coerce_field(scalar["harbor_watch_4k_tautulli_section_id"], "int")
+            new_ov["harbor_watch_4k_tautulli_section_id"] = max(0, int(raw))
+        except ValueError:
+            return RedirectResponse(
+                url="/settings?error=" + _q("Invalid value for harbor_watch_4k_tautulli_section_id"),
+                status_code=303,
+            )
+
     if "plex_request_timeout_seconds" in scalar:
         try:
             new_ov["plex_request_timeout_seconds"] = _coerce_field(
@@ -332,6 +355,14 @@ async def settings_save(request: Request) -> RedirectResponse:
     elif not new_ov.get("radarr_api_key") and prev_ov.get("radarr_api_key"):
         new_ov["radarr_api_key"] = prev_ov["radarr_api_key"]
 
+    rk4 = (scalar.get("radarr_4k_api_key") or "").strip()
+    if scalar.get("clear_radarr_4k_key") in ("1", "on", "true", "yes"):
+        new_ov.pop("radarr_4k_api_key", None)
+    elif rk4:
+        new_ov["radarr_4k_api_key"] = rk4
+    elif not new_ov.get("radarr_4k_api_key") and prev_ov.get("radarr_4k_api_key"):
+        new_ov["radarr_4k_api_key"] = prev_ov["radarr_4k_api_key"]
+
     pk1 = (scalar.get("plex_token_primary") or "").strip()
     if scalar.get("clear_plex_token_primary") in ("1", "on", "true", "yes"):
         new_ov.pop("plex_token_primary", None)
@@ -369,6 +400,18 @@ async def settings_save(request: Request) -> RedirectResponse:
         except ValueError as exc:
             return RedirectResponse(
                 url=f"/settings?error={_q(f'Radarr URL: {exc}')}",
+                status_code=303,
+            )
+
+    effective_radarr_4k = str(new_ov.get("radarr_4k_base_url") or "").strip()
+    if not effective_radarr_4k:
+        effective_radarr_4k = str(env_base.radarr_4k_base_url or "").strip()
+    if block_private and effective_radarr_4k:
+        try:
+            validate_upstream_base_url(effective_radarr_4k, block_private_hosts=True)
+        except ValueError as exc:
+            return RedirectResponse(
+                url=f"/settings?error={_q(f'Radarr 4K URL: {exc}')}",
                 status_code=303,
             )
 

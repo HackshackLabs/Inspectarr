@@ -1,0 +1,1151 @@
+{% extends "layout.html" %}
+{% block page_styles %}
+      main { max-width: 1400px; }
+      .stale-controls-band {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        padding: 10px 0 12px;
+        margin-bottom: 8px;
+        background: var(--page-bg);
+        border-bottom: 1px solid var(--border);
+      }
+      .stale-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 0;
+      }
+      .stale-toolbar label { font-size: var(--font-size-small); color: var(--muted); }
+      .stale-toolbar select, .stale-toolbar button {
+        min-height: var(--touch-target-min);
+        padding: 8px 12px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        background: var(--input-bg);
+        color: var(--text);
+        pointer-events: auto;
+        position: relative;
+        z-index: 51;
+      }
+      #stale-refresh-now.stale-refresh-working { opacity: 0.85; }
+      .stale-export-band {
+        font-size: var(--font-size-small);
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid var(--border);
+        line-height: 1.5;
+      }
+      .stale-export-band strong { color: var(--heading); }
+      #stale-export-links.stale-export-links {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: 10px 14px;
+        margin-left: 6px;
+        vertical-align: middle;
+        align-items: center;
+      }
+      #stale-export-links.stale-export-links a { color: var(--link); text-decoration: underline; }
+      .stale-pager {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        margin: 12px 0;
+        font-size: var(--font-size-small);
+      }
+      .stale-pager a, .stale-pager button {
+        color: var(--link);
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        text-decoration: underline;
+        padding: 4px 8px;
+        font-size: inherit;
+      }
+      .stale-pager button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        text-decoration: none;
+      }
+      .stale-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 14px;
+        align-items: start;
+      }
+      .stale-grid.stale-grid-updating {
+        opacity: 0.55;
+        pointer-events: none;
+        transition: opacity 0.15s ease;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .stale-grid.stale-grid-updating { transition: none; }
+      }
+      .stale-card {
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        background: var(--card-bg);
+        overflow: hidden;
+        position: relative;
+      }
+      .stale-card > summary {
+        cursor: pointer;
+        padding: 12px 14px;
+        font-weight: 600;
+        list-style: none;
+        color: var(--heading);
+      }
+      .stale-card > summary::-webkit-details-marker { display: none; }
+      .stale-card > summary::before {
+        content: "▶";
+        display: inline-block;
+        margin-right: 8px;
+        font-size: 0.65em;
+        color: var(--muted);
+      }
+      .stale-card[open] > summary::before { transform: rotate(90deg); }
+      .stale-card-body { padding: 0 14px 14px; font-size: var(--font-size-small); }
+      .stale-meta { color: var(--muted); margin: 6px 0; }
+      .stale-badge {
+        display: inline-block;
+        margin-left: 6px;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: 600;
+        vertical-align: middle;
+      }
+      .stale-badge.never { background: color-mix(in srgb, var(--warn) 35%, var(--card-bg)); color: var(--text); }
+      .stale-badge.stale2 { background: color-mix(in srgb, var(--muted) 25%, var(--card-bg)); color: var(--muted); }
+      .stale-fetch-line {
+        min-height: 1.35em;
+        margin: 0 0 12px;
+        font-size: var(--font-size-small);
+      }
+      .stale-status-card-loading {
+        border-color: color-mix(in srgb, var(--warn) 45%, var(--border));
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--warn) 25%, transparent);
+      }
+      .stale-status-pulse {
+        animation: stale-status-pulse 1.15s ease-in-out infinite;
+      }
+      @keyframes stale-status-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.55; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .stale-status-pulse { animation: none; }
+      }
+      .cold-storage-intro { margin: 0 0 16px; }
+      .cold-storage-intro > summary {
+        cursor: pointer;
+        list-style: none;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--heading);
+        line-height: 1.3;
+      }
+      .cold-storage-intro > summary::-webkit-details-marker { display: none; }
+      .cold-storage-intro > summary::before {
+        content: "▶";
+        display: inline-block;
+        margin-right: 8px;
+        font-size: 0.55em;
+        color: var(--muted);
+        vertical-align: middle;
+      }
+      .cold-storage-intro[open] > summary::before { transform: rotate(90deg); }
+      .cold-storage-intro-body { margin-top: 10px; }
+      .stale-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        margin-top: 10px;
+      }
+      .stale-actions button {
+        min-height: var(--touch-target-min);
+        padding: 6px 12px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        background: var(--input-bg);
+        color: var(--text);
+        cursor: pointer;
+        font-size: var(--font-size-small);
+      }
+      .stale-actions button.danger {
+        border-color: color-mix(in srgb, var(--warn) 55%, var(--border));
+        color: var(--warn);
+      }
+      .radarr-4k-status {
+        margin-top: 8px;
+        font-size: var(--font-size-small);
+        min-height: 1.25em;
+      }
+      .radarr-4k-status.ok { color: var(--ok, #2e7d32); }
+      .radarr-4k-status.err { color: var(--status-error, #c62828); }
+{% endblock %}
+{% block content %}
+      <details class="cold-storage-intro">
+        <summary>Harbor Watch 4K</summary>
+        <div class="meta cold-storage-intro-body">
+        <strong>Radarr 4K</strong> lists 4K movies with files on disk (separate Radarr instance from Harbor Watch).
+        {% if harbor_watch_4k_section_id %}
+        <strong>Tautulli</strong> <code>get_library_media_info</code> on Plex movie library <strong>section id {{ harbor_watch_4k_section_id }}</strong> (same as <code>/library?section_id={{ harbor_watch_4k_section_id }}</code>) supplies <strong>total plays per item</strong>, matching Radarr rows by <strong>TMDB</strong> (guid) or title+year. Only movies <strong>present in that section</strong> with <strong>0 plays</strong> appear here.
+        {% else %}
+        <strong>Tautulli</strong> supplies an <strong>all-time movie history crawl</strong> (same caps as Horizon Watch) for <em>never watched</em> and the last <strong>{{ lookback_days }}</strong> days for <em>no plays in the 2-year window</em>.
+        Rows match on <strong>TMDB id</strong> (from Plex/Tautulli guids and Radarr 4K), <strong>IMDb id</strong> when present, and normalized titles like TV Horizon Watch.
+        {% endif %}
+        {% if overseerr_enabled %}
+        <strong>Overseerr</strong> movie requests are matched by <strong>TMDB id</strong> (same request index pattern as TV, scoped to <code>type=movie</code>).
+        {% endif %}
+        Set section id under <strong>Radarr 4K</strong> in <a href="/settings">Scoparr's Clipboard</a> (<code>HARBOR_WATCH_4K_TAUTULLI_SECTION_ID</code>) to use library plays mode.
+        <a href="#stale-export">Download the full stale list</a> (JSON, CSV, TXT, or XML).
+        </div>
+      </details>
+      {% if not radarr_enabled %}
+      <p class="note">Configure Radarr 4K under <strong>Scoparr's Clipboard</strong> (<code>/settings</code>, Radarr 4K section) or set <code>RADARR_4K_BASE_URL</code> and <code>RADARR_4K_API_KEY</code> in the environment.</p>
+      {% endif %}
+
+      <div class="stale-controls-band">
+        <p class="note stale-fetch-line" id="stale-fetch-line" aria-live="polite">Initializing…</p>
+        <div class="stale-toolbar">
+          <button type="button" id="stale-refresh-now">Refresh snapshot now</button>
+          <label>Sort <select id="stale-sort" aria-label="Sort order">
+            <option value="asc">Title A → Z</option>
+            <option value="desc">Title Z → A</option>
+            <option value="size_asc">Disk size · smallest first</option>
+            <option value="size_desc">Disk size · largest first</option>
+          </select></label>
+          <label>Per page <select id="stale-per" aria-label="Cards per page">
+            <option value="6">6</option>
+            <option value="12" selected>12</option>
+            <option value="24">24</option>
+            <option value="36">36</option>
+          </select></label>
+          {% if plex_chain_enabled %}
+          <label class="muted" style="display:inline-flex;align-items:center;gap:6px;">
+            <input type="checkbox" id="stale-4k-plex-chain" checked />
+            Chain Plex delete after Radarr delete
+          </label>
+          {% endif %}
+          <span class="muted" id="stale-updated">—</span>
+        </div>
+        <div class="stale-export-band" id="stale-export" tabindex="-1">
+          <strong>Export full list</strong>
+          <span class="muted"> — every movie in the snapshot (not just this page): </span>
+          <span id="stale-export-links" class="stale-export-links" aria-label="Download full stale movie list"></span>
+        </div>
+        <div class="stale-pager" id="stale-pager-top"></div>
+      </div>
+
+      <h2>Snapshot status</h2>
+      <section class="status-grid" id="stale-status-cards" aria-label="Harbor Watch 4K data sources"></section>
+
+      <h2>Upstream activity</h2>
+      <p class="note stale-fetch-line" id="stale-upstream-summary" aria-live="polite">—</p>
+      <section class="status-grid" id="stale-upstream-cards" aria-label="Live Tautulli and Radarr 4K requests"></section>
+      <div id="stale-banner" class="note" style="display:none;"></div>
+      <div class="stale-grid" id="stale-grid"></div>
+      <div class="stale-pager" id="stale-pager-bottom"></div>
+
+      <script>
+        (function () {
+          var DATA_URL = "/insights/stale-4k-movies/api/data";
+          var EXPORT_URL = "/insights/stale-4k-movies/api/export";
+          var REFRESH_URL = "/insights/stale-4k-movies/api/refresh";
+          var UPSTREAM_URL = "/insights/stale-4k-movies/api/upstream";
+          var RADARR_MONITOR_URL = "/insights/stale-4k-movies/radarr/monitor";
+          var RADARR_UNMONITOR_URL = "/insights/stale-4k-movies/radarr/unmonitor";
+          var RADARR_DELETE_URL = "/insights/stale-4k-movies/radarr/delete";
+          var upstreamPollMs = 2500;
+          var STALE_4K_LIBRARY_SECTION_ID = {{ harbor_watch_4k_section_id | default(0) | int }};
+          var page = 1;
+          var sort = "asc";
+          var perPage = 12;
+          var pollMs = 50000;
+          var staleFirstLoad = true;
+          var staleFetchInFlight = false;
+          var staleDataFetchCtrl = null;
+          var pendingRebuildHint = false;
+
+          (function syncStale4kPlexChain() {
+            var cb = document.getElementById("stale-4k-plex-chain");
+            function sync() {
+              window.STALE_4K_PLEX_CHAIN = cb ? !!cb.checked : true;
+            }
+            sync();
+            if (cb) cb.addEventListener("change", sync);
+          })();
+
+          function esc(s) {
+            return String(s == null ? "" : s)
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/"/g, "&quot;");
+          }
+
+          function formatEpochUtc(e) {
+            var n = parseInt(e, 10);
+            if (!n || n < 1) return "—";
+            return new Date(n * 1000).toISOString().replace("T", " ").slice(0, 19) + " UTC";
+          }
+
+          function formatBytes(n) {
+            if (n == null || n === "") return "—";
+            var v = typeof n === "number" ? n : parseInt(n, 10);
+            if (!isFinite(v) || v < 0) return "—";
+            if (v === 0) return "0 B";
+            var u = ["B", "KB", "MB", "GB", "TB"];
+            var i = Math.min(Math.floor(Math.log(v) / Math.log(1024)), u.length - 1);
+            var x = v / Math.pow(1024, i);
+            var s =
+              i === 0
+                ? String(Math.round(x))
+                : x >= 100
+                  ? x.toFixed(0)
+                  : x >= 10
+                    ? x.toFixed(1)
+                    : x.toFixed(2);
+            return s + " " + u[i];
+          }
+
+          function setFetchLine(text) {
+            var el = document.getElementById("stale-fetch-line");
+            if (el) el.textContent = text || "";
+          }
+
+          function setRefreshBusy(busy) {
+            var b = document.getElementById("stale-refresh-now");
+            if (b) {
+              b.classList.toggle("stale-refresh-working", !!busy);
+              b.setAttribute("aria-busy", busy ? "true" : "false");
+            }
+          }
+
+          function captureOpenStaleMovieIds(grid) {
+            var out = new Set();
+            if (!grid) return out;
+            grid.querySelectorAll("details.stale-card[open]").forEach(function (d) {
+              var id = d.getAttribute("data-movie-id");
+              if (id != null && id !== "") out.add(String(id));
+            });
+            return out;
+          }
+
+          function restoreOpenStaleMovies(grid, openIds) {
+            if (!grid || !openIds || !openIds.size) return;
+            grid.querySelectorAll("details.stale-card").forEach(function (d) {
+              var id = d.getAttribute("data-movie-id");
+              if (id != null && openIds.has(String(id))) d.open = true;
+            });
+          }
+
+          var STALE_OPEN_MOVIES_SS_KEY = "stale-open-4k-movie-ids";
+
+          function persistStaleOpenMoviesFromGrid() {
+            var grid = document.getElementById("stale-grid");
+            if (!grid) return;
+            try {
+              sessionStorage.setItem(
+                STALE_OPEN_MOVIES_SS_KEY,
+                JSON.stringify(Array.from(captureOpenStaleMovieIds(grid)))
+              );
+            } catch (e) {}
+          }
+
+          function mergeSavedOpenStaleMovieIds(reopen) {
+            try {
+              var raw = sessionStorage.getItem(STALE_OPEN_MOVIES_SS_KEY);
+              if (!raw) return;
+              var saved = JSON.parse(raw);
+              if (!Array.isArray(saved)) return;
+              saved.forEach(function (id) {
+                if (id != null && id !== "") reopen.add(String(id));
+              });
+            } catch (e) {}
+          }
+
+          if (!window.__staleOpen4kMoviesToggleBound) {
+            window.__staleOpen4kMoviesToggleBound = true;
+            document.addEventListener(
+              "toggle",
+              function (ev) {
+                var t = ev.target;
+                if (!t || !t.matches || !t.matches("details.stale-card")) return;
+                var grid = document.getElementById("stale-grid");
+                if (!grid || !grid.contains(t)) return;
+                persistStaleOpenMoviesFromGrid();
+              },
+              true
+            );
+          }
+
+          function updateStaleExportLinks() {
+            var wrap = document.getElementById("stale-export-links");
+            if (!wrap) return;
+            var fmts = [
+              { ext: "json", label: "JSON" },
+              { ext: "csv", label: "CSV" },
+              { ext: "txt", label: "TXT" },
+              { ext: "xml", label: "XML" },
+            ];
+            wrap.textContent = "";
+            fmts.forEach(function (x) {
+              var a = document.createElement("a");
+              a.href =
+                EXPORT_URL +
+                "?format=" +
+                encodeURIComponent(x.ext) +
+                "&sort=" +
+                encodeURIComponent(sort);
+              a.textContent = x.label;
+              a.setAttribute("download", "");
+              wrap.appendChild(a);
+            });
+          }
+
+          function csrfHeaders() {
+            var m = document.querySelector('meta[name="csrf-token"]');
+            var t = m ? m.getAttribute("content") : "";
+            var h = { "Content-Type": "application/json", Accept: "application/json" };
+            if (t) h["X-CSRF-Token"] = t;
+            return h;
+          }
+
+          async function postJson(url, body) {
+            var r = await fetch(url, {
+              method: "POST",
+              credentials: "same-origin",
+              headers: csrfHeaders(),
+              body: JSON.stringify(body),
+            });
+            var j = null;
+            try {
+              j = await r.json();
+            } catch (e) {}
+            if (!r.ok) {
+              var msg = j && j.detail ? (typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail)) : "HTTP " + r.status;
+              throw new Error(msg);
+            }
+            return j;
+          }
+
+          async function onStale4kRadarrClick(ev) {
+            var btn = ev.target.closest("button[data-radarr4k-action]");
+            var grid = document.getElementById("stale-grid");
+            if (!btn || !grid || !grid.contains(btn)) return;
+            ev.preventDefault();
+            ev.stopPropagation();
+            var mode = btn.getAttribute("data-radarr4k-action");
+            var card = btn.closest("details.stale-card");
+            var midRaw = card ? card.getAttribute("data-movie-id") : null;
+            var mid = midRaw != null && midRaw !== "" ? parseInt(midRaw, 10) : NaN;
+            if (!isFinite(mid) || mid < 1) return;
+            if (mode === "delete") {
+              if (!confirm("Delete this movie from Radarr 4K and remove files from disk?")) return;
+            }
+            var statusEl = card ? card.querySelector(".radarr-4k-status") : null;
+            if (statusEl) {
+              statusEl.className = "radarr-4k-status";
+              statusEl.textContent = "…";
+            }
+            var chain = typeof window.STALE_4K_PLEX_CHAIN === "boolean" ? window.STALE_4K_PLEX_CHAIN : true;
+            var body = { radarr_movie_id: mid, chain_plex_delete: chain };
+            var url =
+              mode === "delete"
+                ? RADARR_DELETE_URL
+                : mode === "monitor"
+                  ? RADARR_MONITOR_URL
+                  : RADARR_UNMONITOR_URL;
+            try {
+              var res = await postJson(url, body);
+              if (statusEl) {
+                statusEl.className = "radarr-4k-status ok";
+                var line = "OK";
+                if (mode === "delete" && res.plex_delete_results && res.plex_delete_results.length) {
+                  line +=
+                    " · Plex: " +
+                    res.plex_delete_results
+                      .map(function (p) {
+                        return (
+                          p.plex_id +
+                          ": " +
+                          (p.ok ? (p.delete_state === "not_found" ? "already gone" : "deleted") : p.detail || "fail")
+                        );
+                      })
+                      .join(" · ");
+                }
+                statusEl.textContent = line;
+              }
+              await loadData(false, { replace: true, silent: true });
+            } catch (e) {
+              if (statusEl) {
+                statusEl.className = "radarr-4k-status err";
+                statusEl.textContent = String(e.message || e);
+              }
+            }
+          }
+
+          function formatMovieCardExtras(payload, m) {
+            var bits = [];
+            if (m.tautulli_library_play_count != null) {
+              var mk = m.tautulli_library_match ? esc(m.tautulli_library_match) : "";
+              bits.push(
+                '<p class="stale-meta"><strong>Tautulli library total plays</strong> · ' +
+                  esc(String(m.tautulli_library_play_count)) +
+                  (mk ? ' · match <code>' + mk + "</code>" : "") +
+                  "</p>"
+              );
+            }
+            var lp = m.last_tautulli_play;
+            if (lp && lp.played_at_epoch) {
+              var who = lp.user ? esc(lp.user) : "Unknown user";
+              var when = formatEpochUtc(lp.played_at_epoch);
+              var lab = lp.episode_label ? esc(lp.episode_label) : "Movie";
+              var srv = lp.tautulli_server_name ? esc(lp.tautulli_server_name) : "";
+              var srvBit = srv ? " · Tautulli: " + srv : "";
+              bits.push(
+                '<p class="stale-meta"><strong>Last Tautulli play</strong> · ' +
+                  who +
+                  " · " +
+                  when +
+                  " · " +
+                  lab +
+                  srvBit +
+                  "</p>"
+              );
+            } else if (!(payload && payload.staleness_mode === "tautulli_library_media_info")) {
+              bits.push(
+                '<p class="stale-meta muted"><strong>Last Tautulli play</strong> — no matching movie rows in merged history.</p>'
+              );
+            }
+            var f1 = m.first_file_added_epoch;
+            if (f1) {
+              bits.push(
+                '<p class="stale-meta"><strong>Movie file (Radarr 4K)</strong> · added ' + formatEpochUtc(f1) + "</p>"
+              );
+            }
+            var ov = m.overseerr;
+            var ovOn = payload && payload.overseerr_configured;
+            if (ovOn) {
+              if (ov && (ov.requested_at_epoch || ov.requested_by || ov.library_available_at_epoch)) {
+                var rq =
+                  ov.requested_at_epoch
+                    ? "Requested " + formatEpochUtc(ov.requested_at_epoch)
+                    : "Request date unknown";
+                if (ov.requested_by) rq += " · by " + esc(ov.requested_by);
+                bits.push('<p class="stale-meta"><strong>Overseerr</strong> · ' + rq + "</p>");
+                if (ov.library_available_at_epoch) {
+                  bits.push(
+                    '<p class="stale-meta">Overseerr marked available: ' +
+                      formatEpochUtc(ov.library_available_at_epoch) +
+                      "</p>"
+                  );
+                }
+                if (ov.matched_via) {
+                  bits.push(
+                    '<p class="stale-meta muted">Match: <code>' + esc(ov.matched_via) + "</code></p>"
+                  );
+                }
+              } else if (m.tmdb_id != null) {
+                bits.push(
+                  '<p class="stale-meta muted">No Overseerr movie request matched this TMDB id.</p>'
+                );
+              } else {
+                bits.push(
+                  '<p class="stale-meta muted">No TMDB id on this Radarr 4K movie — Overseerr matching skipped.</p>'
+                );
+              }
+            }
+            return bits.join("");
+          }
+
+          function renderStaleStatusLoading(hint) {
+            var el = document.getElementById("stale-status-cards");
+            if (!el) return;
+            var h = hint || "Waiting for the server…";
+            var libHint =
+              STALE_4K_LIBRARY_SECTION_ID > 0
+                ? "Tautulli library media (section " + esc(String(STALE_4K_LIBRARY_SECTION_ID)) + ") + Radarr 4K list."
+                : "All-time movie history crawl + Radarr 4K list.";
+            var tCard =
+              STALE_4K_LIBRARY_SECTION_ID > 0
+                ? '<article class="status-card">' +
+                  "<div><strong>Tautulli</strong></div>" +
+                  "<div>Library media info</div>" +
+                  '<div class="muted">Rows merged: —</div>' +
+                  '<div class="muted">Total plays per item; history crawl skipped.</div>' +
+                  "</article>"
+                : '<article class="status-card">' +
+                  "<div><strong>Tautulli</strong></div>" +
+                  "<div>Movie history</div>" +
+                  '<div class="muted">Oldest play in merged data: —</div>' +
+                  '<div class="muted">All-time capped crawl per server; 2y + never derived from merged rows.</div>' +
+                  "</article>";
+            var staleCard =
+              STALE_4K_LIBRARY_SECTION_ID > 0
+                ? '<article class="status-card">' +
+                  "<div><strong>Stale matches</strong></div>" +
+                  "<div>—</div>" +
+                  '<div class="muted">On-disk files + 0 plays in the configured Tautulli library section.</div>' +
+                  "</article>"
+                : '<article class="status-card">' +
+                  "<div><strong>Stale matches</strong></div>" +
+                  "<div>—</div>" +
+                  '<div class="muted">Movies with files but no plays in the lookback window (or never, with age rule).</div>' +
+                  "</article>";
+            el.innerHTML =
+              '<article class="status-card stale-status-card-loading">' +
+              '<div><strong>Snapshot</strong></div>' +
+              '<div>Status: <span class="status-pending stale-status-pulse">loading</span></div>' +
+              '<div class="muted">' +
+              esc(h) +
+              "</div>" +
+              '<div class="muted">' +
+              libHint +
+              "</div>" +
+              "</article>" +
+              tCard +
+              '<article class="status-card">' +
+              "<div><strong>Radarr 4K</strong></div>" +
+              "<div>Library &amp; files</div>" +
+              '<div class="muted">Movies in API list: —</div>' +
+              '<div class="muted">Actions: monitor, unmonitor, delete (+ optional Plex chain).</div>' +
+              "</article>" +
+              staleCard +
+              '<article class="status-card">' +
+              "<div><strong>This page</strong></div>" +
+              "<div>—</div>" +
+              '<div class="muted">Sort, pagination, and grid fill after the snapshot returns.</div>' +
+              "</article>";
+          }
+
+          function renderStaleStatusFromPayload(j, pagination) {
+            var el = document.getElementById("stale-status-cards");
+            if (!el) return;
+            var ok = !!(j && j.ok);
+            var err = (j && j.error) || "";
+            var lb = j && j.lookback_days != null ? j.lookback_days : "—";
+            var hist = j && j.history_rows_used != null ? j.history_rows_used : "—";
+            var tSrv = j && j.tautulli_server_count != null ? j.tautulli_server_count : "—";
+            var radScan = j && j.radarr_movies_scanned != null ? j.radarr_movies_scanned : "—";
+            var radFiles = j && j.radarr_movies_with_files != null ? j.radarr_movies_with_files : "—";
+            var histOldest = formatEpochUtc(j && j.history_oldest_epoch);
+            var hmode = (j && j.history_crawl_mode) || "";
+            var hcap = j && j.history_full_max_rows_per_server != null ? j.history_full_max_rows_per_server : "";
+            var upd = formatEpochUtc(j && j.updated_at_epoch);
+            var p = pagination || (j && j.pagination) || {};
+            var total = p.total != null ? p.total : "—";
+            var curPage = p.page != null ? p.page : 1;
+            var perP = p.per_page != null ? p.per_page : "—";
+            var tp = p.total_pages != null ? p.total_pages : 1;
+            var warnList = (j && j.errors) || [];
+            var warnN = Array.isArray(warnList) ? warnList.length : 0;
+            var snapCls = ok ? "status-ok" : err ? "status-error" : "status-pending";
+            var snapLabel = ok ? "ready" : err ? "blocked" : "unknown";
+            var warnHtml =
+              warnN > 0
+                ? '<div class="status-error">' + esc(warnList.slice(0, 2).join(" · ")) + (warnN > 2 ? " …" : "") + "</div>"
+                : '<div class="muted">None</div>';
+            var ovCf = !!(j && j.overseerr_configured);
+            var ovKeys = j && j.overseerr_movie_tmdb_keys != null ? j.overseerr_movie_tmdb_keys : "—";
+            var ovErr = j && j.overseerr_fetch_error;
+            var libMode = !!(j && j.staleness_mode === "tautulli_library_media_info");
+            var libRows = j && j.tautulli_library_rows_total != null ? j.tautulli_library_rows_total : "—";
+            var libSec = j && j.tautulli_library_section_id != null ? j.tautulli_library_section_id : "—";
+            var tautulliArticle = libMode
+              ? '<article class="status-card">' +
+                "<div><strong>Tautulli</strong></div>" +
+                "<div>" +
+                esc(tSrv) +
+                " server(s)</div>" +
+                "<div>Library rows merged: <strong>" +
+                esc(libRows) +
+                "</strong></div>" +
+                "<div>Section id: <strong>" +
+                esc(libSec) +
+                "</strong></div>" +
+                (hmode ? '<div class="muted">Mode: ' + esc(hmode) + "</div>" : "") +
+                '<div class="muted">Total plays from get_library_media_info (same as Tautulli Media Info tab).</div>' +
+                "</article>"
+              : '<article class="status-card">' +
+                "<div><strong>Tautulli</strong></div>" +
+                "<div>" +
+                esc(tSrv) +
+                " server(s)</div>" +
+                "<div>History rows merged: <strong>" +
+                esc(hist) +
+                "</strong></div>" +
+                "<div>Oldest play in merged data: <strong>" +
+                esc(histOldest) +
+                "</strong></div>" +
+                (hmode
+                  ? '<div class="muted">Crawl: ' + esc(hmode) + (hcap !== "" ? " · cap/server " + esc(hcap) : "") + "</div>"
+                  : hcap !== ""
+                    ? '<div class="muted">Cap/server ' + esc(hcap) + "</div>"
+                    : "") +
+                '<div class="muted">2y cutoff + never-watched use the same merged rows.</div>' +
+                "</article>";
+            var radarrStaleHint = libMode
+              ? "Library mode: grid = movies with files that appear in the Tautulli section with 0 total plays."
+              : "Only movies that match stale rules appear in the grid; scan count is the full Radarr 4K list.";
+
+            el.innerHTML =
+              '<article class="status-card">' +
+              "<div><strong>Snapshot</strong></div>" +
+              '<div>Status: <span class="' +
+              snapCls +
+              '">' +
+              esc(snapLabel) +
+              "</span></div>" +
+              (ok ? "" : '<div class="status-error">' + esc(err || "See configuration.") + "</div>") +
+              "</article>" +
+              '<article class="status-card">' +
+              "<div><strong>Last built</strong></div><div>" +
+              esc(upd) +
+              '</div><div class="muted">Lookback: ' +
+              esc(lb) +
+              " days (history mode only)</div></article>" +
+              tautulliArticle +
+              '<article class="status-card">' +
+              "<div><strong>Radarr 4K</strong></div>" +
+              "<div>Movies in API list: <strong>" +
+              esc(radScan) +
+              "</strong></div>" +
+              "<div>Movies with files: <strong>" +
+              esc(radFiles) +
+              "</strong></div>" +
+              '<div class="muted">' +
+              esc(radarrStaleHint) +
+              "</div>" +
+              "</article>" +
+              (ovCf
+                ? '<article class="status-card"><div><strong>Overseerr</strong></div><div>Movie TMDB keys: <strong>' +
+                  esc(ovKeys) +
+                  "</strong></div>" +
+                  (ovErr
+                    ? '<div class="status-error">' + esc(ovErr) + "</div>"
+                    : '<div class="muted">Match Radarr 4K <code>tmdbId</code> to movie requests.</div>') +
+                  "</article>"
+                : '<article class="status-card"><div><strong>Overseerr</strong></div><div class="muted">Not configured.</div></article>') +
+              '<article class="status-card">' +
+              "<div><strong>Stale movies</strong></div><div>Total: <strong>" +
+              esc(total) +
+              "</strong></div><div>Page " +
+              esc(curPage) +
+              " / " +
+              esc(tp) +
+              " (" +
+              esc(perP) +
+              " per page)</div></article>" +
+              '<article class="status-card"><div><strong>Warnings</strong></div>' +
+              warnHtml +
+              '<div class="muted" style="margin-top:8px">Auto-refresh: every ' +
+              Math.round(pollMs / 1000) +
+              "s</div></article>";
+          }
+
+          function renderStaleStatusFetchError(e) {
+            var el = document.getElementById("stale-status-cards");
+            if (!el) return;
+            var msg = e && e.message ? e.message : String(e);
+            el.innerHTML =
+              '<article class="status-card">' +
+              "<div><strong>Snapshot</strong></div>" +
+              '<div>Status: <span class="status-error">request failed</span></div>' +
+              '<div class="status-error">' +
+              esc(msg) +
+              "</div>" +
+              "</article>" +
+              '<article class="status-card">' +
+              "<div><strong>What to try</strong></div>" +
+              '<div class="muted">Check the browser network tab, server logs, and that you are still logged in. Use “Refresh snapshot now” after fixing the issue.</div>' +
+              "</article>";
+          }
+
+          function renderUpstreamPanel(u) {
+            var sumEl = document.getElementById("stale-upstream-summary");
+            var grid = document.getElementById("stale-upstream-cards");
+            if (!sumEl || !grid) return;
+            if (!u || !u.busy) {
+              sumEl.textContent =
+                "Idle — no Harbor Watch 4K snapshot is building. Start or wait for a refresh to see live Tautulli servers and Radarr 4K calls.";
+              grid.innerHTML =
+                '<article class="status-card"><div><strong>Upstream</strong></div><div class="muted">Nothing in flight.</div></article>';
+              return;
+            }
+            var src =
+              u.upstream === "tautulli"
+                ? "Tautulli"
+                : u.upstream === "radarr"
+                  ? "Radarr 4K"
+                  : u.upstream === "overseerr"
+                    ? "Overseerr"
+                    : "Starting";
+            sumEl.textContent =
+              "Active: " + src + " — " + (u.phase || "…") + " · trace updated " + formatEpochUtc(u.updated_epoch);
+            var html = "";
+            var servers = u.tautulli_servers || [];
+            if (servers.length) {
+              servers.forEach(function (s) {
+                var okCls =
+                  s.last_ok === true ? "status-ok" : s.last_ok === false ? "status-error" : "muted";
+                var okTxt =
+                  s.last_ok === true ? "ok" : s.last_ok === false ? "error" : "—";
+                var lastPage =
+                  s.last_history_page_rows === null || s.last_history_page_rows === undefined
+                    ? "—"
+                    : esc(s.last_history_page_rows);
+                html +=
+                  '<article class="status-card">' +
+                  "<div><strong>" +
+                  esc(s.server_name || s.server_id) +
+                  "</strong></div>" +
+                  '<div class="muted">ID: ' +
+                  esc(s.server_id) +
+                  "</div>" +
+                  "<div>Rows in last Tautulli response: <strong>" +
+                  lastPage +
+                  "</strong></div>" +
+                  "<div>Rows accumulated this build (all pages): <strong>" +
+                  esc(s.history_rows_accumulated != null ? s.history_rows_accumulated : 0) +
+                  "</strong></div>" +
+                  "<div>Last cmd: <code>" +
+                  esc(s.last_cmd || "—") +
+                  "</code></div>" +
+                  "<div>HTTP: " +
+                  (s.last_http_status != null ? esc(s.last_http_status) : "—") +
+                  ' · <span class="' +
+                  okCls +
+                  '">' +
+                  okTxt +
+                  "</span></div>" +
+                  "<div>Last response: <strong>" +
+                  formatEpochUtc(s.last_response_epoch) +
+                  "</strong></div>" +
+                  "</article>";
+              });
+            } else if (u.upstream === "tautulli") {
+              html +=
+                '<article class="status-card"><div><strong>Tautulli</strong></div><div class="muted">Waiting for first server response…</div></article>';
+            }
+            var rd = u.radarr || {};
+            var last = rd.last;
+            var listCt = rd.movie_list_count != null ? rd.movie_list_count : 0;
+            html +=
+              '<article class="status-card">' +
+              "<div><strong>Radarr 4K</strong></div>" +
+              "<div>Movies in list: <strong>" +
+              esc(listCt) +
+              "</strong></div>";
+            if (last && last.label) {
+              var sok = last.ok ? "status-ok" : "status-error";
+              html +=
+                "<div>Last: <code>" +
+                esc(last.label) +
+                "</code></div>" +
+                "<div>HTTP: " +
+                esc(last.http_status) +
+                ' · <span class="' +
+                sok +
+                '">' +
+                (last.ok ? "ok" : "error") +
+                "</span></div>" +
+                "<div>Last response: <strong>" +
+                formatEpochUtc(last.last_response_epoch) +
+                "</strong></div>";
+            } else {
+              html += '<div class="muted">No Radarr 4K response recorded yet this build.</div>';
+            }
+            html += "</article>";
+            grid.innerHTML = html;
+          }
+
+          async function pollUpstream() {
+            try {
+              var r = await fetch(UPSTREAM_URL, { credentials: "same-origin", headers: { Accept: "application/json" } });
+              if (!r.ok) return;
+              renderUpstreamPanel(await r.json());
+            } catch (e) {}
+          }
+
+          function renderPager(p, elId) {
+            var el = document.getElementById(elId);
+            if (!el || !p) return;
+            var tp = p.total_pages || 1;
+            var cur = p.page || 1;
+            var total = p.total || 0;
+            el.innerHTML =
+              '<button type="button" data-go="first"' +
+              (cur <= 1 ? " disabled" : "") +
+              '>First</button>' +
+              '<button type="button" data-go="prev"' +
+              (cur <= 1 ? " disabled" : "") +
+              '>Previous</button>' +
+              '<span>Page <strong>' +
+              cur +
+              "</strong> of <strong>" +
+              tp +
+              "</strong> (" +
+              total +
+              " movies)</span>" +
+              '<button type="button" data-go="next"' +
+              (cur >= tp ? " disabled" : "") +
+              '>Next</button>' +
+              '<button type="button" data-go="last"' +
+              (cur >= tp ? " disabled" : "") +
+              '>Last</button>';
+            el.querySelectorAll("button[data-go]").forEach(function (btn) {
+              btn.onclick = function (ev) {
+                if (ev) {
+                  ev.preventDefault();
+                  ev.stopPropagation();
+                }
+                var g = btn.getAttribute("data-go");
+                if (g === "first") page = 1;
+                else if (g === "prev") page = Math.max(1, cur - 1);
+                else if (g === "next") page = Math.min(tp, cur + 1);
+                else if (g === "last") page = tp;
+                loadData(false, { softPagination: true });
+              };
+            });
+          }
+
+          function renderGrid(payload) {
+            var grid = document.getElementById("stale-grid");
+            var banner = document.getElementById("stale-banner");
+            var updated = document.getElementById("stale-updated");
+            if (!grid) return;
+            var reopen = captureOpenStaleMovieIds(grid);
+            mergeSavedOpenStaleMovieIds(reopen);
+            if (payload && payload.errors && payload.errors.length) {
+              banner.style.display = "block";
+              banner.textContent = "Warnings: " + payload.errors.join(" · ");
+            } else {
+              banner.style.display = "none";
+            }
+            if (updated && payload && payload.updated_at_epoch) {
+              var d = new Date(payload.updated_at_epoch * 1000);
+              updated.textContent = "Snapshot: " + d.toISOString().replace("T", " ").slice(0, 19) + " UTC";
+            }
+            if (!payload || !payload.ok) {
+              grid.innerHTML =
+                '<p class="note">' + esc((payload && payload.error) || "No data.") + "</p>";
+              restoreOpenStaleMovies(grid, reopen);
+              persistStaleOpenMoviesFromGrid();
+              return;
+            }
+            var movies = payload.movies || [];
+            if (!movies.length) {
+              grid.innerHTML = '<p class="meta">No stale movies match the rules right now.</p>';
+              restoreOpenStaleMovies(grid, reopen);
+              persistStaleOpenMoviesFromGrid();
+              return;
+            }
+            var libPayload = !!(payload && payload.staleness_mode === "tautulli_library_media_info");
+            var html = "";
+            movies.forEach(function (m) {
+              var title = m.title || "Unknown";
+              var mid = m.radarr_movie_id;
+              var mls = m.movie_level_stale;
+              var mnev = !!m.movie_never_watched_tautulli;
+              var libZero = m.tautulli_library_play_count != null && m.tautulli_library_play_count === 0;
+              var mon = !!m.movie_monitored;
+              html +=
+                '<details class="stale-card" data-movie-id="' +
+                esc(mid) +
+                '">' +
+                "<summary>" +
+                esc(title) +
+                (libPayload && libZero
+                  ? '<span class="stale-badge never">0 plays (library)</span>'
+                  : "") +
+                (!libPayload && mnev ? '<span class="stale-badge never">Never (Tautulli)</span>' : "") +
+                (!libPayload && !mnev && mls ? '<span class="stale-badge stale2">No play in 2y</span>' : "") +
+                "</summary>" +
+                '<div class="stale-card-body">';
+              html +=
+                '<p class="stale-meta">Radarr 4K id ' +
+                esc(mid) +
+                (m.tmdb_id != null ? " · TMDB " + esc(m.tmdb_id) : "") +
+                (m.imdb_id != null ? " · IMDb " + esc(m.imdb_id) : "") +
+                (m.size_on_disk_bytes != null ? " · " + formatBytes(m.size_on_disk_bytes) + " on disk" : "") +
+                (mon ? "" : " · <strong>unmonitored</strong>") +
+                "</p>";
+              html += formatMovieCardExtras(payload, m);
+              if (libPayload && libZero) {
+                html +=
+                  '<p class="stale-meta">Listed in the configured Tautulli library section with <strong>0</strong> total plays.</p>';
+              } else if (mls) {
+                html +=
+                  '<p class="stale-meta">No Tautulli plays in the ' +
+                  (payload.lookback_days || "730") +
+                  "-day window" +
+                  (mnev ? " · never in merged history" : "") +
+                  ".</p>";
+              }
+              html += '<div class="stale-actions">';
+              html += '<button type="button" class="danger" data-radarr4k-action="delete">Delete</button>';
+              if (mon) {
+                html += '<button type="button" data-radarr4k-action="unmonitor">Unmonitor</button>';
+              } else {
+                html += '<button type="button" data-radarr4k-action="monitor">Monitor</button>';
+              }
+              html += "</div>";
+              html += '<div class="radarr-4k-status" aria-live="polite"></div>';
+              html += "</div></details>";
+            });
+            grid.innerHTML = html;
+            restoreOpenStaleMovies(grid, reopen);
+            persistStaleOpenMoviesFromGrid();
+          }
+
+          async function loadData(force, opts) {
+            opts = opts || {};
+            var softPagination = !!(opts && opts.softPagination);
+            if (opts.replace) {
+              if (staleDataFetchCtrl) {
+                try {
+                  staleDataFetchCtrl.abort();
+                } catch (e) {}
+              }
+              staleDataFetchCtrl = null;
+              staleFetchInFlight = false;
+            } else if (staleFetchInFlight) {
+              return;
+            }
+            staleFetchInFlight = true;
+            var myCtrl = new AbortController();
+            staleDataFetchCtrl = myCtrl;
+            var silent = !!(opts && opts.silent);
+            var grid = document.getElementById("stale-grid");
+            var showHeavyLoading = !silent && !softPagination;
+            var hint;
+            if (pendingRebuildHint) {
+              pendingRebuildHint = false;
+              hint =
+                STALE_4K_LIBRARY_SECTION_ID > 0
+                  ? "Rebuild in progress — Tautulli library media + Radarr 4K list."
+                  : "Rebuild in progress — Tautulli movie history + Radarr 4K list.";
+            } else if (staleFirstLoad) {
+              hint =
+                STALE_4K_LIBRARY_SECTION_ID > 0
+                  ? "First load may take a minute or two (library media pagination + Radarr 4K)."
+                  : "First load may take several minutes (movie history crawl + Radarr 4K).";
+            } else if (force) {
+              hint = "Recomputing…";
+            } else {
+              hint = "Fetching…";
+            }
+            if (showHeavyLoading) {
+              renderStaleStatusLoading(hint);
+              setFetchLine(hint);
+              if (grid) grid.innerHTML = '<p class="note">Loading…</p>';
+            } else if (softPagination && grid) {
+              grid.classList.add("stale-grid-updating");
+            }
+            var u =
+              DATA_URL +
+              "?page=" +
+              encodeURIComponent(page) +
+              "&per_page=" +
+              encodeURIComponent(perPage) +
+              "&sort=" +
+              encodeURIComponent(sort) +
+              (force ? "&force_refresh=true" : "");
+            try {
+              var r = await fetch(u, {
+                credentials: "same-origin",
+                headers: { Accept: "application/json" },
+                signal: myCtrl.signal,
+              });
+              if (!r.ok) throw new Error("HTTP " + r.status);
+              var j = await r.json();
+              staleFirstLoad = false;
+              renderStaleStatusFromPayload(j, j.pagination);
+              if (!silent && !softPagination) {
+                setFetchLine(
+                  "Last updated " + new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC (browser clock)."
+                );
+              }
+              renderGrid(j);
+              renderPager(j.pagination, "stale-pager-top");
+              renderPager(j.pagination, "stale-pager-bottom");
+              updateStaleExportLinks();
+            } catch (e) {
+              if (e && e.name === "AbortError") return;
+              if (!silent) {
+                if (!softPagination) {
+                  renderStaleStatusFetchError(e);
+                  setFetchLine("Request failed.");
+                  if (grid) grid.innerHTML = '<p class="status-error">Could not load data.</p>';
+                }
+              }
+            } finally {
+              if (grid) grid.classList.remove("stale-grid-updating");
+              if (staleDataFetchCtrl === myCtrl) {
+                staleDataFetchCtrl = null;
+                staleFetchInFlight = false;
+              }
+            }
+          }
+
+          var sortEl = document.getElementById("stale-sort");
+          if (sortEl) {
+            sortEl.onchange = function () {
+              sort = this.value;
+              page = 1;
+              updateStaleExportLinks();
+              loadData(false, { softPagination: true });
+            };
+          }
+          var perEl = document.getElementById("stale-per");
+          if (perEl) {
+            perEl.onchange = function () {
+              perPage = parseInt(this.value, 10) || 12;
+              page = 1;
+              loadData(false, { softPagination: true });
+            };
+          }
+          var refreshBtn = document.getElementById("stale-refresh-now");
+          if (refreshBtn) {
+            refreshBtn.addEventListener("click", async function () {
+              setFetchLine("Requesting rebuild…");
+              renderStaleStatusLoading("Invalidating cache…");
+              setRefreshBusy(true);
+              try {
+                await postJson(REFRESH_URL, {});
+              } catch (e) {
+                setFetchLine(String(e.message || e));
+                renderStaleStatusFetchError(e);
+                setRefreshBusy(false);
+                return;
+              }
+              setRefreshBusy(false);
+              page = 1;
+              pendingRebuildHint = true;
+              await loadData(false, { replace: true });
+            });
+          }
+
+          setInterval(function () {
+            if (!staleFetchInFlight) loadData(false, { silent: true });
+          }, pollMs);
+          setInterval(pollUpstream, upstreamPollMs);
+          pollUpstream();
+          (function bindStale4kRadarrGrid() {
+            var g = document.getElementById("stale-grid");
+            if (!g || g.dataset.radarr4kDel) return;
+            g.dataset.radarr4kDel = "1";
+            g.addEventListener("click", onStale4kRadarrClick);
+          })();
+          renderStaleStatusLoading("Starting…");
+          setFetchLine("Connecting…");
+          updateStaleExportLinks();
+          loadData(false);
+        })();
+      </script>
+{% endblock %}

@@ -64,3 +64,68 @@ async def fetch_movie_list_cached(
     with _movie_list_cache_lock:
         _movie_list_cache[key] = (now, data)
     return data
+
+
+def invalidate_radarr_movie_list_cache(base_url: str, api_key: str) -> None:
+    with _movie_list_cache_lock:
+        _movie_list_cache.pop(_movie_cache_key(base_url, api_key), None)
+
+
+async def radarr_get_movie_by_id(
+    client: httpx.AsyncClient,
+    base_url: str,
+    api_key: str,
+    movie_id: int,
+    *,
+    on_exchange: RadarrExchangeHook = None,
+) -> dict[str, Any] | None:
+    url = f"{_base(base_url)}/api/v3/movie/{int(movie_id)}"
+    response = await client.get(url, headers={"X-Api-Key": api_key})
+    if on_exchange:
+        try:
+            on_exchange(f"GET /api/v3/movie/{int(movie_id)}", response.status_code, response.is_success)
+        except Exception:
+            logger.debug("Radarr on_exchange failed", exc_info=True)
+    if response.status_code == 404:
+        return None
+    response.raise_for_status()
+    data = response.json()
+    return data if isinstance(data, dict) else None
+
+
+async def radarr_put_movie(
+    client: httpx.AsyncClient,
+    base_url: str,
+    api_key: str,
+    body: dict[str, Any],
+    *,
+    on_exchange: RadarrExchangeHook = None,
+) -> None:
+    url = f"{_base(base_url)}/api/v3/movie"
+    response = await client.put(url, headers={"X-Api-Key": api_key}, json=body)
+    if on_exchange:
+        try:
+            on_exchange("PUT /api/v3/movie", response.status_code, response.is_success)
+        except Exception:
+            logger.debug("Radarr on_exchange failed", exc_info=True)
+    response.raise_for_status()
+
+
+async def radarr_delete_movie(
+    client: httpx.AsyncClient,
+    base_url: str,
+    api_key: str,
+    movie_id: int,
+    *,
+    delete_files: bool = True,
+    on_exchange: RadarrExchangeHook = None,
+) -> None:
+    q = "true" if delete_files else "false"
+    url = f"{_base(base_url)}/api/v3/movie/{int(movie_id)}?deleteFiles={q}&addImportExclusion=false"
+    response = await client.delete(url, headers={"X-Api-Key": api_key})
+    if on_exchange:
+        try:
+            on_exchange(f"DELETE /api/v3/movie/{int(movie_id)}", response.status_code, response.is_success)
+        except Exception:
+            logger.debug("Radarr on_exchange failed", exc_info=True)
+    response.raise_for_status()

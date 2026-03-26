@@ -42,13 +42,27 @@ class Settings(BaseSettings):
     host: str = Field(default="127.0.0.1", alias="HOST")
     port: int = Field(default=8000, alias="PORT")
     request_timeout_seconds: float = Field(default=8.0, alias="REQUEST_TIMEOUT_SECONDS")
-    history_request_timeout_seconds: float = Field(default=15.0, alias="HISTORY_REQUEST_TIMEOUT_SECONDS")
+    history_request_timeout_seconds: float = Field(
+        default=60.0,
+        ge=3.0,
+        alias="HISTORY_REQUEST_TIMEOUT_SECONDS",
+        description="httpx timeout for get_history (Broadside Range, Horizon/Harbor crawls); large page sizes need headroom.",
+    )
     upstream_max_parallel_servers: int = Field(default=2, alias="UPSTREAM_MAX_PARALLEL_SERVERS")
     upstream_per_request_delay_seconds: float = Field(default=0.15, alias="UPSTREAM_PER_REQUEST_DELAY_SECONDS")
     activity_timeout_retry_seconds: float = Field(default=30.0, alias="ACTIVITY_TIMEOUT_RETRY_SECONDS")
     history_timeout_retry_seconds: float = Field(default=30.0, alias="HISTORY_TIMEOUT_RETRY_SECONDS")
-    history_cache_db_path: str = Field(default="", alias="HISTORY_CACHE_DB_PATH")
-    history_cache_ttl_seconds: float = Field(default=180.0, alias="HISTORY_CACHE_TTL_SECONDS")
+    history_cache_db_path: str = Field(
+        default="./data/history_cache.sqlite",
+        alias="HISTORY_CACHE_DB_PATH",
+        description="Broadside Range cold storage (SQLite); empty string disables disk cache.",
+    )
+    history_cache_ttl_seconds: float = Field(
+        default=3600.0,
+        ge=5.0,
+        alias="HISTORY_CACHE_TTL_SECONDS",
+        description="Broadside Range snapshot freshness window in seconds (default 1 hour); stale snapshots rebuild in the background while the page is open.",
+    )
     history_default_week_days: int = Field(default=7, ge=1, le=365, alias="HISTORY_DEFAULT_WEEK_DAYS")
     history_additional_per_request_delay_seconds: float = Field(
         default=0.75, ge=0.0, alias="HISTORY_ADDITIONAL_PER_REQUEST_DELAY_SECONDS"
@@ -103,6 +117,17 @@ class Settings(BaseSettings):
         alias="STALE_MOVIES_CACHE_TTL_SECONDS",
         description="TTL for the Radarr/Tautulli stale-movies snapshot (default 6 hours).",
     )
+    stale_4k_movies_cache_path: str = Field(
+        default="./data/stale_4k_movies_cache.json",
+        alias="STALE_4K_MOVIES_CACHE_PATH",
+        description="Harbor Watch 4K snapshot JSON; empty string disables persisting to disk.",
+    )
+    stale_4k_movies_cache_ttl_seconds: float = Field(
+        default=21600.0,
+        ge=5.0,
+        alias="STALE_4K_MOVIES_CACHE_TTL_SECONDS",
+        description="TTL for the Radarr 4K / Tautulli stale-movies snapshot (default 6 hours).",
+    )
     activity_cache_ttl_seconds: float = Field(default=10.0, alias="ACTIVITY_CACHE_TTL_SECONDS")
     activity_cache_stale_seconds: float = Field(default=30.0, alias="ACTIVITY_CACHE_STALE_SECONDS")
     tautulli_servers: list[TautulliServer] = Field(default_factory=list, alias="TAUTULLI_SERVERS_JSON")
@@ -112,6 +137,22 @@ class Settings(BaseSettings):
     radarr_base_url: str = Field(default="", alias="RADARR_BASE_URL")
     radarr_api_key: str = Field(default="", alias="RADARR_API_KEY")
     radarr_request_timeout_seconds: float = Field(default=15.0, alias="RADARR_REQUEST_TIMEOUT_SECONDS")
+    radarr_4k_base_url: str = Field(
+        default="",
+        alias="RADARR_4K_BASE_URL",
+        description="Separate Radarr instance for 4K movies (Harbor Watch 4K).",
+    )
+    radarr_4k_api_key: str = Field(default="", alias="RADARR_4K_API_KEY")
+    radarr_4k_request_timeout_seconds: float = Field(default=15.0, alias="RADARR_4K_REQUEST_TIMEOUT_SECONDS")
+    harbor_watch_4k_tautulli_section_id: int = Field(
+        default=0,
+        ge=0,
+        alias="HARBOR_WATCH_4K_TAUTULLI_SECTION_ID",
+        description=(
+            "Tautulli Plex movie library section id for Harbor Watch 4K (same as /library?section_id=…). "
+            "When > 0, staleness uses Tautulli library total plays (get_library_media_info) instead of history crawl."
+        ),
+    )
     overseerr_base_url: str = Field(
         default="",
         alias="OVERSEERR_BASE_URL",
@@ -172,6 +213,9 @@ class Settings(BaseSettings):
         rad = str(self.radarr_base_url or "").strip()
         if rad:
             validate_upstream_base_url(rad, block_private_hosts=True)
+        rad4k = str(self.radarr_4k_base_url or "").strip()
+        if rad4k:
+            validate_upstream_base_url(rad4k, block_private_hosts=True)
         return self
 
 
@@ -196,6 +240,11 @@ def sonarr_is_configured(settings: Settings) -> bool:
 def radarr_is_configured(settings: Settings) -> bool:
     """True when Radarr URL and API key are both non-empty."""
     return bool(str(settings.radarr_base_url or "").strip() and str(settings.radarr_api_key or "").strip())
+
+
+def radarr_4k_is_configured(settings: Settings) -> bool:
+    """True when Radarr 4K URL and API key are both non-empty."""
+    return bool(str(settings.radarr_4k_base_url or "").strip() and str(settings.radarr_4k_api_key or "").strip())
 
 
 def _plex_token_for_profile(settings: Settings, profile: Literal["primary", "secondary"]) -> str:

@@ -9,6 +9,8 @@ from urllib.parse import quote, urlparse
 
 import httpx
 
+from scoparr.aggregate import tmdb_id_from_guid
+
 logger = logging.getLogger(__name__)
 
 
@@ -159,6 +161,135 @@ def _parse_hub_search_show_rows(xml_text: str) -> list[dict[str, str]]:
             }
         )
     return rows
+
+
+def _parse_hub_search_movie_rows(xml_text: str) -> list[dict[str, str]]:
+    """Extract movie rows (ratingKey, title, guid, year) from hubs/search XML."""
+    rows: list[dict[str, str]] = []
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError:
+        return rows
+    for el in root.iter():
+        tag = _xml_local_tag(el.tag)
+        if tag not in ("Video", "Directory", "Metadata"):
+            continue
+        mtype = (el.get("type") or "").strip().lower()
+        if mtype != "movie":
+            continue
+        rk = (el.get("ratingKey") or "").strip()
+        if not rk.isdigit():
+            continue
+        rows.append(
+            {
+                "ratingKey": rk,
+                "title": el.get("title") or "",
+                "guid": el.get("guid") or "",
+                "year": (el.get("year") or "").strip(),
+            }
+        )
+    return rows
+
+
+def _pick_movie_rating_key(
+    candidates: list[dict[str, str]],
+    *,
+    tmdb_id: int | None,
+    title: str,
+    year: int | None,
+) -> str | None:
+    """Pick best movie match from hub search metadata (TMDB guid preferred, then title + year)."""
+    tnorm = " ".join(str(title or "").strip().lower().split())
+    yn = str(int(year)) if year is not None else ""
+    if tmdb_id is not None and int(tmdb_id) > 0:
+        want = int(tmdb_id)
+        for c in candidates:
+            tg = tmdb_id_from_guid(c.get("guid") or "")
+            if tg == want:
+                rk = str(c.get("ratingKey") or "").strip()
+                if rk.isdigit():
+                    return rk
+    if tnorm and yn:
+        for c in candidates:
+            ct = " ".join(str(c.get("title") or "").strip().lower().split())
+            cy = str(c.get("year") or "").strip()
+            if ct == tnorm and cy == yn:
+                rk = str(c.get("ratingKey") or "").strip()
+                if rk.isdigit():
+                    return rk
+    if tnorm:
+        for c in candidates:
+            ct = str(c.get("title") or "").strip().lower()
+            if ct == tnorm or tnorm in ct or ct in tnorm:
+                rk = str(c.get("ratingKey") or "").strip()
+                if rk.isdigit():
+                    return rk
+    if candidates:
+        rk = str(candidates[0].get("ratingKey") or "").strip()
+        if rk.isdigit():
+            return rk
+    return None
+
+
+async def plex_hub_search_movie_candidates(
+    *,
+    base_url: str,
+    token: str,
+    client_identifier: str,
+    query: str,
+    timeout_seconds: float = 30.0,
+) -> list[dict[str, str]]:
+    """Return movie candidates from GET /hubs/search (local library)."""
+    base = normalize_plex_base_url(base_url)
+    q = str(query or "").strip()
+    if not q:
+        return []
+    tok = str(token or "").strip()
+    cid = str(client_identifier or "").strip()
+    if not tok or not cid:
+        return []
+    url = f"{base}/hubs/search?query={quote(q)}&limit=40&local=1"
+    headers = _plex_xml_headers(tok, cid)
+    async with httpx.AsyncClient(timeout=timeout_seconds, follow_redirects=True) as client:
+        r = await client.get(url, headers=headers)
+    if r.status_code == 401:
+        raise PermissionError("Plex rejected the token (401)")
+    if r.status_code >= 400:
+        logger.warning("Plex hubs/search (movie) HTTP %s url=%s", r.status_code, redact_plex_url(url))
+        r.raise_for_status()
+    return _parse_hub_search_movie_rows(r.text or "")
+
+
+async def plex_resolve_movie_rating_key(
+    *,
+    base_url: str,
+    token: str,
+    client_identifier: str,
+    title: str,
+    year: int | None,
+    tmdb_id: int | None,
+    timeout_seconds: float = 30.0,
+) -> str | None:
+    """Find a movie ratingKey via hub search (TMDB guid preferred)."""
+    t = str(title or "").strip()
+    candidates: list[dict[str, str]] = []
+    if t:
+        candidates = await plex_hub_search_movie_candidates(
+            base_url=base_url,
+            token=token,
+            client_identifier=client_identifier,
+            query=t,
+            timeout_seconds=timeout_seconds,
+        )
+    if not candidates and tmdb_id is not None and int(tmdb_id) > 0:
+        candidates = await plex_hub_search_movie_candidates(
+            base_url=base_url,
+            token=token,
+            client_identifier=client_identifier,
+            query=f"tmdb:{int(tmdb_id)}",
+            timeout_seconds=timeout_seconds,
+        )
+    return _pick_movie_rating_key(candidates, tmdb_id=tmdb_id, title=t, year=year)
 
 
 async def plex_hub_search_show_candidates(

@@ -257,6 +257,31 @@
           </div>
         </details>
 
+        <details class="settings-block" data-settings-section="radarr-4k">
+          <summary>Radarr 4K (Harbor Watch 4K)</summary>
+          <div class="settings-block-body">
+          <div class="field-grid">
+            <label class="field">Radarr 4K base URL
+              <input type="text" name="radarr_4k_base_url" value="{{ form_values.radarr_4k_base_url | e }}" />
+            </label>
+            <label class="field">Radarr 4K request timeout (s)
+              <input type="number" name="radarr_4k_request_timeout_seconds" value="{{ form_values.radarr_4k_request_timeout_seconds }}" step="any" />
+            </label>
+            <label class="field">Radarr 4K API key
+              <input type="password" name="radarr_4k_api_key" autocomplete="off" placeholder="Leave blank to keep saved/env value" />
+            </label>
+            <label class="field">Harbor Watch 4K — Tautulli movie library section id
+              <input type="number" name="harbor_watch_4k_tautulli_section_id" value="{{ form_values.harbor_watch_4k_tautulli_section_id | int }}" min="0" step="1" />
+              <span class="hint">Same as Tautulli’s <code>/library?section_id=…</code> for your 4K Plex movie library. Use <strong>0</strong> to keep the old behavior (all-time movie history crawl + 2y / never-played rules).</span>
+            </label>
+          </div>
+          <div class="checkbox-line">
+            <input type="checkbox" name="clear_radarr_4k_key" value="1" id="clear_radarr_4k_key" />
+            <label for="clear_radarr_4k_key">Clear stored Radarr 4K API key (fall back to environment only)</label>
+          </div>
+          </div>
+        </details>
+
         <details class="settings-block" data-settings-section="plex">
           <summary>Plex Media Server</summary>
           <div class="settings-block-body">

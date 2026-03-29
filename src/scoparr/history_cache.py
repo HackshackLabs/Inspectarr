@@ -36,6 +36,25 @@ class HistoryPageCache:
     def make_key(self, seed: str) -> str:
         return sha256(seed.encode("utf-8")).hexdigest()
 
+    def peek(self, cache_key: str) -> tuple[dict, float] | None:
+        """
+        Return (payload, created_at_epoch) if a row exists, without applying TTL or deleting.
+
+        Used for cold storage: serve stale snapshots while a background rebuild runs.
+        """
+        if not self._enabled:
+            return None
+        path = Path(self.db_path).expanduser()
+        with sqlite3.connect(path) as conn:
+            row = conn.execute(
+                "SELECT created_at, payload_json FROM history_cache WHERE cache_key = ?",
+                (cache_key,),
+            ).fetchone()
+            if row is None:
+                return None
+            created_at, payload_json = row
+            return (json.loads(payload_json), float(created_at))
+
     def get(self, cache_key: str, ttl_seconds: float) -> dict | None:
         if not self._enabled:
             return None

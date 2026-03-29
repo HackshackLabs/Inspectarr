@@ -407,7 +407,9 @@ class TautulliClient:
                 timeout_attempted = True
                 self._trace_exchange(server, "get_history", None, False)
                 logger.warning(
-                    "Upstream timeout for get_history attempt",
+                    "Upstream timeout for get_history attempt (%.0fs httpx limit per try; raise "
+                    "HISTORY_REQUEST_TIMEOUT_SECONDS or History request timeout in /settings if this is frequent).",
+                    self.timeout_seconds,
                     extra={
                         "server_id": server.id,
                         "server_name": server.name,
@@ -465,7 +467,10 @@ class TautulliClient:
         if payload is None:
             timeout_suffix = " after reduced-window retries" if timeout_attempted else ""
             logger.warning(
-                "Upstream timeout for get_history after retries",
+                "Upstream timeout for get_history after retries (%.0fs per try%s). "
+                "Increase HISTORY_REQUEST_TIMEOUT_SECONDS if Tautulli is slow for large history windows.",
+                self.timeout_seconds,
+                timeout_suffix,
                 extra={
                     "server_id": server.id,
                     "server_name": server.name,

@@ -52,8 +52,8 @@
         Configured servers: {{ configured_servers }} |
         Rows shown: {{ returned_rows }} of {{ total_rows }} |
         Updated: {{ updated_at.strftime("%Y-%m-%d %H:%M:%S %Z") }} |
-        Cache: {{ cache_state }} |
-        <a href="/history?refresh=1&range_mode={{ filters.range_mode }}&start={{ start }}&length={{ length }}&user={{ filters.user }}&media_type={{ filters.media_type }}&start_date={{ filters.start_date }}&end_date={{ filters.end_date }}">Refresh now</a>
+        Cache: {% if cache_state == "cache_stale_rebuild" %}cold storage (stale, rebuilding){% else %}{{ cache_state }}{% endif %} |
+        <a href="/history?refresh=1&range_mode={{ filters.range_mode }}&start={{ start }}&length={{ length }}&user={{ filters.user }}&media_type={{ filters.media_type }}{% if filters.uhd_only %}&uhd_only=1{% endif %}&start_date={{ filters.start_date }}&end_date={{ filters.end_date }}">Refresh now</a>
       </p>
       <p class="meta">{{ filters.scope_note }}</p>
       {% if timed_out_servers %}
@@ -90,6 +90,14 @@
         setTimeout(function () { window.location.reload(); }, {{ history_poll_ms }});
       </script>
       {% endif %}
+      {% if cold_storage_rebuilding %}
+      <p class="muted" role="status">
+        Cold storage passed its TTL ({{ history_cache_ttl_seconds | int }}s). Showing the last snapshot while a fresh merge runs; this page reloads automatically while you keep it open.
+      </p>
+      <script>
+        setTimeout(function () { window.location.reload(); }, {{ history_poll_ms }});
+      </script>
+      {% endif %}
 
       <form class="filters" method="get" action="/history">
         <label>
@@ -111,6 +119,13 @@
             <option value="episode" {% if filters.media_type == "episode" %}selected{% endif %}>Episode</option>
             <option value="track" {% if filters.media_type == "track" %}selected{% endif %}>Track</option>
           </select>
+        </label>
+        <label class="filters-checkbox-line">
+          <span>Resolution</span>
+          <span style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+            <input type="checkbox" name="uhd_only" value="1" id="history-uhd-only" {% if filters.uhd_only %}checked{% endif %} />
+            <span>4K / UHD playback only</span>
+          </span>
         </label>
         <label>
           Start date
@@ -143,6 +158,10 @@
           <div class="muted card-sub">
             Last successful history fetch for this server id:
             <span title="UTC timestamp when this app last completed a successful get_history for this server_id">{{ server.last_ok_at_display }}</span>
+          </div>
+          <div class="muted card-sub">
+            Oldest play in this snapshot (merged row):
+            <span title="Earliest dated history row from this server in the current Broadside Range snapshot">{{ server.history_oldest_item_display | default("—", true) }}</span>
           </div>
           {% if server.error %}
           <div class="status-error">Error: {{ server.error }}</div>
@@ -184,10 +203,10 @@
 
       <div class="pager">
         {% if prev_start is not none %}
-        <a href="/history?range_mode={{ filters.range_mode }}&start={{ prev_start }}&length={{ length }}&user={{ filters.user }}&media_type={{ filters.media_type }}&start_date={{ filters.start_date }}&end_date={{ filters.end_date }}">Previous</a>
+        <a href="/history?range_mode={{ filters.range_mode }}&start={{ prev_start }}&length={{ length }}&user={{ filters.user }}&media_type={{ filters.media_type }}{% if filters.uhd_only %}&uhd_only=1{% endif %}&start_date={{ filters.start_date }}&end_date={{ filters.end_date }}">Previous</a>
         {% endif %}
         {% if next_start is not none %}
-        <a href="/history?range_mode={{ filters.range_mode }}&start={{ next_start }}&length={{ length }}&user={{ filters.user }}&media_type={{ filters.media_type }}&start_date={{ filters.start_date }}&end_date={{ filters.end_date }}">Next</a>
+        <a href="/history?range_mode={{ filters.range_mode }}&start={{ next_start }}&length={{ length }}&user={{ filters.user }}&media_type={{ filters.media_type }}{% if filters.uhd_only %}&uhd_only=1{% endif %}&start_date={{ filters.start_date }}&end_date={{ filters.end_date }}">Next</a>
         {% endif %}
       </div>
 {% endblock %}

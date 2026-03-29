@@ -4,24 +4,29 @@ import asyncio
 import logging
 from datetime import datetime, time, timezone
 from pathlib import Path
-from time import monotonic
+from time import monotonic, time as wall_time
 from typing import Any, Awaitable, Callable, Literal
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from scoparr.activity_cache import ActivitySnapshotCache
 from scoparr.dashboard_config import build_template_globals
-from scoparr.aggregate import merge_activity, merge_history
+from scoparr.aggregate import merge_activity, merge_history_unpaged
 from scoparr.history_cache import HistoryPageCache
 from scoparr.history_health import enrich_history_server_statuses
 from scoparr.live_streams import group_live_streams_by_server
+from scoparr.history_resolution import history_row_is_uhd_playback
 from scoparr.history_scope import crawl_trim_cutoff_epoch, resolve_upstream_history_dates
 from scoparr.settings import Settings, get_settings
 from scoparr.tautulli_client import TautulliClient
 
 logger = logging.getLogger(__name__)
+
+BROADSIDE_RANGE_MODE_COOKIE = "broadside_range_mode"
+_VALID_BROADSIDE_RANGE_MODES = frozenset({"week", "all"})
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
@@ -42,6 +47,46 @@ _history_retry_due_monotonic: dict[str, float] = {}
 _history_timeout_failure_streak: dict[str, int] = {}
 _history_last_timeout_snapshot_epoch: dict[str, int | None] = {}
 _history_next_retry_interval_seconds: dict[str, float | None] = {}
+
+_HISTORY_BASE_CACHE_VERSION = 3
+
+
+def _history_redirect_if_range_mode_missing(
+    request: Request,
+    range_mode: Literal["week", "all"] | None,
+) -> RedirectResponse | None:
+    """When the query omits range_mode, redirect once so URL carries the persisted (cookie) choice."""
+    if range_mode is not None:
+        return None
+    raw = (request.cookies.get(BROADSIDE_RANGE_MODE_COOKIE) or "week").lower()
+    pref = raw if raw in _VALID_BROADSIDE_RANGE_MODES else "week"
+    q = dict(request.query_params)
+    q["range_mode"] = pref
+    return RedirectResponse(
+        url=f"{request.url.path}?{urlencode(q)}",
+        status_code=303,
+    )
+
+
+def _history_stamp_range_mode_cookie(response: HTMLResponse, range_mode: str) -> HTMLResponse:
+    response.set_cookie(
+        BROADSIDE_RANGE_MODE_COOKIE,
+        range_mode,
+        max_age=365 * 24 * 3600,
+        path="/",
+        samesite="lax",
+        httponly=True,
+    )
+    return response
+
+
+def _history_base_payload_ok(payload: dict[str, Any] | None) -> bool:
+    return (
+        isinstance(payload, dict)
+        and int(payload.get("v") or 0) == _HISTORY_BASE_CACHE_VERSION
+        and isinstance(payload.get("all_rows"), list)
+        and isinstance(payload.get("server_statuses"), list)
+    )
 
 
 @router.get("/", response_class=HTMLResponse, tags=["dashboard"])
@@ -119,20 +164,30 @@ async def history(
     length: int = Query(default=50, ge=1, le=200_000),
     user: str | None = Query(default=None),
     media_type: str | None = Query(default=None),
+    uhd_only: bool = Query(
+        default=False,
+        description="When true, keep only rows that look like 4K/UHD playback (Tautulli video metadata).",
+    ),
     start_date: str | None = Query(default=None, description="YYYY-MM-DD"),
     end_date: str | None = Query(default=None, description="YYYY-MM-DD"),
-    range_mode: Literal["week", "all"] = Query(
-        default="week",
-        description='Default "week" uses last HISTORY_DEFAULT_WEEK_DAYS with upstream date filter; "all" paginates slowly.',
+    range_mode: Literal["week", "all"] | None = Query(
+        default=None,
+        description='Omitted: use last choice (cookie) or "week". "week" / "all" sent on every URL after redirect.',
     ),
     refresh: bool = Query(default=False),
 ) -> HTMLResponse:
     """Render merged history timeline with global ordering."""
+    redir = _history_redirect_if_range_mode_missing(request, range_mode)
+    if redir is not None:
+        return redir
+    assert range_mode is not None
+
     settings = get_settings()
     history_cache = _get_history_cache(settings)
     filters = {
         "user": user or "",
         "media_type": media_type or "",
+        "uhd_only": uhd_only,
         "start_date": start_date or "",
         "end_date": end_date or "",
         "range_mode": range_mode,
@@ -149,30 +204,35 @@ async def history(
         upstream_after=upstream_after,
         upstream_before=upstream_before,
     )
+    if uhd_only:
+        scope_note += " Showing 4K/UHD plays only (from Tautulli video height / resolution fields when present)."
     filters["scope_note"] = scope_note
+    if history_cache.enabled:
+        filters["scope_note"] += (
+            " While cold storage is fresh, pagination and the 4K/UHD filter are applied from the cached merge (no extra Tautulli fetch)."
+        )
     filters["upstream_after"] = upstream_after or ""
     filters["upstream_before"] = upstream_before or ""
-    cache_key_seed = "|".join(
+    # Cold storage keys the upstream merge only; UHD, pagination, etc. apply in memory while fresh.
+    base_cache_key_seed = "|".join(
         [
-            "history-v2",
+            f"history-v{_HISTORY_BASE_CACHE_VERSION}-base",
             ",".join(sorted([server.id for server in settings.tautulli_servers])),
             f"range_mode={range_mode}",
             f"upstream_after={upstream_after or ''}",
             f"upstream_before={upstream_before or ''}",
-            f"start={start}",
-            f"length={length}",
             f"user={filters['user']}",
             f"media_type={filters['media_type']}",
             f"start_date={filters['start_date']}",
             f"end_date={filters['end_date']}",
         ]
     )
-    cache_key = history_cache.make_key(cache_key_seed)
-    if refresh:
-        _history_cancel_timeout_retry(cache_key)
-        _force_refresh_key(history_cache, cache_key, _history_refresh_tasks)
+    base_cache_key = history_cache.make_key(base_cache_key_seed)
+    if refresh and history_cache.enabled:
+        _history_cancel_timeout_retry(base_cache_key)
+        _force_refresh_key(history_cache, base_cache_key, _history_refresh_tasks)
 
-    async def compute_payload() -> dict:
+    async def compute_base_payload() -> dict[str, Any]:
         parallel = (
             min(settings.upstream_max_parallel_servers, settings.history_full_max_parallel_servers)
             if range_mode == "all"
@@ -205,41 +265,48 @@ async def history(
             max_rows_per_server=max_rows,
             stop_before_epoch=stop_before,
         )
-        row_total = sum(len(r.rows) for r in results)
-        merged = merge_history(results, start=0, length=max(row_total, 1))
+        merged = merge_history_unpaged(results)
         filtered_rows = _apply_date_range(merged["rows"], start_date=start_date, end_date=end_date)
-
-        page_start = max(start, 0)
-        page_end = page_start + length
-        paged_rows = filtered_rows[page_start:page_end]
-        next_start = page_start + length if len(filtered_rows) > page_end else None
-        prev_start = max(page_start - length, 0) if page_start > 0 else None
-
+        statuses = [dict(s) for s in merged["server_statuses"]]
+        _enrich_server_statuses_oldest_item(statuses, filtered_rows)
         return {
-            "server_statuses": merged["server_statuses"],
-            "rows": paged_rows,
+            "v": _HISTORY_BASE_CACHE_VERSION,
+            "server_statuses": statuses,
+            "all_rows": filtered_rows,
             "configured_servers": len(settings.tautulli_servers),
             "updated_at_epoch": int(datetime.now(timezone.utc).timestamp()),
-            "start": page_start,
-            "length": length,
-            "returned_rows": len(paged_rows),
-            "total_rows": len(filtered_rows),
-            "next_start": next_start,
-            "prev_start": prev_start,
-            "filters": dict(filters),
         }
 
     if history_cache.enabled:
-        cache_payload, cache_state = await _get_or_schedule_cached_payload(
-            cache=history_cache,
-            cache_key_seed=cache_key_seed,
+        base_cached, cache_state = await _history_cold_storage_resolve(
+            history_cache=history_cache,
+            cache_key=base_cache_key,
             ttl_seconds=settings.history_cache_ttl_seconds,
-            compute_fn=compute_payload,
+            compute_fn=compute_base_payload,
             task_registry=_history_refresh_tasks,
         )
+        if base_cached is None:
+            cache_payload = None
+        else:
+            cache_payload = _history_materialize_from_base(
+                base_cached,
+                uhd_only=uhd_only,
+                start=start,
+                length=length,
+                filters=filters,
+            )
     else:
-        cache_payload = await compute_payload()
+        base_live = await compute_base_payload()
+        cache_payload = _history_materialize_from_base(
+            base_live,
+            uhd_only=uhd_only,
+            start=start,
+            length=length,
+            filters=filters,
+        )
         cache_state = "live_compute"
+
+    cold_storage_rebuilding = history_cache.enabled and cache_state == "cache_stale_rebuild"
 
     if cache_payload is None:
         loading_now = int(datetime.now(timezone.utc).timestamp())
@@ -259,7 +326,7 @@ async def history(
             _sorted_history_server_statuses(pending_statuses),
             loading_now,
         )
-        return templates.TemplateResponse(
+        resp = templates.TemplateResponse(
             request=request,
             name="history.html",
             context=_template_ctx(
@@ -286,8 +353,11 @@ async def history(
                 history_slow_crawl=range_mode == "all",
                 history_week_days=settings.history_default_week_days,
                 history_poll_ms=8000 if range_mode == "all" else 3000,
+                cold_storage_rebuilding=False,
+                history_cache_ttl_seconds=settings.history_cache_ttl_seconds,
             ),
         )
+        return _history_stamp_range_mode_cookie(resp, range_mode)
 
     updated_at_epoch = int(cache_payload.get("updated_at_epoch", int(datetime.now(timezone.utc).timestamp())))
     updated_at = datetime.fromtimestamp(updated_at_epoch, tz=timezone.utc)
@@ -301,24 +371,24 @@ async def history(
     if history_cache.enabled:
         if timed_out_servers:
             delay = _history_update_timeout_retry_state(
-                cache_key=cache_key,
+                cache_key=base_cache_key,
                 snapshot_updated_at_epoch=updated_at_epoch,
                 base_retry_seconds=settings.history_timeout_retry_seconds,
             )
             retry_interval_seconds = float(
-                _history_next_retry_interval_seconds.get(cache_key) or settings.history_timeout_retry_seconds
+                _history_next_retry_interval_seconds.get(base_cache_key) or settings.history_timeout_retry_seconds
             )
             _history_schedule_timeout_retry(
-                cache_key=cache_key,
+                cache_key=base_cache_key,
                 delay_seconds=delay,
                 history_cache=history_cache,
-                compute_fn=compute_payload,
+                compute_fn=compute_base_payload,
             )
-            retry_countdown_seconds = _history_retry_countdown_seconds(cache_key)
+            retry_countdown_seconds = _history_retry_countdown_seconds(base_cache_key)
         else:
-            _history_cancel_timeout_retry(cache_key)
+            _history_cancel_timeout_retry(base_cache_key)
 
-    return templates.TemplateResponse(
+    resp = templates.TemplateResponse(
         request=request,
         name="history.html",
         context=_template_ctx(
@@ -335,7 +405,7 @@ async def history(
             total_rows=cache_payload["total_rows"],
             next_start=cache_payload["next_start"],
             prev_start=cache_payload["prev_start"],
-            filters=cache_payload.get("filters") or filters,
+            filters=filters,
             cache_state=cache_state,
             loading=False,
             refresh=refresh,
@@ -345,8 +415,52 @@ async def history(
             history_slow_crawl=range_mode == "all",
             history_week_days=settings.history_default_week_days,
             history_poll_ms=8000 if range_mode == "all" else 3000,
+            cold_storage_rebuilding=cold_storage_rebuilding,
+            history_cache_ttl_seconds=settings.history_cache_ttl_seconds,
         ),
     )
+    return _history_stamp_range_mode_cookie(resp, range_mode)
+
+
+async def _history_cold_storage_resolve(
+    *,
+    history_cache: HistoryPageCache,
+    cache_key: str,
+    ttl_seconds: float,
+    compute_fn: Callable[[], Awaitable[dict]],
+    task_registry: dict[str, asyncio.Task],
+) -> tuple[dict | None, str]:
+    """
+    Broadside Range cold storage: fresh TTL window, then serve stale snapshot and rebuild in background.
+    """
+    peeked = history_cache.peek(cache_key)
+    payload: dict | None = None
+    created_at = 0.0
+    if peeked is not None:
+        cand, created_at = peeked
+        if _history_base_payload_ok(cand):
+            payload = cand
+        else:
+            history_cache.delete(cache_key)
+
+    if payload is None:
+        task = task_registry.get(cache_key)
+        if task is None or task.done():
+            task_registry[cache_key] = asyncio.create_task(
+                _refresh_cached_payload(history_cache, cache_key, compute_fn, task_registry)
+            )
+        return None, "refresh_pending"
+
+    age = wall_time() - float(created_at)
+    if age <= max(float(ttl_seconds), 0.0):
+        return payload, "cache_hit"
+
+    task = task_registry.get(cache_key)
+    if task is None or task.done():
+        task_registry[cache_key] = asyncio.create_task(
+            _refresh_cached_payload(history_cache, cache_key, compute_fn, task_registry)
+        )
+    return payload, "cache_stale_rebuild"
 
 
 def _history_scope_description(
@@ -449,24 +563,56 @@ def _format_epoch_utc(value: object) -> str:
         return "-"
 
 
-async def _get_or_schedule_cached_payload(
-    cache: HistoryPageCache,
-    cache_key_seed: str,
-    ttl_seconds: float,
-    compute_fn: Callable[[], Awaitable[dict]],
-    task_registry: dict[str, asyncio.Task],
-) -> tuple[dict | None, str]:
-    cache_key = cache.make_key(cache_key_seed)
-    cache_payload = cache.get(cache_key=cache_key, ttl_seconds=ttl_seconds)
-    if cache_payload is not None:
-        return cache_payload, "cache_hit"
+def _enrich_server_statuses_oldest_item(statuses: list[dict], rows: list[dict]) -> None:
+    """Smallest canonical_utc_epoch per server_id among rows (oldest play in this snapshot)."""
+    oldest_by_sid: dict[str, int] = {}
+    for row in rows:
+        sid = str(row.get("server_id") or "")
+        try:
+            ep = int(row.get("canonical_utc_epoch") or 0)
+        except (TypeError, ValueError):
+            continue
+        if not sid or ep <= 0:
+            continue
+        cur = oldest_by_sid.get(sid)
+        if cur is None or ep < cur:
+            oldest_by_sid[sid] = ep
+    for s in statuses:
+        sid = str(s.get("server_id") or "")
+        om = oldest_by_sid.get(sid)
+        s["history_oldest_item_epoch"] = om
+        s["history_oldest_item_display"] = _format_epoch_utc(om) if om else "—"
 
-    task = task_registry.get(cache_key)
-    if task is None or task.done():
-        task_registry[cache_key] = asyncio.create_task(
-            _refresh_cached_payload(cache, cache_key, compute_fn, task_registry)
-        )
-    return None, "refresh_pending"
+
+def _history_materialize_from_base(
+    base: dict[str, Any],
+    *,
+    uhd_only: bool,
+    start: int,
+    length: int,
+    filters: dict[str, Any],
+) -> dict[str, Any]:
+    rows: list[dict] = list(base.get("all_rows") or [])
+    if uhd_only:
+        rows = [r for r in rows if history_row_is_uhd_playback(r)]
+    page_start = max(start, 0)
+    page_end = page_start + length
+    paged_rows = rows[page_start:page_end]
+    next_start = page_start + length if len(rows) > page_end else None
+    prev_start = max(page_start - length, 0) if page_start > 0 else None
+    return {
+        "server_statuses": [dict(s) for s in (base.get("server_statuses") or [])],
+        "rows": paged_rows,
+        "configured_servers": int(base.get("configured_servers") or 0),
+        "updated_at_epoch": int(base.get("updated_at_epoch") or 0),
+        "start": page_start,
+        "length": length,
+        "returned_rows": len(paged_rows),
+        "total_rows": len(rows),
+        "next_start": next_start,
+        "prev_start": prev_start,
+        "filters": dict(filters),
+    }
 
 
 async def _refresh_cached_payload(

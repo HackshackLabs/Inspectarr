@@ -92,6 +92,47 @@ def merge_history(results: list[HistoryFetchResult], start: int = 0, length: int
     }
 
 
+def merge_history_unpaged(results: list[HistoryFetchResult]) -> dict:
+    """Merge all history rows from servers, newest-first, with per-server status cards (no pagination)."""
+    merged_rows: list[dict] = []
+    server_statuses: list[dict] = []
+
+    for result in results:
+        server_statuses.append(
+            {
+                "server_id": result.server_id,
+                "server_name": result.server_name,
+                "status": result.status,
+                "error": result.error,
+                "history_count": len(result.rows),
+                "records_filtered": result.records_filtered,
+                "records_total": result.records_total,
+            }
+        )
+        for row in result.rows:
+            if not isinstance(row, dict):
+                continue
+            normalized = dict(row)
+            normalized["server_id"] = result.server_id
+            normalized["server_name"] = result.server_name
+            normalized["canonical_utc_epoch"] = _extract_canonical_utc_epoch(row)
+            merged_rows.append(normalized)
+
+    merged_rows.sort(key=lambda item: item.get("canonical_utc_epoch", 0), reverse=True)
+    server_statuses.sort(
+        key=lambda item: (
+            str(item.get("server_name") or "").lower(),
+            str(item.get("server_id") or "").lower(),
+        )
+    )
+
+    return {
+        "server_statuses": server_statuses,
+        "rows": merged_rows,
+        "total_rows": len(merged_rows),
+    }
+
+
 def merge_history_rows_all(results: list[HistoryFetchResult]) -> list[dict]:
     """Merge every history row from all servers (no pagination), newest-first by canonical UTC."""
     merged_rows: list[dict] = []

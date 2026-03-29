@@ -67,20 +67,20 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FOUN-01 | Phase 1 | Pending |
-| FOUN-02 | Phase 1 | Pending |
-| FOUN-03 | Phase 1 | Pending |
-| FOUN-04 | Phase 1 | Pending |
-| FOUN-05 | Phase 1 | Pending |
-| UX-01 | Phase 2 | Pending |
-| UX-02 | Phase 2 | Pending |
-| UX-03 | Phase 2 | Pending |
-| UX-04 | Phase 2 | Pending |
-| UX-05 | Phase 2 | Pending |
-| MON-01 | Phase 3 | Pending |
-| MON-02 | Phase 3 | Pending |
-| STAL-01 | Phase 4 | Pending |
-| STAL-02 | Phase 4 | Pending |
+| FOUN-01 | Phase 1: Foundation & Resilience | Pending |
+| FOUN-02 | Phase 1: Foundation & Resilience | Pending |
+| FOUN-03 | Phase 1: Foundation & Resilience | Pending |
+| FOUN-04 | Phase 1: Foundation & Resilience | Pending |
+| FOUN-05 | Phase 1: Foundation & Resilience | Pending |
+| MON-01 | Phase 2: Monitoring & Health | Pending |
+| MON-02 | Phase 2: Monitoring & Health | Pending |
+| STAL-01 | Phase 3: Stale Library Improvements | Pending |
+| STAL-02 | Phase 3: Stale Library Improvements | Pending |
+| UX-01 | Phase 4: UI/UX Enhancements | Pending |
+| UX-02 | Phase 4: UI/UX Enhancements | Pending |
+| UX-03 | Phase 4: UI/UX Enhancements | Pending |
+| UX-04 | Phase 4: UI/UX Enhancements | Pending |
+| UX-05 | Phase 4: UI/UX Enhancements | Pending |
 
 **Coverage:**
 - v1 requirements: 14 total
